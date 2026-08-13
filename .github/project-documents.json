@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "repository": "noamtz/cpa-platform",
+  "project": {
+    "owner": "noamtz",
+    "number": 1,
+    "url": "https://github.com/users/noamtz/projects/1"
+  },
+  "canonicalArtifact": "repository-issue-body",
+  "projectItemType": "issue",
+  "artifactField": "Artifact type",
+  "artifactTypes": [
+    "PRD",
+    "Architecture",
+    "Implementation plan",
+    "RCA",
+    "Execution report",
+    "Code review",
+    "System review"
+  ],
+  "configuredAt": "2026-08-13T09:39:38.091063+00:00"
+}

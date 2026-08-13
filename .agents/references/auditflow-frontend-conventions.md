@@ -1,0 +1,5 @@
+# AuditFlow frontend conventions
+
+Use this when porting or changing the frontend. The reference UI is ESM JavaScript/JSX checked with TypeScript `checkJs`, with `@/*` mapped to `src/*`. React page and component files use PascalCase and default exports; pure helpers use kebab-case filenames and named exports. Page orchestration belongs in `src/pages/`, shared product UI in `src/components/`, and reusable state or compatibility logic in `src/lib/`. Evidence: source `package.json`, `jsconfig.json`, `src/pages/ClientQuestionnaire.jsx`, `src/components/questionnaire/QuestionStep.jsx`, and `src/lib/submission-compat.js`.
+
+Keep user-facing copy Hebrew and page layouts RTL. Use `cn()` and CSS design tokens for conditional styling, and do not hand-edit generated `src/components/ui/` primitives. ESLint covers pages/components, rejects unused imports and hook violations, and excludes `src/lib` and generated UI; `jsconfig.json` defines the narrower `checkJs` surface. Evidence: source `src/pages/CpaDashboard.jsx`, `src/index.css`, `src/lib/utils.js`, `eslint.config.js`, `jsconfig.json`, and `.agents/AGENTS.md`.

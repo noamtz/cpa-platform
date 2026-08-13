@@ -1,0 +1,5 @@
+# AuditFlow API and security contracts
+
+Use this when implementing AWS APIs or changing client/server calls. `/questionnaire` and its signing routes are intentionally public at the router, but every client data or file operation must validate `client_id + token`. Preserve resource-scoped file endpoints equivalent to `getSignedPdfUrl` and `getTemplateFileUrl`; do not expose an endpoint that signs an arbitrary caller-supplied file URI. Evidence: source `src/App.jsx` and `base44/functions/{getClientByToken,updateClientSubmission,getSignedPdfUrl,getTemplateFileUrl}/entry.ts`.
+
+Preserve the observable HTTP failure contract on AWS: JSON `{ error: message }`, with 400 for invalid input, 401/403 for authorization failures, 404 for missing records, 409 for stale archived submissions, and 500 for unexpected failures. The PDF API supplies CORS headers on every response. Evidence: source `base44/functions/updateClientSubmission/entry.ts`, `base44/functions/uploadFile/entry.ts`, and `lambda/pdf-generator/index.mjs`.
