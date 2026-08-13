@@ -117,6 +117,11 @@ python tooling/import_auditflow_source.py inspect `
   --verify-applied
 ```
 
+Committed-manifest verification compares immutable evidence: repository identities, the pinned source commit/tree
+and inventory, disposition counts, and every per-file blob verification. The manifest retains the Git version,
+destination branch, and pre-import destination commit as provenance observations, but later commits, branch
+checkouts, or Git upgrades do not invalidate otherwise identical import evidence.
+
 ## Result
 
 The destination contains the complete tracked production application baseline needed for later migration work.

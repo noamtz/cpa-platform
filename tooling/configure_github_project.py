@@ -21,9 +21,9 @@ GITHUB_REPOSITORY = "noamtz/cpa-platform"
 PROJECT_DESCRIPTION = "Canonical product and delivery documents for AuditFlow."
 PROJECT_README = """# AuditFlow project documents
 
-Canonical PRDs and architecture documents are Markdown pages in the repository Wiki. Repository issues in this
-Project track their epics and architecture work. Implementation plans, root-cause analyses, execution reports,
-and review reports remain canonical in their issue bodies. Use the **Artifact type** field to filter them.
+Canonical PRDs and architecture documents are Markdown pages in the repository Wiki. Implementation plans are
+versioned repository files under `.agents/plans/`. Repository issues in this Project track epics, architecture,
+root-cause analyses, execution reports, and review reports. Use the **Artifact type** field to filter them.
 
 Technical contracts required while changing code remain versioned in the repository.
 """
@@ -32,7 +32,6 @@ WIKI_URL = "https://github.com/noamtz/cpa-platform/wiki"
 ARTIFACT_TYPES = [
     "PRD",
     "Architecture",
-    "Implementation plan",
     "RCA",
     "Execution report",
     "Code review",
@@ -42,14 +41,13 @@ LABELS = {
     "epic": ("8250DF", "Master delivery tracker for a product epic"),
     "artifact:prd": ("0E8A16", "Canonical product requirements document"),
     "artifact:architecture": ("1D76DB", "Canonical architecture decision or specification"),
-    "artifact:plan": ("5319E7", "Canonical implementation plan"),
     "artifact:rca": ("D93F0B", "Canonical root-cause analysis"),
     "artifact:report": ("FBCA04", "Canonical execution or review report"),
 }
 ARTIFACT_STORAGE = {
     "PRD": "github-wiki-markdown",
     "Architecture": "github-wiki-markdown",
-    "Implementation plan": "repository-issue-body",
+    "Implementation plan": "repository-file",
     "RCA": "repository-issue-body",
     "Execution report": "repository-issue-body",
     "Code review": "repository-issue-body",
@@ -178,7 +176,7 @@ def configure(args: argparse.Namespace) -> dict[str, Any]:
     ensure_labels(repository)
 
     return {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "repository": repository,
         "wiki": {
             "repository": WIKI_REPOSITORY,

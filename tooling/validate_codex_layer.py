@@ -173,12 +173,12 @@ def validate_github_project_documents(errors: list[str]) -> None:
         error(errors, f".github/project-documents.json: {exc}")
         return
 
-    if manifest.get("schemaVersion") != 2:
-        error(errors, ".github/project-documents.json: schemaVersion must be 2")
+    if manifest.get("schemaVersion") != 3:
+        error(errors, ".github/project-documents.json: schemaVersion must be 3")
     expected_storage = {
         "PRD": "github-wiki-markdown",
         "Architecture": "github-wiki-markdown",
-        "Implementation plan": "repository-issue-body",
+        "Implementation plan": "repository-file",
         "RCA": "repository-issue-body",
         "Execution report": "repository-issue-body",
         "Code review": "repository-issue-body",
@@ -186,6 +186,16 @@ def validate_github_project_documents(errors: list[str]) -> None:
     }
     if manifest.get("canonicalArtifacts") != expected_storage:
         error(errors, ".github/project-documents.json: canonicalArtifacts mapping is invalid")
+    expected_project_artifacts = [
+        "PRD",
+        "Architecture",
+        "RCA",
+        "Execution report",
+        "Code review",
+        "System review",
+    ]
+    if manifest.get("artifactTypes") != expected_project_artifacts:
+        error(errors, ".github/project-documents.json: artifactTypes mapping is invalid")
     if manifest.get("projectItemType") != "issue":
         error(errors, ".github/project-documents.json: projectItemType must be issue")
     if manifest.get("projectItemRole") != "tracker":
@@ -281,6 +291,8 @@ def validate_github_project_documents(errors: list[str]) -> None:
         ".agents/plans/{kebab-case-descriptive-name}.md": "local plan filename contract",
         "Create `.agents/plans/` if it doesn't exist": "local plan directory creation rule",
         "add-user-authentication.md": "kebab-case filename example",
+        ".agents/references/github-project-documents.md": "project-document contract link",
+        "canonical repository-backed artifact": "canonical local storage rule",
     }
     for token, purpose in required_plan_output.items():
         if token not in plan_skill_text:

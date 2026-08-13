@@ -1,8 +1,9 @@
 # GitHub Wiki and Project document contract
 
 Use this contract whenever work creates, reads, or updates a product or delivery artifact. The configured GitHub
-Wiki is the canonical Markdown store for PRDs and architecture documents. Repository issues in the configured
-GitHub Project track those artifacts and remain the canonical store for the other artifact types.
+Wiki is the canonical Markdown store for PRDs and architecture documents. Implementation plans are canonical
+repository files. Repository issues in the configured GitHub Project track Wiki artifacts and remain canonical for
+RCAs and delivery reports.
 
 This repository is permanently bound to `noamtz/cpa-platform`, its Wiki repository
 `noamtz/cpa-platform.wiki`, and GitHub user `noamtz`. Never use another stored GitHub account for it. Run CLI
@@ -17,8 +18,10 @@ decides the source of truth for each artifact type.
   GitHub Project and links to the Wiki page.
 - **Architecture:** canonical Markdown page in the GitHub Wiki. A separate architecture tracker issue links to the
   page, is attached to the Project, and is linked as a child of or from the master epic.
-- **Implementation plan, RCA, execution report, code review, and system review:** canonical repository issue body,
-  attached to the Project as before.
+- **Implementation plan:** canonical Markdown file under `.agents/plans/`, committed on the feature branch with the
+  implementation it governs. Do not create a duplicate plan issue.
+- **RCA, execution report, code review, and system review:** canonical repository issue body, attached to the
+  Project.
 - **Technical contracts:** keep versioned in `AGENTS.md`, `.agents/references/`, and code-adjacent READMEs.
 
 Do not maintain a second PRD or architecture copy in the main code repository. The Wiki itself is a separate Git
@@ -72,6 +75,14 @@ For artifact types mapped to `repository-issue-body`, preserve the skill-specifi
 - `Last updated`: an ISO date.
 
 Apply the matching `artifact:*` label, add the issue to the Project, and set its `Artifact type` field.
+
+## Repository-backed implementation plans
+
+Store each implementation plan at `.agents/plans/<kebab-case-descriptive-name>.md`. The planning skill creates or
+updates that canonical file; the execution skill reads it directly. Commit the plan on the same feature branch as
+the implementation so review can compare intent and execution at one revision. A plan may link to its tracker
+ticket, epic, Wiki pages, execution report, and pull request, but those links do not replace the repository file as
+the source of truth. Do not publish a duplicate plan issue or add plans to the Project's `Artifact type` field.
 
 ## Publication and read-back
 

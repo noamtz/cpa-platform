@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "repository": "noamtz/cpa-platform",
   "wiki": {
     "repository": "noamtz/cpa-platform.wiki",
@@ -17,7 +17,7 @@
   "canonicalArtifacts": {
     "PRD": "github-wiki-markdown",
     "Architecture": "github-wiki-markdown",
-    "Implementation plan": "repository-issue-body",
+    "Implementation plan": "repository-file",
     "RCA": "repository-issue-body",
     "Execution report": "repository-issue-body",
     "Code review": "repository-issue-body",
@@ -29,11 +29,10 @@
   "artifactTypes": [
     "PRD",
     "Architecture",
-    "Implementation plan",
     "RCA",
     "Execution report",
     "Code review",
     "System review"
   ],
-  "configuredAt": "2026-08-13T10:48:49.414503+00:00"
+  "configuredAt": "2026-08-13T20:34:12.676881+00:00"
 }

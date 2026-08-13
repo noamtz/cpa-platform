@@ -167,7 +167,20 @@ class ImportAuditFlowSourceTests(unittest.TestCase):
             "--untracked-files=all",
         )
         self.assertIn(b"base44/.app.jsonc", untracked)
+
+        recorded_base = manifest["destination"]["baseCommit"]
+        manifest["source"]["gitVersion"] = "git version recorded-at-import"
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        committed_import = commit_all(self.destination, "commit imported baseline")
+        self.assertNotEqual(recorded_base, committed_import)
         with contextlib.redirect_stdout(io.StringIO()):
+            importer.inspect_command(
+                self.inspect_args(verify_applied=True, manifest=manifest_path)
+            )
+
+        manifest["files"][0]["blob"] = "0" * 40
+        manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(importer.ImportFailure, "Manifest does not match"):
             importer.inspect_command(
                 self.inspect_args(verify_applied=True, manifest=manifest_path)
             )

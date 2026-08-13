@@ -492,12 +492,31 @@ def build_manifest(
     }
 
 
+def manifest_verification_evidence(manifest: dict[str, Any]) -> dict[str, Any]:
+    """Return the immutable evidence used to verify a committed import manifest."""
+    source = manifest.get("source", {})
+    destination = manifest.get("destination", {})
+    return {
+        "schemaVersion": manifest.get("schemaVersion"),
+        "source": {
+            "remote": source.get("remote"),
+            "commit": source.get("commit"),
+            "tree": source.get("tree"),
+            "trackedFiles": source.get("trackedFiles"),
+            "blobBytes": source.get("blobBytes"),
+        },
+        "destination": {"remote": destination.get("remote")},
+        "dispositionCounts": manifest.get("dispositionCounts"),
+        "files": manifest.get("files"),
+    }
+
+
 def compare_manifest(expected_path: Path, actual: dict[str, Any]) -> None:
     try:
         expected = json.loads(expected_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ImportFailure(f"Could not read manifest {expected_path}: {exc}") from exc
-    if expected != actual:
+    if manifest_verification_evidence(expected) != manifest_verification_evidence(actual):
         raise ImportFailure(f"Manifest does not match the inspected source/destination: {expected_path}")
 
 

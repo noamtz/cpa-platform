@@ -425,6 +425,10 @@ Execute every command to ensure zero regressions and 100% feature correctness.
 
 ## Output Format
 
+Follow the repository-backed implementation-plan contract in
+`.agents/references/github-project-documents.md`. The plan file below is the canonical repository-backed artifact;
+commit it on the feature branch with the implementation. Do not duplicate the plan in a repository issue.
+
 **Filename:** `.agents/plans/{kebab-case-descriptive-name}.md`
 
 Replace `{kebab-case-descriptive-name}` with a short, descriptive feature name.
