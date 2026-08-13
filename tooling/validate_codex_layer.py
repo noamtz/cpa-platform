@@ -173,14 +173,35 @@ def validate_github_project_documents(errors: list[str]) -> None:
         error(errors, f".github/project-documents.json: {exc}")
         return
 
-    if manifest.get("schemaVersion") != 1:
-        error(errors, ".github/project-documents.json: schemaVersion must be 1")
-    if manifest.get("canonicalArtifact") != "repository-issue-body":
-        error(errors, ".github/project-documents.json: canonicalArtifact must be repository-issue-body")
+    if manifest.get("schemaVersion") != 2:
+        error(errors, ".github/project-documents.json: schemaVersion must be 2")
+    expected_storage = {
+        "PRD": "github-wiki-markdown",
+        "Architecture": "github-wiki-markdown",
+        "Implementation plan": "repository-issue-body",
+        "RCA": "repository-issue-body",
+        "Execution report": "repository-issue-body",
+        "Code review": "repository-issue-body",
+        "System review": "repository-issue-body",
+    }
+    if manifest.get("canonicalArtifacts") != expected_storage:
+        error(errors, ".github/project-documents.json: canonicalArtifacts mapping is invalid")
     if manifest.get("projectItemType") != "issue":
         error(errors, ".github/project-documents.json: projectItemType must be issue")
+    if manifest.get("projectItemRole") != "tracker":
+        error(errors, ".github/project-documents.json: projectItemRole must be tracker")
     if manifest.get("repository") != EXPECTED_GITHUB_REPOSITORY:
         error(errors, f".github/project-documents.json: repository must be {EXPECTED_GITHUB_REPOSITORY}")
+    wiki = manifest.get("wiki")
+    if not isinstance(wiki, dict):
+        error(errors, ".github/project-documents.json: wiki object is missing")
+        wiki = {}
+    if wiki.get("repository") != "noamtz/cpa-platform.wiki":
+        error(errors, ".github/project-documents.json: wiki.repository is invalid")
+    if wiki.get("url") != "https://github.com/noamtz/cpa-platform/wiki":
+        error(errors, ".github/project-documents.json: wiki.url is invalid")
+    if wiki.get("canonicalArtifactTypes") != ["PRD", "Architecture"]:
+        error(errors, ".github/project-documents.json: wiki canonicalArtifactTypes are invalid")
     project = manifest.get("project")
     if not isinstance(project, dict):
         error(errors, ".github/project-documents.json: project object is missing")

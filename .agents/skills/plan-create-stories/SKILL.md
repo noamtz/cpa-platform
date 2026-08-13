@@ -11,14 +11,15 @@ Turn a finished PRD into a backlog of small, well-formed tickets. Each
 Implementation Phase in the PRD becomes a group of tickets; each User Story
 becomes one or more tickets with explicit acceptance criteria.
 
-For this repository, GitHub Issues attached to the configured GitHub Project are the default and source of truth.
-Read `.agents/references/github-project-documents.md` before resolving the PRD or creating tickets.
+For this repository, the Wiki PRD is the product source of truth; GitHub Issues attached to the configured GitHub
+Project are the delivery trackers and ticket source of truth. Read `.agents/references/github-project-documents.md`
+before resolving the PRD or creating tickets.
 
 ## Arguments
 
 | Argument | Required | Meaning |
 |----------|----------|---------|
-| `<prd-url>` | yes | Canonical PRD issue URL produced by `plan-create-prd` |
+| `<prd-url>` | yes | Master epic issue or canonical Wiki PRD URL produced by `plan-create-prd` |
 | `--milestone` | no | Optional GitHub milestone to attach issues to |
 
 If the user explicitly requests another tracker, honor that direct request; otherwise do not ask which platform.
@@ -26,7 +27,8 @@ If the user explicitly requests another tracker, honor that direct request; othe
 ## Workflow
 
 ### 1. Read and decompose the PRD
-- Read the canonical `<prd-url>` issue body in full.
+- If `<prd-url>` is the master epic issue, follow its canonical Wiki PRD link. Read the Wiki Markdown page in full;
+  the issue body is the delivery tracker, not the PRD source of truth.
 - Walk the **Implementation Phases** section. Each phase is a ticket group.
 - Walk the **User Stories** section. Each story maps to one ticket (split if it
   hides more than ~a day of work).
@@ -45,7 +47,7 @@ one click.
 
 ### 3. Create the tickets in GitHub
 
-- Prefer the `github-projects` MCP; use `gh` as the fallback.
+- Prefer the `github-projects` MCP; use `python tooling/github.py ...` as the fallback.
 - Create each repository issue, then add it to the configured GitHub Project.
 - Put acceptance criteria in the issue body as a markdown checklist.
 - Apply a `phase-N` label per PRD phase (create the label if missing with
@@ -54,7 +56,7 @@ one click.
 
 ### 4. Report
 - A table: ticket title → phase → created key/number/URL.
-- The canonical PRD issue URL the backlog was generated from.
+- The canonical Wiki PRD URL and master epic issue the backlog was generated from.
 - Next step: each phase is now ready to run as a PIV loop.
 
 ## Quality Checks

@@ -1,6 +1,6 @@
 ---
 name: plan-create-prd
-description: Interactive, problem-first PRD generator — interviews the user to surface the thesis (the problem, and WHY build it) and a falsifiable hypothesis, then writes a focused PRODUCT-level PRD (problem · evidence · hypothesis · users · MVP · success metrics · non-goals · open questions). Use at the start of a greenfield effort to discuss the product. A PRD is INTENT (what/why), never engineering decisions (how) — those are the `plan-architecture` skill's spec.
+description: Interactive, problem-first PRD generator — interviews the user to surface the thesis and a falsifiable hypothesis, publishes the canonical PRD as Markdown in this repository's GitHub Wiki, and creates or updates its master epic issue in the configured GitHub Project. Use when defining a new product or epic; not for engineering architecture or implementation plans.
 ---
 
 # Create PRD: Intent, Not Instructions
@@ -85,10 +85,18 @@ over-invest feasibility and under-invest value — and value means wanting it *m
 
 ## Generate the PRD
 
-Read `.agents/references/github-project-documents.md`. Publish the PRD as a repository issue attached to the
-configured GitHub Project, with an idea-derived title such as `[PRD] Pluggable ingestion`; never write a local
-`PRD.md` or `docs/*.prd.md` fallback. If the user explicitly names another destination for this artifact, that
-direct request wins. Use product sections only, scannable:
+Read `.agents/references/github-project-documents.md` and `.github/project-documents.json`. Publish the canonical
+PRD as a Markdown page in the configured GitHub Wiki using `PRD-<epic-slug>.md`. Create or update one repository
+master issue titled `[Epic] <outcome-oriented name>`, attach it to the configured GitHub Project, apply `epic` and
+`artifact:prd`, and set `Artifact type` to `PRD`. The issue is a delivery tracker that links to the canonical Wiki
+page; do not duplicate the complete PRD in its body.
+
+If a PRD issue already exists, reuse it as the master epic. Never create a second issue solely to adopt the tracker
+model. Do not write a duplicate under `docs/` or another directory in the code repository. If the Wiki has no first
+page or cannot be pushed, stop and report that prerequisite instead of falling back to an issue body or local file.
+If the user explicitly names another destination, that direct request wins.
+
+Use product sections only, scannable:
 
 1. **Problem Statement** — who has what problem, and the cost of not solving it.
 2. **Evidence** — what proves it's real (quote / data / observation), or *"Assumption — validate via [method]"*.
@@ -100,13 +108,23 @@ direct request wins. Use product sections only, scannable:
 8. **Non-goals** — what you're explicitly NOT doing.
 9. **Open Questions** — named, not hidden (checkboxes).
 
+End the Wiki page with artifact metadata linking the master epic. Keep the master issue concise:
+
+- Canonical PRD Wiki URL.
+- Outcome and deadline.
+- Success-criteria summary.
+- Links/placeholders for architecture, child issues, and pull requests.
+
+Commit and push the Wiki Markdown, then read back the Wiki URL, master issue, and Project fields. The PRD is not
+published until all three resolve correctly.
+
 ## Output + hand off
 
-- Confirm where it landed (the canonical issue/page URL); 3-5 line summary leading with the **thesis** and
-  **hypothesis**; show what's evidenced
-  vs assumed and the open-questions count.
+- Confirm both URLs: the canonical Wiki PRD page and its master epic issue; give a 3-5 line summary leading with the
+  **thesis** and **hypothesis**, then show what is evidenced versus assumed and the open-questions count.
 - **Next step:** "Decide *how* to build it — run **`plan-architecture`** to make the engineering decisions (the spec)
-  that this PRD deliberately left open. That's what `rules-create-global` then turns into your global rules."
+  that this PRD deliberately left open. Pass the master epic issue; it links to the canonical Wiki PRD. That's what
+  `rules-create-global` then turns into your global rules."
 
 ## Success criteria — the five tests of a good PRD
 

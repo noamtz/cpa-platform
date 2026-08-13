@@ -1,12 +1,13 @@
 ---
 name: plan-architecture
-description: Interactively explore HOW to approach an intent and decide the high-level architecture — approach, stack, libraries, data shape, and risks — then publish a separate architecture artifact to this repository's configured GitHub Project. A CTO/staff-engineer working session that compares options and recommends a direction; not a task-by-task implementation plan.
+description: Interactively explore HOW to approach an intent and decide the high-level architecture — approach, stack, libraries, data shape, and risks — then publish canonical Markdown in this repository's GitHub Wiki with a linked architecture tracker issue in the configured GitHub Project. Use after a PRD or epic exists; not for a task-by-task implementation plan.
 ---
 
 # Architect: Explore the Approach, Decide the Architecture
 
 **Input intent**: the user's request — a PRD, an epic, a brief, or a free-form idea. For this repository, resolve a
-GitHub issue URL through the `github-projects` MCP (or `gh` fallback). If the user explicitly supplies a
+GitHub master epic issue through the `github-projects` MCP (or repository wrapper fallback), then follow its
+canonical GitHub Wiki PRD link and read that Markdown page in full. If the user explicitly supplies a
 Confluence/Jira reference, fetch that source via the Atlassian MCP.
 
 **Reference docs (optional):** if any paths were passed alongside the intent — API docs, product/engineering
@@ -94,10 +95,13 @@ Reversible, low-cost calls → just decide and move on.
 
 ## The output: a high-level architecture decision doc
 
-Only after the calls are made. Read `.agents/references/github-project-documents.md`, then publish a separate
-`Architecture` repository issue attached to the configured GitHub Project and link it both ways with the PRD. The
-PRD stays pure intent; this artifact holds the *how*. Do not fold it into the PRD or create a local
-`architecture.md` fallback. Keep it high-level and fill this shape:
+Only after the calls are made. Read `.agents/references/github-project-documents.md` and
+`.github/project-documents.json`, then publish canonical architecture Markdown in the configured GitHub Wiki as
+`Architecture-<epic-slug>.md`. Create a separate `[Architecture] <epic name>` tracker issue, attach it to the
+configured GitHub Project, set `Artifact type` to `Architecture`, and link it as a child of the master epic when
+supported. Link the Wiki PRD and architecture pages both ways. The PRD stays pure intent; this artifact holds the
+*how*. Do not fold it into the PRD, duplicate it in the issue body, or create a local `architecture.md` fallback.
+If the Wiki is unavailable, stop and report the prerequisite. Keep the document high-level and fill this shape:
 
 ```markdown
 # Architecture — <intent name>
@@ -132,8 +136,9 @@ Decisions deliberately deferred — named, not hidden — and what would settle 
 
 ## After this
 
-Confirm where you wrote it, summarize the recommended approach + the key calls in a few lines, then offer the
-natural next moves and let the user pick — **don't force a pipeline**:
+Commit and push the Wiki Markdown, then read back the canonical Wiki page, architecture tracker, master-issue
+relationship, and Project fields. Confirm both document and tracker URLs, summarize the recommended approach + the
+key calls in a few lines, then offer the natural next moves and let the user pick — **don't force a pipeline**:
 
 - **Slice it into tickets** — feed the doc to `$piv-slice-epic` to break the epic into PIV-sized tickets, and create
   the GitHub issues / Jira tickets from them.

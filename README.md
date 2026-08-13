@@ -27,9 +27,10 @@ uv run --script tooling/mcp/codebase_search.py --self-test
 
 Skills are invoked with `$skill-name`, for example `$prime-codebase` or `$piv-plan-implementation`. Ask Codex directly to delegate when you want parallel subagents, for example: “Have `codebase-analyst` map billing and `research-agent` verify the provider API, then wait for both and summarize.”
 
-Canonical project artifacts live in repository issues attached to the linked GitHub Project. See
-`.agents/references/github-project-documents.md` for the storage and publishing contract. Technical contracts that
-Codex must read while changing code remain versioned in this repository.
+Canonical PRDs and architecture documents live as Markdown pages in the repository Wiki. Repository issues attached
+to the linked GitHub Project track each epic or architecture artifact, while implementation plans and reports remain
+canonical in their issue bodies. See `.agents/references/github-project-documents.md` for the storage and publishing
+contract. Technical contracts that Codex must read while changing code remain versioned in this repository.
 
 The `posthog-analyst` agent requires a separately configured PostHog MCP server and credential environment. The repository intentionally does not commit that external credential configuration.
 
