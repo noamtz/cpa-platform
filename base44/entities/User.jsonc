@@ -1,0 +1,21 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "user"
+      ],
+      "default": "user"
+    },
+    "drive_base_path": {
+      "type": "string",
+      "description": "Base folder path in Google Drive for file sync"
+    }
+  },
+  "required": [
+    "drive_base_path"
+  ]
+}

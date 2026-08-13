@@ -1,0 +1,17 @@
+{
+  "name": "pdf-generator",
+  "version": "1.0.0",
+  "description": "AWS Lambda function for server-side PDF generation using pdfme",
+  "type": "module",
+  "scripts": {
+    "build": "bash build.sh",
+    "clean": "rm -rf dist deployment.zip"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.65",
+    "@pdfme/common": "^6.1.1",
+    "@pdfme/generator": "^6.1.1",
+    "@pdfme/schemas": "^6.1.1",
+    "pdfjs-dist": "3.11.174"
+  }
+}

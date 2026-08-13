@@ -4,3 +4,59 @@
 .codex/logs/
 __pycache__/
 *.pyc
+
+# AuditFlow application runtime/build/infrastructure
+# Environment
+
+# Logs
+/logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+.vite
+secrets/*
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+**/secrets/
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl
+
+# Lambda build artifacts
+lambda/*/node_modules/
+lambda/*/*.zip
+
+base44/.app.jsonc
+!base44/.app.jsonc
+
+# SST
+.sst/
+sst-env.d.ts

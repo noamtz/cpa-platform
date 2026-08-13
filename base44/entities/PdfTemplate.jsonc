@@ -1,0 +1,23 @@
+{
+  "name": "PdfTemplate",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Template display name"
+    },
+    "template_json": {
+      "type": "string",
+      "description": "JSON-encoded pdfme template (basePdf as base64, schemas, fieldMapping)"
+    },
+    "is_active": {
+      "type": "boolean",
+      "description": "Whether this template is active and shown to clients",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "template_json"
+  ]
+}

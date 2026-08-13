@@ -1,0 +1,36 @@
+{
+  "name": "SyncedDriveFile",
+  "type": "object",
+  "properties": {
+    "submission_id": {
+      "type": "string",
+      "description": "ID of the submission this file belongs to"
+    },
+    "original_file_url": {
+      "type": "string",
+      "description": "Original URI/URL of the file from Base44 storage (used as unique key)"
+    },
+    "drive_file_id": {
+      "type": "string",
+      "description": "Google Drive File ID of the uploaded file"
+    },
+    "drive_parent_folder_id": {
+      "type": "string",
+      "description": "ID of the Google Drive folder where the file is located"
+    },
+    "file_name_on_drive": {
+      "type": "string",
+      "description": "Name of the file as stored on Google Drive"
+    },
+    "synced_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp when the file was last successfully synced"
+    }
+  },
+  "required": [
+    "submission_id",
+    "original_file_url",
+    "drive_file_id"
+  ]
+}

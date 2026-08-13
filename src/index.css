@@ -1,0 +1,72 @@
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 33 40% 97%;
+    --foreground: 220 20% 20%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 20%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 20%;
+    --primary: 24 85% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 33 50% 92%;
+    --secondary-foreground: 220 20% 30%;
+    --muted: 33 30% 94%;
+    --muted-foreground: 220 10% 55%;
+    --accent: 173 45% 50%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 75% 58%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 33 25% 88%;
+    --input: 33 25% 88%;
+    --ring: 24 85% 58%;
+    --radius: 0.75rem;
+    --success: 142 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 90% 55%;
+    --warning-foreground: 0 0% 100%;
+    --font-heebo: 'Heebo', sans-serif;
+  }
+
+  .dark {
+    --background: 220 20% 10%;
+    --foreground: 33 30% 92%;
+    --card: 220 20% 14%;
+    --card-foreground: 33 30% 92%;
+    --popover: 220 20% 14%;
+    --popover-foreground: 33 30% 92%;
+    --primary: 24 85% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 15% 22%;
+    --secondary-foreground: 33 30% 85%;
+    --muted: 220 15% 18%;
+    --muted-foreground: 220 10% 55%;
+    --accent: 173 45% 45%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 15% 22%;
+    --input: 220 15% 22%;
+    --ring: 24 85% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground font-heebo;
+    direction: rtl;
+  }
+
+  * {
+    font-family: var(--font-heebo), sans-serif;
+  }
+}

@@ -2,7 +2,9 @@
 
 ## Architecture map
 
-All application entries in this map currently live under `C:\Users\ntzur\workspace-antigravity\auditflow`; the `.agents/`, `.codex/`, and `tooling/` entries live in this rewrite workspace.
+Application, migration-evidence, AI-layer, and tooling entries in this map now live in this repository. The pinned
+production source remains available read-only at `C:\Users\ntzur\workspace-antigravity\auditflow` for provenance
+checks only.
 
 ```text
 src/main.jsx                        # Browser bootstrap and global stylesheet loading.
@@ -34,20 +36,30 @@ tooling/                            # Deterministic validation and local MCP too
 
 - **Frontend:** compose routes in `src/App.jsx`, pages in `src/pages/`, product UI in the matching `src/components/` area, hooks in `src/hooks/`, and shared behavior plus tests in `src/lib/` and `src/lib/__tests__/`; generated primitives remain in `src/components/ui/`.
 - **Frontend data access:** replace `src/api/base44Client.js` with AWS-backed client modules under `src/api/`, not a parallel client directory.
-- **New non-PDF backend:** no target implementation seam or AWS service has been selected. Record an architecture decision first, then preserve the relevant behavior and security evidenced by `base44/entities/`, `base44/functions/`, and `.agents/references/auditflow-api-security-contracts.md`.
+- **New non-PDF backend:** follow the approved SST v3 serverless compatibility architecture: CloudFront/S3,
+  API Gateway HTTP API, modular Lambda code, DynamoDB, private S3 storage, and Cognito. Preserve the relevant
+  behavior and security evidenced by `base44/entities/`, `base44/functions/`, and
+  `.agents/references/auditflow-api-security-contracts.md`; architectural deviations require a recorded decision.
 - **PDF API:** extend `lambda/pdf-generator/`; change `infra/{test,prod}/` only for infrastructure or configuration changes, and `.github/workflows/` only for deployment or rollback changes.
 
 ## Ground rules
 
-Evidence paths below are relative to `C:\Users\ntzur\workspace-antigravity\auditflow` unless marked as rewrite-workspace files.
+Evidence paths below are relative to this repository. The external production-source repository is provenance-only.
 
 - **Behavioral source:** Preserve UI and behavior demonstrated by source code and characterization tests. Use `docs/PRD.md` and `docs/user-journeys/` to discover scenarios, but resolve conflicts in favor of executable code. Evidence: `src/App.jsx`, `src/pages/ClientQuestionnaire.jsx`, `src/lib/__tests__/questionnaire-steps.test.js`, and `docs/user-journeys/05-traceability-ledger.md`.
-- **Target platform:** New runtime integrations are AWS-backed and introduce no new Base44 SDK, entity, function, connector, agent, or storage dependency. Choose specific AWS services only through a recorded architecture decision. Evidence: rewrite-workspace `.agents/references/auditflow-rewrite-target.md`.
-- **Source integrity:** Make rewrite changes here; treat `C:\Users\ntzur\workspace-antigravity\auditflow` as read-only unless the user explicitly requests changes there. Evidence: rewrite/input boundary in `.agents/references/auditflow-rewrite-target.md`.
+- **Target platform:** New runtime integrations are AWS-backed and introduce no new Base44 SDK, entity, function,
+  connector, agent, or storage dependency. The canonical architecture selects an SST v3 serverless compatibility
+  layer; do not introduce a different platform without updating that architecture decision. Evidence:
+  `.agents/references/auditflow-rewrite-target.md` and the canonical `Architecture-AuditFlow-Platform-Migration`
+  Wiki page.
+- **Source integrity:** Make rewrite changes here; treat `C:\Users\ntzur\workspace-antigravity\auditflow` as read-only unless the user explicitly requests changes there. Reproduce and verify the imported baseline through `tooling/import_auditflow_source.py` and `docs/migration/auditflow-source-manifest.json`. Evidence: rewrite/input boundary in `.agents/references/auditflow-rewrite-target.md`.
 - **Parity:** Add evidence before replacing behavior, and keep the working Base44 path until its AWS replacement has verified parity and a rollback-safe cutover. Evidence: rewrite-workspace `.agents/references/auditflow-rewrite-target.md` and source `.agents/AGENTS.md`.
 - **Git:** Use feature branches for major work, reserve direct `main` changes for hotfixes, and prefix commits with `feat:`, `fix:`, `refactor:`, `infra:`, or `test:`. Evidence: source `.agents/AGENTS.md`.
 - **GitHub identity:** This repository belongs exclusively to GitHub user `noamtz`, with origin `git@github.com:noamtz/cpa-platform.git`. Never use `noamtznm` here; that account belongs to unrelated work. Run GitHub CLI operations through `python tooling/github.py ...`, which selects the `noamtz` credential explicitly. The `github-projects` MCP launcher is bound to the same credential.
-- **Validation:** Until the corresponding application manifest and scripts migrate here, run the applicable source scripts from `C:\Users\ntzur\workspace-antigravity\auditflow`: `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`. For AI-layer changes, run `python tooling/validate_codex_layer.py` here. Evidence: source `package.json` and rewrite-workspace `tooling/validate_codex_layer.py`.
+- **Validation:** Use Node 20.17.0 and run `npm ci`, `npm test`, `npm run typecheck`, `npm run lint`, and
+  `npm run build` here. Compare known baseline failures with `docs/migration/auditflow-source-baseline.md`. For
+  AI-layer changes, also run `python tooling/validate_codex_layer.py`. Evidence: `package.json`, the migration
+  baseline report, and `tooling/validate_codex_layer.py`.
 - **Project documents:** Store canonical PRDs and architecture documents as Markdown pages in the GitHub Wiki configured in `.github/project-documents.json`. Represent each with a repository issue attached to the GitHub Project: a PRD uses one master epic issue, while architecture uses a linked child/tracker issue. Other delivery artifacts remain canonical in their tracker issue bodies. Do not duplicate Wiki documents in this code repository or create a fallback when the Wiki is unavailable; report the missing Wiki, Project identity, or authentication prerequisite instead. Keep code-operational contracts in this repository. Read `.agents/references/github-project-documents.md` before creating, reading, or updating a project artifact.
 
 Read the relevant contract before changing its area:

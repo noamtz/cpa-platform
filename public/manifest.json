@@ -1,0 +1,23 @@
+{
+  "name": "דורון ודורון – איסוף מסמכים לדוח השנתי",
+  "short_name": "דורון ודורון",
+  "description": "העברת מסמכים לדוח השנתי – מהירה, קלה ומאובטחת",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf8f5",
+  "theme_color": "#e07b39",
+  "lang": "he",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "https://media.base44.com/images/public/69f6f0a2ca1cf47418010a34/cbf7a3438_brandimage.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "https://media.base44.com/images/public/69f6f0a2ca1cf47418010a34/cbf7a3438_brandimage.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

@@ -1,8 +1,35 @@
-# Codex AI Layer Starter
+# AuditFlow
 
-This repository contains a project-scoped Codex setup: `AGENTS.md`, repo skills, custom agents, hooks, an MCP server, and optional Archon workflows.
+AuditFlow is the production React/Vite application used to manage CPA client annual-report questionnaires,
+documents, signatures, and PDF workflows. This repository contains the immutable production-source baseline for
+the Base44-to-AWS migration together with the project-scoped Codex tooling that governs parity work.
 
-## First run
+The imported baseline is pinned and accounted for in
+[`docs/migration/auditflow-source-baseline.md`](docs/migration/auditflow-source-baseline.md). Treat the legacy
+Base44 entities, functions, and agents as migration evidence, not as the target AWS architecture.
+
+## Application setup
+
+Use Node.js 20.17.0 and the committed lockfile:
+
+```powershell
+npm ci
+npm test
+npm run typecheck
+npm run lint
+npm run build
+```
+
+The baseline report records which checks already fail at the pinned source revision. Do not mix unrelated source
+cleanup with migration changes. Run the development server with `npm run dev` after supplying the required local
+runtime configuration through an ignored local configuration file.
+
+## Codex project setup
+
+The repository also contains `AGENTS.md`, repo skills, custom agents, hooks, an MCP server, and optional Archon
+workflows.
+
+### First run
 
 1. Open the repository as a trusted project in Codex.
 2. Restart Codex so it discovers `AGENTS.md`, `.agents/skills`, `.codex/config.toml`, and `.codex/agents`.

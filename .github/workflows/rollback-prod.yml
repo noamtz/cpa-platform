@@ -1,0 +1,91 @@
+name: Rollback PDF Lambda (Prod)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Lambda version number to rollback to (run "List versions" first to see available versions)'
+        required: true
+      reason:
+        description: 'Reason for rollback'
+        required: false
+        default: ''
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: il-central-1
+  LAMBDA_FUNCTION: taxflow-pdf-generator-prod
+  LAMBDA_ALIAS: live
+  HEALTH_URL: https://hickopn9f0.execute-api.il-central-1.amazonaws.com/health
+
+jobs:
+  rollback:
+    # Legacy AuditFlow deployment evidence only; disabled in cpa-platform. See #9.
+    if: github.repository == 'noamtz/auditflow'
+    name: Rollback Production
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::006296770641:role/github-actions-taxflow
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Show current alias state
+        run: |
+          echo "📋 Current alias state:"
+          aws lambda get-alias \
+            --function-name ${{ env.LAMBDA_FUNCTION }} \
+            --name ${{ env.LAMBDA_ALIAS }} \
+            --region ${{ env.AWS_REGION }} \
+            --output json | jq '{Name, FunctionVersion, Description}'
+
+      - name: Validate target version exists
+        run: |
+          echo "🔍 Checking version ${{ inputs.version }} exists..."
+          aws lambda get-function \
+            --function-name ${{ env.LAMBDA_FUNCTION }} \
+            --qualifier ${{ inputs.version }} \
+            --region ${{ env.AWS_REGION }} \
+            --output json | jq '{FunctionName, Version, Description, LastModified}'
+
+      - name: Update alias to rollback version
+        run: |
+          aws lambda update-alias \
+            --function-name ${{ env.LAMBDA_FUNCTION }} \
+            --name ${{ env.LAMBDA_ALIAS }} \
+            --function-version ${{ inputs.version }} \
+            --description "rollback to v${{ inputs.version }}: ${{ inputs.reason }}" \
+            --region ${{ env.AWS_REGION }} \
+            --output json | jq '{Name, FunctionVersion, Description}'
+          echo "⏪ Alias '${{ env.LAMBDA_ALIAS }}' → version ${{ inputs.version }}"
+
+      - name: Health check
+        run: |
+          echo "🏥 Hitting ${{ env.HEALTH_URL }}..."
+          sleep 2
+          RESPONSE=$(curl -s -w "\n%{http_code}" "${{ env.HEALTH_URL }}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Health check failed after rollback!"
+            exit 1
+          fi
+          echo "✅ Health check passed"
+
+      - name: Rollback summary
+        run: |
+          echo "## ⏪ Production Rollback Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Detail | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Rolled back to | Version \`${{ inputs.version }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Reason | ${{ inputs.reason }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Triggered by | @${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Health check | ✅ Passed |" >> "$GITHUB_STEP_SUMMARY"
