@@ -25,7 +25,7 @@ Create a detailed implementation plan for the feature.
 
 Run the `piv-plan-implementation` skill (`.agents/skills/piv-plan-implementation/SKILL.md`) with the feature description: **the user's request**.
 
-**IMPORTANT**: Note the feature name and canonical plan issue URL that the planning step creates. You'll need them for the next step.
+**IMPORTANT**: Note the feature name and `.agents/plans/*.md` path that the planning step creates. You'll need them for the next step.
 
 ---
 
@@ -33,7 +33,7 @@ Run the `piv-plan-implementation` skill (`.agents/skills/piv-plan-implementation
 
 Implement the feature from the plan document.
 
-Run the `piv-implement` skill (`.agents/skills/piv-implement/SKILL.md`) with the canonical plan issue URL.
+Run the `piv-implement` skill (`.agents/skills/piv-implement/SKILL.md`) with the local plan file path.
 
 (Use the feature name from Step 2.)
 
@@ -59,12 +59,12 @@ After completing all 4 steps, provide:
 
 **Steps Executed:**
 1. ✅ Prime - Codebase context loaded
-2. ✅ Planning - Plan published to the configured GitHub Project
+2. ✅ Planning - Plan written under `.agents/plans/`
 3. ✅ Execute - Feature implemented and validated
 4. ✅ Commit - Changes committed to git
 
 **Outputs:**
-- Plan document: [canonical GitHub issue URL]
+- Plan document: [.agents/plans/feature-name.md]
 - Files created/modified: [list]
 - Tests added: [list]
 - Commit hash: [hash]

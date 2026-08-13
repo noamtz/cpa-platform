@@ -425,9 +425,13 @@ Execute every command to ensure zero regressions and 100% feature correctness.
 
 ## Output Format
 
-Read `.agents/references/github-project-documents.md`. Publish the plan as a repository issue attached to the
-configured GitHub Project, using a short title such as `[Plan] Add user authentication`. Return and read back the
-canonical issue URL. Never create `.agents/plans/` or a local Markdown fallback.
+**Filename:** `.agents/plans/{kebab-case-descriptive-name}.md`
+
+Replace `{kebab-case-descriptive-name}` with a short, descriptive feature name.
+
+Examples: `add-user-authentication.md`, `implement-search-api.md`, `refactor-database-layer.md`
+
+**Directory:** Create `.agents/plans/` if it doesn't exist.
 
 ## Quality Criteria
 

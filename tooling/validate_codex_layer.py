@@ -255,7 +255,6 @@ def validate_github_project_documents(errors: list[str]) -> None:
         "plan-create-prd",
         "plan-architecture",
         "plan-create-stories",
-        "piv-plan-implementation",
         "piv-implement",
         "piv-investigate-issue",
         "piv-implement-issue",
@@ -275,6 +274,21 @@ def validate_github_project_documents(errors: list[str]) -> None:
             error(errors, f"{skill_path.relative_to(ROOT)}: contains the forbidden GitHub identity")
         if re.search(r"(?m)^\s*gh(?:\.exe)?\s", text):
             error(errors, f"{skill_path.relative_to(ROOT)}: bypasses tooling/github.py with bare gh")
+
+    plan_skill_path = SKILLS_DIR / "piv-plan-implementation" / "SKILL.md"
+    plan_skill_text = plan_skill_path.read_text(encoding="utf-8")
+    required_plan_output = {
+        ".agents/plans/{kebab-case-descriptive-name}.md": "local plan filename contract",
+        "Create `.agents/plans/` if it doesn't exist": "local plan directory creation rule",
+        "add-user-authentication.md": "kebab-case filename example",
+    }
+    for token, purpose in required_plan_output.items():
+        if token not in plan_skill_text:
+            error(errors, f"{plan_skill_path.relative_to(ROOT)}: missing {purpose}")
+    if FORBIDDEN_GITHUB_USER in plan_skill_text:
+        error(errors, f"{plan_skill_path.relative_to(ROOT)}: contains the forbidden GitHub identity")
+    if re.search(r"(?m)^\s*gh(?:\.exe)?\s", plan_skill_text):
+        error(errors, f"{plan_skill_path.relative_to(ROOT)}: bypasses tooling/github.py with bare gh")
 
 
 def validate_github_identity_hook(errors: list[str]) -> None:
