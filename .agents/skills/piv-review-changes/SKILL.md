@@ -83,9 +83,9 @@ For each changed file or new file, analyze for:
 
 ## Output Format
 
-Follow `.agents/references/github-project-documents.md` and publish a `Code review` artifact to the configured
-GitHub Project. Link the branch, commit, or PR being reviewed and return the canonical issue URL. Do not create a
-local `.agents/code-reviews/` fallback.
+Follow `.agents/references/github-project-documents.md` and save the review to
+`.agents/code-reviews/<appropriate-name>.md`. Include the branch, commit, or PR being reviewed. Do not create a
+GitHub issue merely to store the review.
 
 **Stats:**
 

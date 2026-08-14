@@ -201,11 +201,11 @@ So that <benefit/value>
 
 <Links between this plan and the work around it. Distinct from CONTEXT REFERENCES below (which lists files/docs to read for *this* implementation) — this is the plan's place in the larger graph.>
 
-**Implements**: <ticket id / link>   ·   **Epic**: <engineering-plan.md path or epic link — if this ticket inherits an epic's engineering plan (see Mission), record it here>
+**Implements**: <ticket id / link>   ·   **Epic**: <master epic issue and linked Wiki architecture page>
 
 **Back-references** (plans this builds on or inherits decisions from):
 
-- `<prior GitHub Project artifact URL>` - Why: shares the auth seam / reuses the X service
+- `<prior plan path or related issue/PR URL>` - Why: shares the auth seam / reuses the X service
 
 **Forward-references** (plans that extend or supersede this — append as follow-ups get created):
 

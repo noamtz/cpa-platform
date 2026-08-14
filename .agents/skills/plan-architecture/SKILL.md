@@ -1,6 +1,6 @@
 ---
 name: plan-architecture
-description: Interactively explore HOW to approach an intent and decide the high-level architecture — approach, stack, libraries, data shape, and risks — then publish canonical Markdown in this repository's GitHub Wiki with a linked architecture tracker issue in the configured GitHub Project. Use after a PRD or epic exists; not for a task-by-task implementation plan.
+description: Interactively explore HOW to approach an intent and decide the high-level architecture — approach, stack, libraries, data shape, and risks — then publish canonical Markdown in this repository's GitHub Wiki and link it from the master epic. Use after a PRD or epic exists; not for a task-by-task implementation plan or a separate architecture issue.
 ---
 
 # Architect: Explore the Approach, Decide the Architecture
@@ -97,10 +97,10 @@ Reversible, low-cost calls → just decide and move on.
 
 Only after the calls are made. Read `.agents/references/github-project-documents.md` and
 `.github/project-documents.json`, then publish canonical architecture Markdown in the configured GitHub Wiki as
-`Architecture-<epic-slug>.md`. Create a separate `[Architecture] <epic name>` tracker issue, attach it to the
-configured GitHub Project, set `Artifact type` to `Architecture`, and link it as a child of the master epic when
-supported. Link the Wiki PRD and architecture pages both ways. The PRD stays pure intent; this artifact holds the
-*how*. Do not fold it into the PRD, duplicate it in the issue body, or create a local `architecture.md` fallback.
+`Architecture-<epic-slug>.md`. Link the Wiki PRD and architecture pages both ways and add the architecture URL to
+the master epic's Architecture section. The PRD stays pure intent; this artifact holds the *how*. Do not create a
+proxy architecture issue, fold the architecture into the PRD, duplicate it in an issue body, or create a local
+`architecture.md` fallback.
 If the Wiki is unavailable, stop and report the prerequisite. Keep the document high-level and fill this shape:
 
 ```markdown
@@ -136,9 +136,9 @@ Decisions deliberately deferred — named, not hidden — and what would settle 
 
 ## After this
 
-Commit and push the Wiki Markdown, then read back the canonical Wiki page, architecture tracker, master-issue
-relationship, and Project fields. Confirm both document and tracker URLs, summarize the recommended approach + the
-key calls in a few lines, then offer the natural next moves and let the user pick — **don't force a pipeline**:
+Commit and push the Wiki Markdown, update the master epic, then read back the canonical Wiki page, paired PRD,
+and master-issue links. Confirm the architecture URL and epic URL, summarize the recommended approach + the key
+calls in a few lines, then offer the natural next moves and let the user pick — **don't force a pipeline**:
 
 - **Slice it into tickets** — feed the doc to `$piv-slice-epic` to break the epic into PIV-sized tickets, and create
   the GitHub issues / Jira tickets from them.

@@ -87,11 +87,11 @@ Before completing:
 
 ## Output — write an implementation report
 
-Follow `.agents/references/github-project-documents.md`; publish a short `Execution report` artifact to the
-configured GitHub Project and print the summary. Reference the plan file, branch, and PR when available. Do not
-create a local report fallback. This is what the PR body
-and the `piv-review-pr` gate read — especially the **deviations** (a documented deviation is an *intentional*
-decision the reviewer should not flag):
+Follow `.agents/references/github-project-documents.md`. Write a short report to
+`.agents/reports/<plan-slug>-report.md` and print the summary. Reference the plan file, branch, and PR when
+available. Do not create a GitHub issue for the report. This is what the PR body and the `piv-review-pr` gate read
+— especially the **deviations** (a documented deviation is an *intentional* decision the reviewer should not
+flag):
 
 ```markdown
 # Implementation Report — <feature>

@@ -18,21 +18,16 @@
     "PRD": "github-wiki-markdown",
     "Architecture": "github-wiki-markdown",
     "Implementation plan": "repository-file",
-    "RCA": "repository-issue-body",
-    "Execution report": "repository-issue-body",
-    "Code review": "repository-issue-body",
-    "System review": "repository-issue-body"
+    "RCA": "repository-file",
+    "Execution report": "repository-file",
+    "Code review": "repository-file",
+    "System review": "repository-file"
   },
   "projectItemType": "issue",
   "projectItemRole": "tracker",
   "artifactField": "Artifact type",
   "artifactTypes": [
-    "PRD",
-    "Architecture",
-    "RCA",
-    "Execution report",
-    "Code review",
-    "System review"
+    "PRD"
   ],
   "configuredAt": "2026-08-13T20:34:12.676881+00:00"
 }

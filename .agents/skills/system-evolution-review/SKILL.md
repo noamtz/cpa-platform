@@ -46,11 +46,10 @@ Do not recommend a new rule for a single anecdote unless its impact is severe or
 
 ## Output
 
-When the user wants an artifact, follow `.agents/references/github-project-documents.md` and publish a `System
-review` issue attached to the configured GitHub Project. Return its canonical URL and do not create a local
-`.agents/system-reviews/` fallback. Include:
+When the user wants an artifact, follow `.agents/references/github-project-documents.md` and save it to
+`.agents/system-reviews/<feature-name>-review.md`. Do not create a GitHub issue merely to store the review. Include:
 
-- Plan and execution-report artifact URLs.
+- Plan and execution-report repository paths.
 - Overall alignment and validation confidence.
 - A table of divergences with classification, evidence, root cause, and impact.
 - Prioritized AI-layer improvements with the exact target file and a concise proposed change.

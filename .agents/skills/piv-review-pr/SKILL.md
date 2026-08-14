@@ -28,9 +28,9 @@ State guard: `MERGED`/`CLOSED` → stop ("nothing to review"); `DRAFT` → revie
 ## Phase 2 — Load the context (so you review against the right bar)
 
 - **`AGENTS.md`** + any `.agents/references/` — the project's standards are the review rubric.
-- **The implementation report**: follow `.agents/references/github-project-documents.md` and read the execution
-  report linked from the plan/branch, plus its plan. A documented deviation is an *intentional decision*, **not**
-  an issue — only flag *undocumented* divergences. (No report? Review normally and note its absence.)
+- **The implementation report**: follow `.agents/references/github-project-documents.md` and read the matching
+  local `.agents/reports/<plan-slug>-report.md`, plus its plan. A documented deviation is an *intentional decision*,
+  **not** an issue — only flag *undocumented* divergences. (No report? Review normally and note its absence.)
 - The PR's own intent (title/body): what problem it claims to solve.
 
 ## Phase 3 — Run validation
@@ -63,20 +63,20 @@ Acknowledge what's done well, too — review is constructive, not just a defect 
 - **Block** (request-changes, strongly) — critical security/data issues, or wrong fundamental approach.
 - Honor an explicit `--approve` / `--request-changes` flag, but never approve over an unresolved critical issue.
 
-## Phase 6 — Post to GitHub + save the report
+## Phase 6 — Save the report + post it to the PR
 
-Follow `.agents/references/github-project-documents.md` and publish the full report as a `Code review` issue in
-the configured Project (summary · issues by severity with `file:line` + fix · validation table · what's good ·
-recommendation). Link it to PR `{N}`. Post the verdict and canonical report URL to the PR; use a temporary body
-file only when the CLI requires one, and remove it afterward. Do not create a durable local review file.
+Follow `.agents/references/github-project-documents.md`. Write the full report to
+`.agents/code-reviews/pr-{N}-review.md` (summary · issues by severity with `file:line` + fix · validation table ·
+what's good · recommendation), then post that report directly as the GitHub PR review or comment. Do not create a
+separate repository issue for the review. Use the local report as the CLI body file.
 
 ```bash
 # approve
-python tooling/github.py pr review {N} --approve --body "{summary and canonical report URL}"
+python tooling/github.py pr review {N} --approve --body-file .agents/code-reviews/pr-{N}-review.md
 # request changes
-python tooling/github.py pr review {N} --request-changes --body "{summary and canonical report URL}"
+python tooling/github.py pr review {N} --request-changes --body-file .agents/code-reviews/pr-{N}-review.md
 # or just comment (draft PRs / advisory)
-python tooling/github.py pr comment {N} --body "{summary and canonical report URL}"
+python tooling/github.py pr comment {N} --body-file .agents/code-reviews/pr-{N}-review.md
 ```
 
 ## Output + hand off

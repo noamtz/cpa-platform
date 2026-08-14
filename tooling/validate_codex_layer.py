@@ -179,21 +179,14 @@ def validate_github_project_documents(errors: list[str]) -> None:
         "PRD": "github-wiki-markdown",
         "Architecture": "github-wiki-markdown",
         "Implementation plan": "repository-file",
-        "RCA": "repository-issue-body",
-        "Execution report": "repository-issue-body",
-        "Code review": "repository-issue-body",
-        "System review": "repository-issue-body",
+        "RCA": "repository-file",
+        "Execution report": "repository-file",
+        "Code review": "repository-file",
+        "System review": "repository-file",
     }
     if manifest.get("canonicalArtifacts") != expected_storage:
         error(errors, ".github/project-documents.json: canonicalArtifacts mapping is invalid")
-    expected_project_artifacts = [
-        "PRD",
-        "Architecture",
-        "RCA",
-        "Execution report",
-        "Code review",
-        "System review",
-    ]
+    expected_project_artifacts = ["PRD"]
     if manifest.get("artifactTypes") != expected_project_artifacts:
         error(errors, ".github/project-documents.json: artifactTypes mapping is invalid")
     if manifest.get("projectItemType") != "issue":
@@ -284,6 +277,38 @@ def validate_github_project_documents(errors: list[str]) -> None:
             error(errors, f"{skill_path.relative_to(ROOT)}: contains the forbidden GitHub identity")
         if re.search(r"(?m)^\s*gh(?:\.exe)?\s", text):
             error(errors, f"{skill_path.relative_to(ROOT)}: bypasses tooling/github.py with bare gh")
+
+    required_local_artifacts = {
+        "piv-implement": ".agents/reports/<plan-slug>-report.md",
+        "piv-investigate-issue": "docs/issues/issue-<issue-number>.md",
+        "piv-implement-issue": "docs/issues/issue-<issue-number>.md",
+        "piv-review-changes": ".agents/code-reviews/<appropriate-name>.md",
+        "piv-review-pr": ".agents/code-reviews/pr-{N}-review.md",
+        "system-execution-report": ".agents/execution-reports/<feature-name>.md",
+        "system-evolution-review": ".agents/system-reviews/<feature-name>-review.md",
+    }
+    for skill_name, required_path in required_local_artifacts.items():
+        skill_path = SKILLS_DIR / skill_name / "SKILL.md"
+        text = skill_path.read_text(encoding="utf-8")
+        if required_path not in text:
+            error(errors, f"{skill_path.relative_to(ROOT)}: missing local artifact path {required_path}")
+
+    architecture_skill = (SKILLS_DIR / "plan-architecture" / "SKILL.md").read_text(encoding="utf-8")
+    if "proxy architecture issue" not in architecture_skill:
+        error(errors, ".agents/skills/plan-architecture/SKILL.md: must prohibit proxy architecture issues")
+
+    forbidden_artifact_issue_phrases = {
+        "repository-issue-body",
+        "publish the full report as a `Code review` issue",
+        "Publish the RCA as a separate repository issue",
+        "publish an `Execution report` artifact to the configured GitHub Project",
+        "publish a `System review` issue",
+    }
+    for skill_path in SKILLS_DIR.glob("*/SKILL.md"):
+        text = skill_path.read_text(encoding="utf-8")
+        for phrase in forbidden_artifact_issue_phrases:
+            if phrase.casefold() in text.casefold():
+                error(errors, f"{skill_path.relative_to(ROOT)}: restores forbidden artifact-issue workflow")
 
     plan_skill_path = SKILLS_DIR / "piv-plan-implementation" / "SKILL.md"
     plan_skill_text = plan_skill_path.read_text(encoding="utf-8")

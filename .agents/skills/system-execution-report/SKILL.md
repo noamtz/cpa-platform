@@ -18,13 +18,13 @@ You have just finished implementing a feature. Before moving on, reflect on:
 
 ## Generate Report
 
-Follow `.agents/references/github-project-documents.md` and publish an `Execution report` artifact to the
-configured GitHub Project. Link the canonical implementation plan and return the report issue URL. Do not create a
-local `.agents/execution-reports/` fallback.
+Follow `.agents/references/github-project-documents.md` and save the report to
+`.agents/execution-reports/<feature-name>.md`. Link the canonical local implementation plan. Do not create a
+GitHub issue merely to store the report.
 
 ### Meta Information
 
-- Plan artifact: [canonical URL of the plan that guided this implementation]
+- Plan artifact: [repository path of the plan that guided this implementation]
 - Files added: [list with paths]
 - Files modified: [list with paths]
 - Lines changed: +X -Y

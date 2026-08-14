@@ -15,8 +15,8 @@ The bridge between a strategic doc and the PIV loop. The epic doc is the destina
     epic — e.g. a Confluence epic page and its linked architecture page, both passed as URLs). **Read both.**
   - greenfield: a PRD stands in for the epic.
   For this repository, resolve GitHub issue URLs through the `github-projects` MCP (or
-  `python tooling/github.py ...` fallback). A master epic or architecture tracker is not the long-form source:
-  follow its canonical GitHub Wiki links and read both Markdown pages in full. If the user explicitly supplies
+  `python tooling/github.py ...` fallback). The master epic is not the long-form source: follow its canonical
+  GitHub Wiki PRD and architecture links and read both Markdown pages in full. If the user explicitly supplies
   Confluence/Jira references, fetch them via the Atlassian MCP. **This is the load-bearing input:** the architecture
   names the seams, data model, and missing pieces the slices must respect.
 - **Not prime-dependent.** A primed session helps, but isn't required. If the codebase surface isn't loaded, this
@@ -27,8 +27,8 @@ The bridge between a strategic doc and the PIV loop. The epic doc is the destina
 ### Step 1 — Read the sources
 
 Read the canonical Wiki PRD fully (goal, user stories, acceptance criteria, out-of-scope) **and its linked Wiki
-architecture document** (the approach, stack, data model, missing pieces, spikes). Resolve those pages from the
-master epic and architecture tracker when issues are supplied. The slicing has to respect those calls.
+architecture document** (the approach, stack, data model, missing pieces, spikes). Resolve both pages from the
+master epic when an issue is supplied. The slicing has to respect those calls.
 
 ### Step 2 — Orient on the code surface (if not already primed)
 
