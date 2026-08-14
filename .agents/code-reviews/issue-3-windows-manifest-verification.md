@@ -3,15 +3,15 @@
 - **Branch**: `fix/issue-3-windows-manifest-verification`
 - **Base commit**: `e5561d64c7bcb19e43269d59fd74ea1519c4693d`
 - **Scope**: Canonical destination hashing, LF/CRLF workflow guard verification, regression tests, baseline
-  documentation, and the issue RCA.
+  documentation, the issue RCA, and the stale README artifact-storage summary found during context review.
 
 ## Stats
 
-- Files Modified: 3
+- Files Modified: 4
 - Files Added: 1
 - Files Deleted: 0
-- New lines: 325
-- Deleted lines: 9
+- New lines: 330
+- Deleted lines: 14
 
 ## Review Result
 
@@ -20,6 +20,10 @@ Code review passed. No technical issues detected.
 The review confirmed that source archive verification remains raw-byte strict, destination verification uses
 Git's path-aware clean conversion without writing objects, workflow guard removal still requires exactly one
 complete block, and meaningful content edits remain rejected after newline canonicalization.
+
+The context review also found and corrected a pre-existing README summary that still treated architecture proxy
+issues and issue-backed RCAs/reports as canonical. The replacement matches the repository's Wiki/Project/local
+artifact contract and does not change runtime behavior.
 
 ## Validation Evidence
 
