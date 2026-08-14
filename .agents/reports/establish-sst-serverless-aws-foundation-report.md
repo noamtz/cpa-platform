@@ -17,8 +17,8 @@ Node 20 ARM Lambda, seven on-demand DynamoDB tables with PITR, two private bucke
 one JWT authorizer. A separate test-only GitHub OIDC role trusts the exact immutable repository Environment
 subject and has no managed or administrator policy.
 
-The GitHub `test` Environment now contains the deploy-role ARN variable and only the authorized `main` and
-`feat/issue-4-*` branch policies. No production foundation, production budget, DNS, certificate, Terraform/PDF,
+The GitHub `test` Environment now contains the deploy-role ARN variable and only the authorized `main` and exact
+`refs/pull/21/merge` branch policies. No production foundation, production budget, DNS, certificate, Terraform/PDF,
 Base44 cutover, deletion, or destructive replacement was performed.
 
 ## Tasks completed
@@ -91,9 +91,10 @@ Result: **3 files / 28 tests passed**.
    state before `sst diff`; initializing it with `sst deploy` was not authorized. Production safety remains covered
    by contract tests: protection and retention are enabled, tables have deletion protection/PITR, Cognito has
    deletion protection, files are versioned, and the alert-only USD 10 budget is below the ILS 50/month ceiling.
-2. **OIDC CI run:** the workflow and GitHub Environment are ready, but an Actions run cannot use an uncommitted
-   workflow. Run the normal `piv-commit` and `piv-create-pr` steps, then require a green same-repository PR run to
-   prove the OIDC assumption and idempotent CI redeployment before calling AC #5 complete.
+2. **OIDC CI run:** PR #21 is open. Its initial job failed before runner allocation because GitHub evaluates
+   Environment policies against the pull-request merge ref rather than the head branch name. The Environment was
+   narrowed to the exact `refs/pull/21/merge` ref while retaining `main`; a green rerun is still required to prove
+   OIDC assumption and idempotent CI redeployment before calling AC #5 complete.
 3. **Imported-manifest verifier:** all 11 importer unit tests passed, but `--verify-applied` correctly reported the
    first intentionally changed imported root file. That command enforces byte identity for the entire imported
    tree and therefore cannot pass after the plan-required package/ESLint/README updates. Explicit protected-path
@@ -111,6 +112,9 @@ Result: **3 files / 28 tests passed**.
   plan-defined filename. No value was logged, committed, or returned as an SST output.
 - GitHub reports that this repository uses the post-July-2026 immutable OIDC subject prefix. The exact owner and
   repository IDs were used rather than broadening trust to a wildcard or legacy repository name.
+- GitHub Environment policies match `GITHUB_REF` for pull-request jobs, so the planned `feat/issue-4-*` head-branch
+  pattern was replaced with the exact `refs/pull/21/merge` ref after the first PR job failed before runner
+  allocation. This permits only PR #21 plus `main`, not every pull request.
 - No commit, push, or pull request was created by `piv-implement`; those remain the prescribed next workflow steps.
 
 ## Cost and safety evidence
