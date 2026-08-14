@@ -86,9 +86,9 @@ handling, integration mismatches.
 
 ## Output: Create RCA Document
 
-Read `.agents/references/github-project-documents.md`. Publish the RCA as a separate repository issue attached to
-the configured GitHub Project, link the original bug issue, and return its canonical URL. Do not create a local
-`docs/issues/` fallback.
+Read `.agents/references/github-project-documents.md`. Save the full RCA as
+`docs/issues/issue-<issue-number>.md`. The original bug issue remains the actionable Project item; do not create a
+second issue merely to store the RCA.
 
 ### Required RCA Document Structure
 
@@ -224,7 +224,7 @@ WHY <symptom> → because <cause>          (evidence: file:line — snippet)
 
 [Brief overview of implementation steps]
 
-This canonical RCA issue should be used by the `piv-implement-issue` skill.
+This RCA document should be used by the `piv-implement-issue` skill.
 
 ## Next Steps
 
@@ -236,7 +236,7 @@ This canonical RCA issue should be used by the `piv-implement-issue` skill.
 ## Post the summary to the issue
 
 After writing the doc, post a short version as a GitHub comment — an audit trail, and so the fix can be
-triggered/tracked from the issue itself:
+triggered/tracked from the issue itself. Include the repository path to the RCA:
 ```bash
 python tooling/github.py issue comment <issue-number> --body "<title · the Assessment table (severity/complexity/confidence + one-line reasons) · root cause in 1–2 lines · files to change · next: $piv-implement-issue <issue-number>>"
 ```

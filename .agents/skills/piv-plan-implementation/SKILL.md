@@ -201,11 +201,11 @@ So that <benefit/value>
 
 <Links between this plan and the work around it. Distinct from CONTEXT REFERENCES below (which lists files/docs to read for *this* implementation) — this is the plan's place in the larger graph.>
 
-**Implements**: <ticket id / link>   ·   **Epic**: <engineering-plan.md path or epic link — if this ticket inherits an epic's engineering plan (see Mission), record it here>
+**Implements**: <ticket id / link>   ·   **Epic**: <master epic issue and linked Wiki architecture page>
 
 **Back-references** (plans this builds on or inherits decisions from):
 
-- `<prior GitHub Project artifact URL>` - Why: shares the auth seam / reuses the X service
+- `<prior plan path or related issue/PR URL>` - Why: shares the auth seam / reuses the X service
 
 **Forward-references** (plans that extend or supersede this — append as follow-ups get created):
 
@@ -425,9 +425,17 @@ Execute every command to ensure zero regressions and 100% feature correctness.
 
 ## Output Format
 
-Read `.agents/references/github-project-documents.md`. Publish the plan as a repository issue attached to the
-configured GitHub Project, using a short title such as `[Plan] Add user authentication`. Return and read back the
-canonical issue URL. Never create `.agents/plans/` or a local Markdown fallback.
+Follow the repository-backed implementation-plan contract in
+`.agents/references/github-project-documents.md`. The plan file below is the canonical repository-backed artifact;
+commit it on the feature branch with the implementation. Do not duplicate the plan in a repository issue.
+
+**Filename:** `.agents/plans/{kebab-case-descriptive-name}.md`
+
+Replace `{kebab-case-descriptive-name}` with a short, descriptive feature name.
+
+Examples: `add-user-authentication.md`, `implement-search-api.md`, `refactor-database-layer.md`
+
+**Directory:** Create `.agents/plans/` if it doesn't exist.
 
 ## Quality Criteria
 

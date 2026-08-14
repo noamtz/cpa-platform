@@ -7,8 +7,9 @@ description: Executes an implementation plan task-by-task with validation at eve
 
 ## Plan to Execute
 
-Resolve the plan artifact URL from `the user's request`, then read its canonical GitHub issue body by following
-`.agents/references/github-project-documents.md`.
+Resolve the `.agents/plans/*.md` path from `the user's request`, then read the entire local plan file. If the user
+provides a feature name instead of a path, match it to the kebab-case plan filename; ask only when more than one
+plan is a plausible match.
 
 ## Before you start — work on a feature branch
 
@@ -86,16 +87,16 @@ Before completing:
 
 ## Output — write an implementation report
 
-Follow `.agents/references/github-project-documents.md`; publish a short `Execution report` artifact to the
-configured GitHub Project and print the summary. Link the plan artifact, branch, and PR when available. Do not
-create a local report fallback. This is what the PR body
-and the `piv-review-pr` gate read — especially the **deviations** (a documented deviation is an *intentional*
-decision the reviewer should not flag):
+Follow `.agents/references/github-project-documents.md`. Write a short report to
+`.agents/reports/<plan-slug>-report.md` and print the summary. Reference the plan file, branch, and PR when
+available. Do not create a GitHub issue for the report. This is what the PR body and the `piv-review-pr` gate read
+— especially the **deviations** (a documented deviation is an *intentional* decision the reviewer should not
+flag):
 
 ```markdown
 # Implementation Report — <feature>
 
-**Plan**: <canonical artifact URL>   **Branch**: <feature/...>   **Status**: COMPLETE | PARTIAL
+**Plan**: <.agents/plans/feature-name.md>   **Branch**: <feature/...>   **Status**: COMPLETE | PARTIAL
 
 ## Summary
 {What was built, 2-4 sentences.}

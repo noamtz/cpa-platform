@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Link this repository to a GitHub Project used for canonical project documents."""
+"""Link this repository to the GitHub Project used for actionable delivery work."""
 
 from __future__ import annotations
 
@@ -18,29 +18,33 @@ MANIFEST = ROOT / ".github" / "project-documents.json"
 GITHUB_HOST = "github.com"
 GITHUB_OWNER = "noamtz"
 GITHUB_REPOSITORY = "noamtz/cpa-platform"
-PROJECT_DESCRIPTION = "Canonical product and delivery documents for AuditFlow."
-PROJECT_README = """# AuditFlow project documents
+PROJECT_DESCRIPTION = "AuditFlow epics, stories, tasks, and bugs."
+PROJECT_README = """# AuditFlow delivery project
 
-Repository issues in this Project are the canonical source for PRDs, architecture decisions, implementation
-plans, root-cause analyses, execution reports, and review reports. Use the **Artifact type** field to filter them.
+Canonical PRDs and architecture documents are Markdown pages in the repository Wiki. Repository issues in this
+Project are actionable delivery work: epics, stories, tasks, and bugs. The master epic links to its Wiki PRD and
+architecture pages. Agent working artifacts such as plans, RCAs, execution reports, and reviews remain versioned
+repository files; they are not separate Project issues.
 
 Technical contracts required while changing code remain versioned in the repository.
 """
+WIKI_REPOSITORY = "noamtz/cpa-platform.wiki"
+WIKI_URL = "https://github.com/noamtz/cpa-platform/wiki"
 ARTIFACT_TYPES = [
     "PRD",
-    "Architecture",
-    "Implementation plan",
-    "RCA",
-    "Execution report",
-    "Code review",
-    "System review",
 ]
 LABELS = {
+    "epic": ("8250DF", "Master delivery tracker for a product epic"),
     "artifact:prd": ("0E8A16", "Canonical product requirements document"),
-    "artifact:architecture": ("1D76DB", "Canonical architecture decision or specification"),
-    "artifact:plan": ("5319E7", "Canonical implementation plan"),
-    "artifact:rca": ("D93F0B", "Canonical root-cause analysis"),
-    "artifact:report": ("FBCA04", "Canonical execution or review report"),
+}
+ARTIFACT_STORAGE = {
+    "PRD": "github-wiki-markdown",
+    "Architecture": "github-wiki-markdown",
+    "Implementation plan": "repository-file",
+    "RCA": "repository-file",
+    "Execution report": "repository-file",
+    "Code review": "repository-file",
+    "System review": "repository-file",
 }
 
 
@@ -165,15 +169,21 @@ def configure(args: argparse.Namespace) -> dict[str, Any]:
     ensure_labels(repository)
 
     return {
-        "schemaVersion": 1,
+        "schemaVersion": 3,
         "repository": repository,
+        "wiki": {
+            "repository": WIKI_REPOSITORY,
+            "url": WIKI_URL,
+            "canonicalArtifactTypes": ["PRD", "Architecture"],
+        },
         "project": {
             "owner": owner,
             "number": project_number,
             "url": project.get("url"),
         },
-        "canonicalArtifact": "repository-issue-body",
+        "canonicalArtifacts": ARTIFACT_STORAGE,
         "projectItemType": "issue",
+        "projectItemRole": "tracker",
         "artifactField": "Artifact type",
         "artifactTypes": ARTIFACT_TYPES,
         "configuredAt": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -182,7 +192,7 @@ def configure(args: argparse.Namespace) -> dict[str, Any]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Link an existing or new GitHub Project and configure document metadata."
+        description="Link an existing or new GitHub Project and configure delivery/Wiki metadata."
     )
     choice = parser.add_mutually_exclusive_group(required=True)
     choice.add_argument("--project-number", type=int, help="Existing GitHub Project number")

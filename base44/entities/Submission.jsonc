@@ -1,0 +1,153 @@
+{
+  "name": "Submission",
+  "type": "object",
+  "properties": {
+    "client_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05d4\u05dc\u05e7\u05d5\u05d7"
+    },
+    "tax_year": {
+      "type": "number",
+      "description": "\u05e9\u05e0\u05ea \u05d4\u05de\u05e1",
+      "default": 2024
+    },
+    "cpa_status": {
+      "type": "string",
+      "enum": [
+        "ready_for_ira",
+        "reviewed"
+      ],
+      "description": "\u05e1\u05d8\u05d8\u05d5\u05e1 \u05e9\u05d4\u05d5\u05d2\u05d3\u05e8 \u05d9\u05d3\u05e0\u05d9\u05ea \u05e2\"\u05d9 \u05e8\u05d5\"\u05d7 \u05e2\u05d1\u05d5\u05e8 \u05e9\u05e0\u05d4 \u05d6\u05d5"
+    },
+    "is_employee": {
+      "type": "boolean",
+      "description": "\u05d4\u05d0\u05dd \u05d4\u05d9\u05d4 \u05e9\u05db\u05d9\u05e8 \u05d1\u05e9\u05e0\u05d4 \u05d6\u05d5"
+    },
+    "form_106_uploaded": {
+      "type": "boolean",
+      "description": "\u05d4\u05d0\u05dd \u05d4\u05d5\u05e2\u05dc\u05d4 \u05d8\u05d5\u05e4\u05e1 106"
+    },
+    "form_106_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05e7\u05d1\u05e6\u05d9 \u05d8\u05d5\u05e4\u05e1 106"
+    },
+    "multiple_employers": {
+      "type": "boolean",
+      "description": "\u05d9\u05d5\u05ea\u05e8 \u05de\u05de\u05e2\u05e1\u05d9\u05e7 \u05d0\u05d7\u05d3"
+    },
+    "has_pension_fund": {
+      "type": "boolean",
+      "description": "\u05d4\u05d0\u05dd \u05d4\u05e4\u05e7\u05d9\u05d3 \u05dc\u05e4\u05e0\u05e1\u05d9\u05d4/\u05e7\u05e8\u05df \u05d4\u05e9\u05ea\u05dc\u05de\u05d5\u05ea \u05db\u05e2\u05e6\u05de\u05d0\u05d9"
+    },
+    "pension_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05d0\u05d9\u05e9\u05d5\u05e8\u05d9 \u05de\u05e1 \u05e4\u05e0\u05e1\u05d9\u05d4"
+    },
+    "has_stock_market": {
+      "type": "boolean",
+      "description": "\u05d4\u05d0\u05dd \u05de\u05e9\u05e7\u05d9\u05e2 \u05d1\u05e9\u05d5\u05e7 \u05d4\u05d4\u05d5\u05df"
+    },
+    "form_867_uploaded": {
+      "type": "boolean",
+      "description": "\u05d4\u05d0\u05dd \u05d4\u05d5\u05e2\u05dc\u05d4 \u05d8\u05d5\u05e4\u05e1 867"
+    },
+    "form_867_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05e7\u05d1\u05e6\u05d9 \u05d8\u05d5\u05e4\u05e1 867"
+    },
+    "has_life_insurance": {
+      "type": "boolean",
+      "description": "\u05d4\u05d0\u05dd \u05d9\u05e9 \u05d1\u05d9\u05d8\u05d5\u05d7 \u05d7\u05d9\u05d9\u05dd"
+    },
+    "insurance_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05d0\u05d9\u05e9\u05d5\u05e8\u05d9 \u05d1\u05d9\u05d8\u05d5\u05d7 \u05d7\u05d9\u05d9\u05dd"
+    },
+    "has_donations": {
+      "type": "boolean",
+      "description": "\u05d4\u05d0\u05dd \u05ea\u05e8\u05dd \u05dc\u05e2\u05de\u05d5\u05ea\u05d5\u05ea \u05e2\u05dd \u05e1\u05e2\u05d9\u05e3 46"
+    },
+    "donation_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "\u05e7\u05d1\u05dc\u05d5\u05ea \u05ea\u05e8\u05d5\u05de\u05d4"
+    },
+    "has_additional_income": {
+      "type": "boolean",
+      "description": "\u05d4\u05d0\u05dd \u05d4\u05d9\u05d5 \u05d4\u05db\u05e0\u05e1\u05d5\u05ea \u05e0\u05d5\u05e1\u05e4\u05d5\u05ea"
+    },
+    "additional_income_details": {
+      "type": "string",
+      "description": "\u05e4\u05e8\u05d8\u05d9 \u05d4\u05db\u05e0\u05e1\u05d5\u05ea \u05e0\u05d5\u05e1\u05e4\u05d5\u05ea"
+    },
+    "step_completed": {
+      "type": "number",
+      "description": "\u05e9\u05dc\u05d1 \u05d0\u05d7\u05e8\u05d5\u05df \u05e9\u05d4\u05d5\u05e9\u05dc\u05dd",
+      "default": 0
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "\u05ea\u05d0\u05e8\u05d9\u05da \u05d4\u05e9\u05dc\u05de\u05d4"
+    },
+    "template_version": {
+      "type": "number",
+      "description": "\u05d2\u05e8\u05e1\u05ea \u05d4\u05ea\u05d1\u05e0\u05d9\u05ea \u05db\u05e9\u05d4\u05d5\u05d2\u05e9"
+    },
+    "template_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05d4\u05ea\u05d1\u05e0\u05d9\u05ea \u05db\u05e9\u05d4\u05d5\u05d2\u05e9"
+    },
+    "responses": {
+      "type": "string",
+      "description": "\u05ea\u05d2\u05d5\u05d1\u05d5\u05ea JSON \u05dc\u05e9\u05d0\u05dc\u05d5\u05ea"
+    },
+    "pdf_inputs": {
+      "type": "string",
+      "description": "JSON \u05e9\u05dc \u05e2\u05e8\u05db\u05d9 \u05d4\u05e9\u05d3\u05d5\u05ea \u05e9\u05de\u05d5\u05dc\u05d0\u05d5 \u05d1\u05d8\u05d5\u05e4\u05e1 PDF"
+    },
+    "pdf_file_url": {
+      "type": "string",
+      "description": "\u05db\u05ea\u05d5\u05d1\u05ea \u05d4-PDF \u05d4\u05e1\u05d5\u05e4\u05d9 \u05e9\u05e0\u05d7\u05ea\u05dd \u05e2\u05dc \u05d9\u05d3\u05d9 \u05d4\u05dc\u05e7\u05d5\u05d7"
+    },
+    "pdf_template_id": {
+      "type": "string",
+      "description": "\u05de\u05d6\u05d4\u05d4 \u05ea\u05d1\u05e0\u05d9\u05ea \u05d4-PDF \u05e9\u05d1\u05d4 \u05d4\u05e9\u05ea\u05de\u05e9 \u05d4\u05dc\u05e7\u05d5\u05d7"
+    },
+    "signed_pdfs": {
+      "type": "string",
+      "description": "JSON array \u05e9\u05dc \u05e8\u05e9\u05d5\u05de\u05d5\u05ea \u05d7\u05ea\u05d9\u05de\u05d4 \u05e2\u05dc \u05d8\u05e4\u05e1\u05d9\u05dd \u2014 \u05db\u05dc \u05e8\u05e9\u05d5\u05de\u05d4 \u05de\u05db\u05d9\u05dc\u05d4 step_id, template_name, pdf_file_url, pdf_inputs, audit_trail, incomplete"
+    },
+    "cpa_audit_log": {
+      "type": "string",
+      "description": "JSON array \u05e9\u05dc \u05e8\u05e9\u05d5\u05de\u05d5\u05ea \u05de\u05d9\u05dc\u05d5\u05d9 \u05e2\"\u05d9 \u05e8\u05d5\"\u05d7 \u2014 \u05db\u05dc \u05e8\u05e9\u05d5\u05de\u05d4 \u05de\u05db\u05d9\u05dc\u05d4 cpa_email, cpa_name, step_id, timestamp, action"
+    },
+    "alert_sent": {
+      "type": "boolean",
+      "description": "\u05d4\u05d0\u05dd \u05db\u05d1\u05e8 \u05e0\u05e9\u05dc\u05d7\u05d4 \u05d4\u05ea\u05e8\u05d0\u05d4 \u05e2\u05dc \u05d4\u05d2\u05e9\u05d4 \u05de\u05d5\u05db\u05e0\u05d4",
+      "default": false
+    },
+    "is_archived": {
+      "type": "boolean",
+      "description": "\u05d4\u05d0\u05dd \u05d4\u05d4\u05d2\u05e9\u05d4 \u05d1\u05d0\u05e8\u05db\u05d9\u05d5\u05df",
+      "default": false
+    }
+  },
+  "required": [
+    "client_id"
+  ]
+}

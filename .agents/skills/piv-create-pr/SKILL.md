@@ -39,9 +39,10 @@ git log origin/{base}..HEAD --oneline
   specifics live; this skill stays general.
 - Commits: `git log origin/{base}..HEAD --pretty=format:"- %s"`
 - Files: `git diff --stat origin/{base}..HEAD`
-- **Implementation report**: follow `.agents/references/github-project-documents.md` and read the execution-report
-  issue linked from the plan/branch. Pull its summary, validation results, and **documented deviations** (these
-  belong in the PR body — they tell the reviewer what was intentional).
+- **Implementation report**: follow `.agents/references/github-project-documents.md` and read the matching local
+  `.agents/reports/<plan-slug>-report.md`. Pull its summary, validation results, and **documented deviations**
+  (these belong in the PR body — they tell the reviewer what was intentional). If no report exists, state that
+  clearly rather than creating a tracker issue.
 - Linked ticket / issue: look for `ACC-…`, `#123`, `Fixes #…` in the commits/branch name.
 - PR template: if `.github/PULL_REQUEST_TEMPLATE.md` exists, fill it; else use the default below.
 

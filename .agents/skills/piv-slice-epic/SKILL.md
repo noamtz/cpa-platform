@@ -14,9 +14,11 @@ The bridge between a strategic doc and the PIV loop. The epic doc is the destina
   - an **epic plus a separate, linked architecture page** (the common case when the architecture lives beside the
     epic — e.g. a Confluence epic page and its linked architecture page, both passed as URLs). **Read both.**
   - greenfield: a PRD stands in for the epic.
-  For this repository, resolve GitHub issue URLs through the `github-projects` MCP (or `gh` fallback). If the user
-  explicitly supplies Confluence/Jira references, fetch them via the Atlassian MCP. **This is the load-bearing
-  input:** the architecture names the seams, data model, and missing pieces the slices must respect.
+  For this repository, resolve GitHub issue URLs through the `github-projects` MCP (or
+  `python tooling/github.py ...` fallback). The master epic is not the long-form source: follow its canonical
+  GitHub Wiki PRD and architecture links and read both Markdown pages in full. If the user explicitly supplies
+  Confluence/Jira references, fetch them via the Atlassian MCP. **This is the load-bearing input:** the architecture
+  names the seams, data model, and missing pieces the slices must respect.
 - **Not prime-dependent.** A primed session helps, but isn't required. If the codebase surface isn't loaded, this
   skill orients itself (Step 2) before slicing.
 
@@ -24,10 +26,9 @@ The bridge between a strategic doc and the PIV loop. The epic doc is the destina
 
 ### Step 1 — Read the sources
 
-Read the epic fully (goal, user stories, acceptance criteria, out-of-scope) **and its architecture decisions,
-whether they are an `## Architecture` section on the epic or a separate linked page** (the approach, stack, data
-model, missing pieces, spikes). If the architecture is a separate page, fetch and read it too. The slicing has to
-respect those calls.
+Read the canonical Wiki PRD fully (goal, user stories, acceptance criteria, out-of-scope) **and its linked Wiki
+architecture document** (the approach, stack, data model, missing pieces, spikes). Resolve both pages from the
+master epic when an issue is supplied. The slicing has to respect those calls.
 
 ### Step 2 — Orient on the code surface (if not already primed)
 

@@ -1,22 +1,33 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 3,
   "repository": "noamtz/cpa-platform",
+  "wiki": {
+    "repository": "noamtz/cpa-platform.wiki",
+    "url": "https://github.com/noamtz/cpa-platform/wiki",
+    "canonicalArtifactTypes": [
+      "PRD",
+      "Architecture"
+    ]
+  },
   "project": {
     "owner": "noamtz",
     "number": 1,
     "url": "https://github.com/users/noamtz/projects/1"
   },
-  "canonicalArtifact": "repository-issue-body",
+  "canonicalArtifacts": {
+    "PRD": "github-wiki-markdown",
+    "Architecture": "github-wiki-markdown",
+    "Implementation plan": "repository-file",
+    "RCA": "repository-file",
+    "Execution report": "repository-file",
+    "Code review": "repository-file",
+    "System review": "repository-file"
+  },
   "projectItemType": "issue",
+  "projectItemRole": "tracker",
   "artifactField": "Artifact type",
   "artifactTypes": [
-    "PRD",
-    "Architecture",
-    "Implementation plan",
-    "RCA",
-    "Execution report",
-    "Code review",
-    "System review"
+    "PRD"
   ],
-  "configuredAt": "2026-08-13T09:39:38.091063+00:00"
+  "configuredAt": "2026-08-13T20:34:12.676881+00:00"
 }

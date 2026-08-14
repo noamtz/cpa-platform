@@ -1,0 +1,2226 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "remote": "git@github.com:noamtz/auditflow.git",
+    "commit": "5920c779cc49d6502bdbb2aad56e40845778fc9c",
+    "tree": "3b917168ac82d871be3fe08e503388b7eae06ff8",
+    "gitVersion": "git version 2.37.0.windows.1",
+    "trackedFiles": 184,
+    "blobBytes": 1909064
+  },
+  "destination": {
+    "remote": "git@github.com:noamtz/cpa-platform.git",
+    "baseCommit": "5995f25b380c658539a35fb827d82ea4b5a6ba64",
+    "branch": "docs/wiki-artifact-workflow"
+  },
+  "dispositionCounts": {
+    "copy-exact": 174,
+    "adapt-after-copy": 3,
+    "merge": 1,
+    "exclude": 6
+  },
+  "files": [
+    {
+      "path": ".agents/AGENTS.md",
+      "mode": "100644",
+      "blob": "81a848b2204b885b7c85c2f071c1682c604d696e",
+      "size": 5398,
+      "destination": null,
+      "disposition": "exclude",
+      "verification": {
+        "status": "excluded-by-policy"
+      }
+    },
+    {
+      "path": ".agents/skills/debug-lambda/SKILL.md",
+      "mode": "100644",
+      "blob": "92015791d93bd6717e5db46f3f7a83d6f63cb1e0",
+      "size": 2506,
+      "destination": null,
+      "disposition": "exclude",
+      "verification": {
+        "status": "excluded-by-policy"
+      }
+    },
+    {
+      "path": ".agents/skills/deploy-lambda/SKILL.md",
+      "mode": "100644",
+      "blob": "e6c06ae6a1c9ea72982844d1f47c605e2b233df0",
+      "size": 1589,
+      "destination": null,
+      "disposition": "exclude",
+      "verification": {
+        "status": "excluded-by-policy"
+      }
+    },
+    {
+      "path": ".agents/skills/migration-checklist/SKILL.md",
+      "mode": "100644",
+      "blob": "56084bda272f0244e6cabb06414abd4d726c66b5",
+      "size": 3416,
+      "destination": null,
+      "disposition": "exclude",
+      "verification": {
+        "status": "excluded-by-policy"
+      }
+    },
+    {
+      "path": ".agents/skills/terraform-infra/SKILL.md",
+      "mode": "100644",
+      "blob": "3e0fb64717897d8bf6862a72b359517081cee0af",
+      "size": 1937,
+      "destination": null,
+      "disposition": "exclude",
+      "verification": {
+        "status": "excluded-by-policy"
+      }
+    },
+    {
+      "path": ".github/workflows/deploy-lambda-prod.yml",
+      "mode": "100644",
+      "blob": "875c0e5f1ea3e2ab40ec5077124257283e313c36",
+      "size": 4269,
+      "destination": ".github/workflows/deploy-lambda-prod.yml",
+      "disposition": "adapt-after-copy",
+      "verification": {
+        "status": "verified-adapted",
+        "destinationBlob": "f3497db2b229f4616c3c64a5caaeef778cfaec1c"
+      }
+    },
+    {
+      "path": ".github/workflows/deploy-lambda.yml",
+      "mode": "100644",
+      "blob": "0db8a62a18a7f7c8cddd2fa983875e996adda802",
+      "size": 2528,
+      "destination": ".github/workflows/deploy-lambda.yml",
+      "disposition": "adapt-after-copy",
+      "verification": {
+        "status": "verified-adapted",
+        "destinationBlob": "30a385ebe0e3749733ae51b9b0bfad2cba7eacbd"
+      }
+    },
+    {
+      "path": ".github/workflows/rollback-prod.yml",
+      "mode": "100644",
+      "blob": "b0704e51efd9cb4c0e9d4cad473c18fb830c9c03",
+      "size": 3349,
+      "destination": ".github/workflows/rollback-prod.yml",
+      "disposition": "adapt-after-copy",
+      "verification": {
+        "status": "verified-adapted",
+        "destinationBlob": "0cac6af0318835a177366dc0d37551d7641e4008"
+      }
+    },
+    {
+      "path": ".gitignore",
+      "mode": "100644",
+      "blob": "bb8b31e6482c86e1bc52814bf53d79d2bdc2085e",
+      "size": 573,
+      "destination": ".gitignore",
+      "disposition": "merge",
+      "verification": {
+        "status": "verified-merged",
+        "destinationBlob": "014bd7b59fad0d91fb354a76dd03f2e6661cd0de"
+      }
+    },
+    {
+      "path": "OPEN_BUGS.md",
+      "mode": "100644",
+      "blob": "6b540ccb5b7d618b1b4c8089bb44fcff1ed89cc2",
+      "size": 1312,
+      "destination": "OPEN_BUGS.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "6b540ccb5b7d618b1b4c8089bb44fcff1ed89cc2"
+      }
+    },
+    {
+      "path": "README.md",
+      "mode": "100644",
+      "blob": "4e8e215e27d9d93efdf3223da20180f48ab18f18",
+      "size": 1059,
+      "destination": null,
+      "disposition": "exclude",
+      "verification": {
+        "status": "excluded-by-policy"
+      }
+    },
+    {
+      "path": "base44/agents/submission_readiness.jsonc",
+      "mode": "100644",
+      "blob": "fc1da0b9852f25a1d121900e52d43ac1c345b54c",
+      "size": 1441,
+      "destination": "base44/agents/submission_readiness.jsonc",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "fc1da0b9852f25a1d121900e52d43ac1c345b54c"
+      }
+    },
+    {
+      "path": "base44/config.jsonc",
+      "mode": "100644",
+      "blob": "571af971bf94f6a331171298a147f3b4f0d58948",
+      "size": 181,
+      "destination": "base44/config.jsonc",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "571af971bf94f6a331171298a147f3b4f0d58948"
+      }
+    },
+    {
+      "path": "base44/entities/Client.jsonc",
+      "mode": "100644",
+      "blob": "bb90345fc0d631ca16e1ef02fc0ddfcd976ecdac",
+      "size": 2196,
+      "destination": "base44/entities/Client.jsonc",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "bb90345fc0d631ca16e1ef02fc0ddfcd976ecdac"
+      }
+    },
+    {
+      "path": "base44/entities/PdfTemplate.jsonc",
+      "mode": "100644",
+      "blob": "9df2ace44af746dec0e3cc590136add28f386883",
+      "size": 510,
+      "destination": "base44/entities/PdfTemplate.jsonc",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "9df2ace44af746dec0e3cc590136add28f386883"
+      }
+    },
+    {
+      "path": "base44/entities/QuestionnaireTemplate.jsonc",
+      "mode": "100644",
+      "blob": "0b1a116171e13aea320b553bc025aa31d649d8da",
+      "size": 601,
+      "destination": "base44/entities/QuestionnaireTemplate.jsonc",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "0b1a116171e13aea320b553bc025aa31d649d8da"
+      }
+    },
+    {
+      "path": "base44/entities/Submission.jsonc",
+      "mode": "100644",
+      "blob": "4ef06eefd4d8c4f2be69209b4e7580138b53aee0",
+      "size": 6264,
+      "destination": "base44/entities/Submission.jsonc",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "4ef06eefd4d8c4f2be69209b4e7580138b53aee0"
+      }
+    },
+    {
+      "path": "base44/entities/SyncedDriveFile.jsonc",
+      "mode": "100644",
+      "blob": "32bba3ddf7c5b5d348a870147d3124b2f65ffdfc",
+      "size": 971,
+      "destination": "base44/entities/SyncedDriveFile.jsonc",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "32bba3ddf7c5b5d348a870147d3124b2f65ffdfc"
+      }
+    },
+    {
+      "path": "base44/entities/User.jsonc",
+      "mode": "100644",
+      "blob": "d206b052d37800eac77bb2d495864735af891d94",
+      "size": 357,
+      "destination": "base44/entities/User.jsonc",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "d206b052d37800eac77bb2d495864735af891d94"
+      }
+    },
+    {
+      "path": "base44/functions/cpaSaveSubmission/entry.ts",
+      "mode": "100644",
+      "blob": "210bffcd28f7d37c48a6f47f81dacd4897297b1c",
+      "size": 2841,
+      "destination": "base44/functions/cpaSaveSubmission/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "210bffcd28f7d37c48a6f47f81dacd4897297b1c"
+      }
+    },
+    {
+      "path": "base44/functions/createSignedUrl/entry.ts",
+      "mode": "100644",
+      "blob": "e565fbea9c086427e256136293de0eab57d254f8",
+      "size": 585,
+      "destination": "base44/functions/createSignedUrl/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "e565fbea9c086427e256136293de0eab57d254f8"
+      }
+    },
+    {
+      "path": "base44/functions/deleteSubmissionWithFiles/entry.ts",
+      "mode": "100644",
+      "blob": "0590ff4249b3110d7a8bf2c7af2b177d433db4d1",
+      "size": 2166,
+      "destination": "base44/functions/deleteSubmissionWithFiles/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "0590ff4249b3110d7a8bf2c7af2b177d433db4d1"
+      }
+    },
+    {
+      "path": "base44/functions/downloadAllFiles/entry.ts",
+      "mode": "100644",
+      "blob": "6d52a127c9aaff2b2d9abd4201f5bd7ac698ba2f",
+      "size": 2194,
+      "destination": "base44/functions/downloadAllFiles/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "6d52a127c9aaff2b2d9abd4201f5bd7ac698ba2f"
+      }
+    },
+    {
+      "path": "base44/functions/getActivePdfTemplates/entry.ts",
+      "mode": "100644",
+      "blob": "1c805c799bb66ef147309b65bb4a1d62c43a8b7a",
+      "size": 607,
+      "destination": "base44/functions/getActivePdfTemplates/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "1c805c799bb66ef147309b65bb4a1d62c43a8b7a"
+      }
+    },
+    {
+      "path": "base44/functions/getActiveTemplate/entry.ts",
+      "mode": "100644",
+      "blob": "1149893e493d19cdaef29ab63f6756194d524d1c",
+      "size": 4586,
+      "destination": "base44/functions/getActiveTemplate/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "1149893e493d19cdaef29ab63f6756194d524d1c"
+      }
+    },
+    {
+      "path": "base44/functions/getAllTemplateVersions/entry.ts",
+      "mode": "100644",
+      "blob": "033fd4b478b66b33b51a288886cf475b99aac07d",
+      "size": 997,
+      "destination": "base44/functions/getAllTemplateVersions/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "033fd4b478b66b33b51a288886cf475b99aac07d"
+      }
+    },
+    {
+      "path": "base44/functions/getClientByToken/entry.ts",
+      "mode": "100644",
+      "blob": "b2979267ab53a0698e71adb7811d02945ebb0017",
+      "size": 1184,
+      "destination": "base44/functions/getClientByToken/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "b2979267ab53a0698e71adb7811d02945ebb0017"
+      }
+    },
+    {
+      "path": "base44/functions/getPdfTemplateById/entry.ts",
+      "mode": "100644",
+      "blob": "e2b345ba4ad7f65436fe2cb82688454212e2d79c",
+      "size": 900,
+      "destination": "base44/functions/getPdfTemplateById/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "e2b345ba4ad7f65436fe2cb82688454212e2d79c"
+      }
+    },
+    {
+      "path": "base44/functions/getSignedPdfUrl/entry.ts",
+      "mode": "100644",
+      "blob": "e6eb28ec8a0fb1f6566defa6e2d640626a38fe73",
+      "size": 1875,
+      "destination": "base44/functions/getSignedPdfUrl/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "e6eb28ec8a0fb1f6566defa6e2d640626a38fe73"
+      }
+    },
+    {
+      "path": "base44/functions/getTemplateById/entry.ts",
+      "mode": "100644",
+      "blob": "9800f439ea191d2499dd1ae3eb6b30366a3010b3",
+      "size": 912,
+      "destination": "base44/functions/getTemplateById/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "9800f439ea191d2499dd1ae3eb6b30366a3010b3"
+      }
+    },
+    {
+      "path": "base44/functions/getTemplateFileUrl/entry.ts",
+      "mode": "100644",
+      "blob": "e954b0b362ee3d910931969b53a1c1aa021390b7",
+      "size": 2044,
+      "destination": "base44/functions/getTemplateFileUrl/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "e954b0b362ee3d910931969b53a1c1aa021390b7"
+      }
+    },
+    {
+      "path": "base44/functions/notifySubmissionCompleted/entry.ts",
+      "mode": "100644",
+      "blob": "327f5e3567b1669c71bcffe5c2262223873facc7",
+      "size": 2902,
+      "destination": "base44/functions/notifySubmissionCompleted/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "327f5e3567b1669c71bcffe5c2262223873facc7"
+      }
+    },
+    {
+      "path": "base44/functions/saveQuestionnaireTemplate/entry.ts",
+      "mode": "100644",
+      "blob": "cd68c38b062eb114235574f592e4630642f34135",
+      "size": 1608,
+      "destination": "base44/functions/saveQuestionnaireTemplate/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "cd68c38b062eb114235574f592e4630642f34135"
+      }
+    },
+    {
+      "path": "base44/functions/syncFilesToGoogleDrive/entry.ts",
+      "mode": "100644",
+      "blob": "3de670038677923b5b8efed5711bec9060759311",
+      "size": 16962,
+      "destination": "base44/functions/syncFilesToGoogleDrive/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "3de670038677923b5b8efed5711bec9060759311"
+      }
+    },
+    {
+      "path": "base44/functions/updateClientSubmission/entry.ts",
+      "mode": "100644",
+      "blob": "febc1ba4e264173c1e0da2024db3274b9b9db171",
+      "size": 2820,
+      "destination": "base44/functions/updateClientSubmission/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "febc1ba4e264173c1e0da2024db3274b9b9db171"
+      }
+    },
+    {
+      "path": "base44/functions/uploadFile/entry.ts",
+      "mode": "100644",
+      "blob": "5857fee8a02a5a2b0a6bfa10af1b3f0c3e266143",
+      "size": 1500,
+      "destination": "base44/functions/uploadFile/entry.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "5857fee8a02a5a2b0a6bfa10af1b3f0c3e266143"
+      }
+    },
+    {
+      "path": "components.json",
+      "mode": "100644",
+      "blob": "ebf7e6edf3e341acbdb9b72a6d828d4837d504de",
+      "size": 444,
+      "destination": "components.json",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "ebf7e6edf3e341acbdb9b72a6d828d4837d504de"
+      }
+    },
+    {
+      "path": "docs/PRD.md",
+      "mode": "100644",
+      "blob": "5d491cfe271325342d5b4571504699d25c8c15b1",
+      "size": 52293,
+      "destination": "docs/PRD.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "5d491cfe271325342d5b4571504699d25c8c15b1"
+      }
+    },
+    {
+      "path": "docs/user-journeys/00-scope-and-method.md",
+      "mode": "100644",
+      "blob": "29e5163bdc3780f8f31d937b2e22cff03a4e8e93",
+      "size": 4668,
+      "destination": "docs/user-journeys/00-scope-and-method.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "29e5163bdc3780f8f31d937b2e22cff03a4e8e93"
+      }
+    },
+    {
+      "path": "docs/user-journeys/01-structural-inventory.md",
+      "mode": "100644",
+      "blob": "30602530d544ab10dbcec1fa9bcaf6c39c1780c6",
+      "size": 8997,
+      "destination": "docs/user-journeys/01-structural-inventory.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "30602530d544ab10dbcec1fa9bcaf6c39c1780c6"
+      }
+    },
+    {
+      "path": "docs/user-journeys/02-actor-permission-map.md",
+      "mode": "100644",
+      "blob": "921d18a46b3dfeabe5bdff3e5ad455c36cdd1fa6",
+      "size": 7042,
+      "destination": "docs/user-journeys/02-actor-permission-map.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "921d18a46b3dfeabe5bdff3e5ad455c36cdd1fa6"
+      }
+    },
+    {
+      "path": "docs/user-journeys/03-entity-lifecycles.md",
+      "mode": "100644",
+      "blob": "e5ddac4699d011465b68a746863102735338bab0",
+      "size": 10693,
+      "destination": "docs/user-journeys/03-entity-lifecycles.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "e5ddac4699d011465b68a746863102735338bab0"
+      }
+    },
+    {
+      "path": "docs/user-journeys/04-user-journeys.md",
+      "mode": "100644",
+      "blob": "14c1e00701b6e6465dd63e8dffb48a0137e1df17",
+      "size": 24042,
+      "destination": "docs/user-journeys/04-user-journeys.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "14c1e00701b6e6465dd63e8dffb48a0137e1df17"
+      }
+    },
+    {
+      "path": "docs/user-journeys/05-traceability-ledger.md",
+      "mode": "100644",
+      "blob": "48b2593d4628341a19852d1dda1dea238b6d4406",
+      "size": 10787,
+      "destination": "docs/user-journeys/05-traceability-ledger.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "48b2593d4628341a19852d1dda1dea238b6d4406"
+      }
+    },
+    {
+      "path": "docs/user-journeys/06-coverage-gaps.md",
+      "mode": "100644",
+      "blob": "53ea6f005829531bb9f465b479c9a37112aa64f0",
+      "size": 9516,
+      "destination": "docs/user-journeys/06-coverage-gaps.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "53ea6f005829531bb9f465b479c9a37112aa64f0"
+      }
+    },
+    {
+      "path": "docs/user-journeys/recipe-user-journey-audit.md",
+      "mode": "100644",
+      "blob": "604fa41fde85c44b5f16bee37b9b4494cd89f1c6",
+      "size": 9526,
+      "destination": "docs/user-journeys/recipe-user-journey-audit.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "604fa41fde85c44b5f16bee37b9b4494cd89f1c6"
+      }
+    },
+    {
+      "path": "eslint.config.js",
+      "mode": "100644",
+      "blob": "14a70c5a87d0d03d313b335fb6026be2650faab6",
+      "size": 1578,
+      "destination": "eslint.config.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "14a70c5a87d0d03d313b335fb6026be2650faab6"
+      }
+    },
+    {
+      "path": "index.html",
+      "mode": "100644",
+      "blob": "8fb4feb21646b5bbd7c93c325f4d5258e05abac6",
+      "size": 1365,
+      "destination": "index.html",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "8fb4feb21646b5bbd7c93c325f4d5258e05abac6"
+      }
+    },
+    {
+      "path": "infra/prod/main.tf",
+      "mode": "100644",
+      "blob": "c8926645dc55bddf1f0f2b4268b8a19aaff4474c",
+      "size": 10738,
+      "destination": "infra/prod/main.tf",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "c8926645dc55bddf1f0f2b4268b8a19aaff4474c"
+      }
+    },
+    {
+      "path": "infra/test/main.tf",
+      "mode": "100644",
+      "blob": "d16992afcb78099651f392bd739fbdd90f099318",
+      "size": 7967,
+      "destination": "infra/test/main.tf",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "d16992afcb78099651f392bd739fbdd90f099318"
+      }
+    },
+    {
+      "path": "jsconfig.json",
+      "mode": "100644",
+      "blob": "366952646d0c5cf32210e134516d91b7577977ac",
+      "size": 583,
+      "destination": "jsconfig.json",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "366952646d0c5cf32210e134516d91b7577977ac"
+      }
+    },
+    {
+      "path": "lambda/pdf-generator/build.sh",
+      "mode": "100644",
+      "blob": "e346fa357fe131e9ac94f00cbd03653a485c400c",
+      "size": 2986,
+      "destination": "lambda/pdf-generator/build.sh",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "e346fa357fe131e9ac94f00cbd03653a485c400c"
+      }
+    },
+    {
+      "path": "lambda/pdf-generator/fonts/Heebo-Regular.ttf",
+      "mode": "100644",
+      "blob": "b51ed9b4f20d2f51663d10f8a8debea63792d39a",
+      "size": 122012,
+      "destination": "lambda/pdf-generator/fonts/Heebo-Regular.ttf",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "b51ed9b4f20d2f51663d10f8a8debea63792d39a"
+      }
+    },
+    {
+      "path": "lambda/pdf-generator/index.mjs",
+      "mode": "100644",
+      "blob": "0e2f030272d0b09fbf224921a63dc4271bfa5c2c",
+      "size": 9488,
+      "destination": "lambda/pdf-generator/index.mjs",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "0e2f030272d0b09fbf224921a63dc4271bfa5c2c"
+      }
+    },
+    {
+      "path": "lambda/pdf-generator/package-lock.json",
+      "mode": "100644",
+      "blob": "dc4a3e6679a1a4eb48ad92360205788ec012b312",
+      "size": 15737,
+      "destination": "lambda/pdf-generator/package-lock.json",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "dc4a3e6679a1a4eb48ad92360205788ec012b312"
+      }
+    },
+    {
+      "path": "lambda/pdf-generator/package.json",
+      "mode": "100644",
+      "blob": "c254ab68b672b7bde996b311193c4382de819e92",
+      "size": 432,
+      "destination": "lambda/pdf-generator/package.json",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "c254ab68b672b7bde996b311193c4382de819e92"
+      }
+    },
+    {
+      "path": "package-lock.json",
+      "mode": "100644",
+      "blob": "22c4acd171bf32687a95f5c1fcc8f63304640fea",
+      "size": 523836,
+      "destination": "package-lock.json",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "22c4acd171bf32687a95f5c1fcc8f63304640fea"
+      }
+    },
+    {
+      "path": "package.json",
+      "mode": "100644",
+      "blob": "fef91aa49a945d8d6c458b5f8f21628f5215ecca",
+      "size": 3558,
+      "destination": "package.json",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "fef91aa49a945d8d6c458b5f8f21628f5215ecca"
+      }
+    },
+    {
+      "path": "poc-server/package-lock.json",
+      "mode": "100644",
+      "blob": "06416848975dab6fc198bad7df6090ef320bdd1d",
+      "size": 81491,
+      "destination": "poc-server/package-lock.json",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "06416848975dab6fc198bad7df6090ef320bdd1d"
+      }
+    },
+    {
+      "path": "poc-server/package.json",
+      "mode": "100644",
+      "blob": "9ef21b777fcf83f61afd8e8690907b75ce144375",
+      "size": 464,
+      "destination": "poc-server/package.json",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "9ef21b777fcf83f61afd8e8690907b75ce144375"
+      }
+    },
+    {
+      "path": "poc-server/server.mjs",
+      "mode": "100644",
+      "blob": "114366efda2983ff442be55dfaa28878d8a11024",
+      "size": 9448,
+      "destination": "poc-server/server.mjs",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "114366efda2983ff442be55dfaa28878d8a11024"
+      }
+    },
+    {
+      "path": "poc-server/test-render.mjs",
+      "mode": "100644",
+      "blob": "89e29e6d02e28272a0a58699b320e3428779c0bb",
+      "size": 2724,
+      "destination": "poc-server/test-render.mjs",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "89e29e6d02e28272a0a58699b320e3428779c0bb"
+      }
+    },
+    {
+      "path": "postcss.config.js",
+      "mode": "100644",
+      "blob": "2e7af2b7f1a6f391da1631d93968a9d487ba977d",
+      "size": 80,
+      "destination": "postcss.config.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "2e7af2b7f1a6f391da1631d93968a9d487ba977d"
+      }
+    },
+    {
+      "path": "public/fonts/Heebo-Regular.ttf",
+      "mode": "100644",
+      "blob": "b51ed9b4f20d2f51663d10f8a8debea63792d39a",
+      "size": 122012,
+      "destination": "public/fonts/Heebo-Regular.ttf",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "b51ed9b4f20d2f51663d10f8a8debea63792d39a"
+      }
+    },
+    {
+      "path": "public/manifest.json",
+      "mode": "100644",
+      "blob": "d8934b74b87ec3da72454f0ebbc3f4327d00db67",
+      "size": 734,
+      "destination": "public/manifest.json",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "d8934b74b87ec3da72454f0ebbc3f4327d00db67"
+      }
+    },
+    {
+      "path": "public/pdf-test.html",
+      "mode": "100644",
+      "blob": "da1e932d133d5e5734e76444eeca0cff706821bc",
+      "size": 15104,
+      "destination": "public/pdf-test.html",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "da1e932d133d5e5734e76444eeca0cff706821bc"
+      }
+    },
+    {
+      "path": "src/App.jsx",
+      "mode": "100644",
+      "blob": "b48a03eb1038fa2e703e4e479af0c4488e996189",
+      "size": 4375,
+      "destination": "src/App.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "b48a03eb1038fa2e703e4e479af0c4488e996189"
+      }
+    },
+    {
+      "path": "src/api/base44Client.js",
+      "mode": "100644",
+      "blob": "5231f5b05dd1114dcc8c6d179bbf413da1e94f6c",
+      "size": 578,
+      "destination": "src/api/base44Client.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "5231f5b05dd1114dcc8c6d179bbf413da1e94f6c"
+      }
+    },
+    {
+      "path": "src/components/ProtectedRoute.jsx",
+      "mode": "100644",
+      "blob": "6018bc645332cd1f5d9d02326df7be7501e4a754",
+      "size": 1069,
+      "destination": "src/components/ProtectedRoute.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "6018bc645332cd1f5d9d02326df7be7501e4a754"
+      }
+    },
+    {
+      "path": "src/components/UserNotRegisteredError.jsx",
+      "mode": "100644",
+      "blob": "ede5274b34cdb6f988300f6b26abca5c2302c742",
+      "size": 1592,
+      "destination": "src/components/UserNotRegisteredError.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "ede5274b34cdb6f988300f6b26abca5c2302c742"
+      }
+    },
+    {
+      "path": "src/components/dashboard/AddClientModal.jsx",
+      "mode": "100644",
+      "blob": "b4db443d6e5cc18c80c9c1586dd50d567b2ece8a",
+      "size": 4624,
+      "destination": "src/components/dashboard/AddClientModal.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "b4db443d6e5cc18c80c9c1586dd50d567b2ece8a"
+      }
+    },
+    {
+      "path": "src/components/dashboard/AddSubmissionModal.jsx",
+      "mode": "100644",
+      "blob": "e03cac2685d8cff32dbc80b9855ad69a581f48cc",
+      "size": 5949,
+      "destination": "src/components/dashboard/AddSubmissionModal.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "e03cac2685d8cff32dbc80b9855ad69a581f48cc"
+      }
+    },
+    {
+      "path": "src/components/dashboard/ClientRow.jsx",
+      "mode": "100644",
+      "blob": "8c30aa3b79f09c392c161ca5371855dd6ade009f",
+      "size": 39205,
+      "destination": "src/components/dashboard/ClientRow.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "8c30aa3b79f09c392c161ca5371855dd6ade009f"
+      }
+    },
+    {
+      "path": "src/components/dashboard/CpaAuditBadge.jsx",
+      "mode": "100644",
+      "blob": "31601ffd0286bd8864638ba5c801b591887308fd",
+      "size": 1754,
+      "destination": "src/components/dashboard/CpaAuditBadge.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "31601ffd0286bd8864638ba5c801b591887308fd"
+      }
+    },
+    {
+      "path": "src/components/dashboard/EditClientModal.jsx",
+      "mode": "100644",
+      "blob": "2216402d8c3121247ffbddd6bb10870cd9147868",
+      "size": 4636,
+      "destination": "src/components/dashboard/EditClientModal.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "2216402d8c3121247ffbddd6bb10870cd9147868"
+      }
+    },
+    {
+      "path": "src/components/dashboard/QuestionnaireEditor.jsx",
+      "mode": "100644",
+      "blob": "682c2cae2d4205f459eff6be0a1aa3bd50b243ef",
+      "size": 34597,
+      "destination": "src/components/dashboard/QuestionnaireEditor.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "682c2cae2d4205f459eff6be0a1aa3bd50b243ef"
+      }
+    },
+    {
+      "path": "src/components/dashboard/RestoreSubmissionDialog.jsx",
+      "mode": "100644",
+      "blob": "27e3830d00feadcb08188963fe1db4d9d59a84db",
+      "size": 3775,
+      "destination": "src/components/dashboard/RestoreSubmissionDialog.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "27e3830d00feadcb08188963fe1db4d9d59a84db"
+      }
+    },
+    {
+      "path": "src/components/dashboard/SubmissionReadinessChat.jsx",
+      "mode": "100644",
+      "blob": "41be87e8ca39ab5bbc13985fe411e86b443fd6d6",
+      "size": 3712,
+      "destination": "src/components/dashboard/SubmissionReadinessChat.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "41be87e8ca39ab5bbc13985fe411e86b443fd6d6"
+      }
+    },
+    {
+      "path": "src/components/dashboard/SyncAllDriveButton.jsx",
+      "mode": "100644",
+      "blob": "33f935a005206d7902052a7ca9616cdd9b3beb60",
+      "size": 4164,
+      "destination": "src/components/dashboard/SyncAllDriveButton.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "33f935a005206d7902052a7ca9616cdd9b3beb60"
+      }
+    },
+    {
+      "path": "src/components/dashboard/TeamSection.jsx",
+      "mode": "100644",
+      "blob": "cceaa0e9e362c73d2f7b2494bda05a6afcbea09d",
+      "size": 4435,
+      "destination": "src/components/dashboard/TeamSection.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "cceaa0e9e362c73d2f7b2494bda05a6afcbea09d"
+      }
+    },
+    {
+      "path": "src/components/dashboard/VersionHistory.jsx",
+      "mode": "100644",
+      "blob": "7dd15a4e5f61e0cc375562bc4695f471651bc740",
+      "size": 7623,
+      "destination": "src/components/dashboard/VersionHistory.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "7dd15a4e5f61e0cc375562bc4695f471651bc740"
+      }
+    },
+    {
+      "path": "src/components/questionnaire/CompletionScreen.jsx",
+      "mode": "100644",
+      "blob": "6234fca410d6a6ed5ff5ccd8c766cfb43c8d9d17",
+      "size": 4276,
+      "destination": "src/components/questionnaire/CompletionScreen.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "6234fca410d6a6ed5ff5ccd8c766cfb43c8d9d17"
+      }
+    },
+    {
+      "path": "src/components/questionnaire/LightweightSignaturePad.jsx",
+      "mode": "100644",
+      "blob": "3184a57ce1630f3d7c2d32832a6bc12ca2aaab35",
+      "size": 4171,
+      "destination": "src/components/questionnaire/LightweightSignaturePad.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "3184a57ce1630f3d7c2d32832a6bc12ca2aaab35"
+      }
+    },
+    {
+      "path": "src/components/questionnaire/PdfFormStep.jsx",
+      "mode": "100644",
+      "blob": "7f8078a03607f0afa79818b29c1ac3807ce43d39",
+      "size": 28933,
+      "destination": "src/components/questionnaire/PdfFormStep.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "7f8078a03607f0afa79818b29c1ac3807ce43d39"
+      }
+    },
+    {
+      "path": "src/components/questionnaire/PdfSignStepWrapper.jsx",
+      "mode": "100644",
+      "blob": "817a0066db789a7720a48eacdb9c772cd8e3451b",
+      "size": 4775,
+      "destination": "src/components/questionnaire/PdfSignStepWrapper.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "817a0066db789a7720a48eacdb9c772cd8e3451b"
+      }
+    },
+    {
+      "path": "src/components/questionnaire/ProgressBar.jsx",
+      "mode": "100644",
+      "blob": "b35b8161b27e6f492122fbe3431871d4bc124ba2",
+      "size": 612,
+      "destination": "src/components/questionnaire/ProgressBar.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "b35b8161b27e6f492122fbe3431871d4bc124ba2"
+      }
+    },
+    {
+      "path": "src/components/questionnaire/QuestionStep.jsx",
+      "mode": "100644",
+      "blob": "7895975ba238f1489fc204857e4c7db38f0df238",
+      "size": 24939,
+      "destination": "src/components/questionnaire/QuestionStep.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "7895975ba238f1489fc204857e4c7db38f0df238"
+      }
+    },
+    {
+      "path": "src/components/questionnaire/StepSelector.jsx",
+      "mode": "100644",
+      "blob": "ebb01c8a45dc0dfa67a79bedd45027e9a5ccd421",
+      "size": 2723,
+      "destination": "src/components/questionnaire/StepSelector.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "ebb01c8a45dc0dfa67a79bedd45027e9a5ccd421"
+      }
+    },
+    {
+      "path": "src/components/questionnaire/WelcomeStep.jsx",
+      "mode": "100644",
+      "blob": "72e53c89b88febc9647414878b510e233bae3edb",
+      "size": 2676,
+      "destination": "src/components/questionnaire/WelcomeStep.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "72e53c89b88febc9647414878b510e233bae3edb"
+      }
+    },
+    {
+      "path": "src/components/ui/accordion.jsx",
+      "mode": "100644",
+      "blob": "1c4416a4a852c758ce4056b302fb6b2e9cf24118",
+      "size": 1615,
+      "destination": "src/components/ui/accordion.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "1c4416a4a852c758ce4056b302fb6b2e9cf24118"
+      }
+    },
+    {
+      "path": "src/components/ui/alert-dialog.jsx",
+      "mode": "100644",
+      "blob": "a4174f3675cce4b9835ec9acb878b6d0578134e7",
+      "size": 3461,
+      "destination": "src/components/ui/alert-dialog.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "a4174f3675cce4b9835ec9acb878b6d0578134e7"
+      }
+    },
+    {
+      "path": "src/components/ui/alert.jsx",
+      "mode": "100644",
+      "blob": "28597e84ffa7ba757fb992076bc5340fd9d567a0",
+      "size": 1335,
+      "destination": "src/components/ui/alert.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "28597e84ffa7ba757fb992076bc5340fd9d567a0"
+      }
+    },
+    {
+      "path": "src/components/ui/aspect-ratio.jsx",
+      "mode": "100644",
+      "blob": "c4abbf37f217c715a0eaade7f45ac78600df419f",
+      "size": 140,
+      "destination": "src/components/ui/aspect-ratio.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "c4abbf37f217c715a0eaade7f45ac78600df419f"
+      }
+    },
+    {
+      "path": "src/components/ui/avatar.jsx",
+      "mode": "100644",
+      "blob": "4920324321522fb9ac382a6898083bbd641f154b",
+      "size": 1043,
+      "destination": "src/components/ui/avatar.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "4920324321522fb9ac382a6898083bbd641f154b"
+      }
+    },
+    {
+      "path": "src/components/ui/badge.jsx",
+      "mode": "100644",
+      "blob": "a687ebad024768896157580c5884e8c6c0c0f502",
+      "size": 990,
+      "destination": "src/components/ui/badge.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "a687ebad024768896157580c5884e8c6c0c0f502"
+      }
+    },
+    {
+      "path": "src/components/ui/breadcrumb.jsx",
+      "mode": "100644",
+      "blob": "4d782a4ab4de4d6aeca4c53ca081a14d63eb2bc2",
+      "size": 2271,
+      "destination": "src/components/ui/breadcrumb.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "4d782a4ab4de4d6aeca4c53ca081a14d63eb2bc2"
+      }
+    },
+    {
+      "path": "src/components/ui/button.jsx",
+      "mode": "100644",
+      "blob": "7383248a80c7da8bf84784431e9a7e3d1a8cbaf5",
+      "size": 1679,
+      "destination": "src/components/ui/button.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "7383248a80c7da8bf84784431e9a7e3d1a8cbaf5"
+      }
+    },
+    {
+      "path": "src/components/ui/calendar.jsx",
+      "mode": "100644",
+      "blob": "1b63f270e63310168385e2fdac007c307d5e4e54",
+      "size": 2851,
+      "destination": "src/components/ui/calendar.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "1b63f270e63310168385e2fdac007c307d5e4e54"
+      }
+    },
+    {
+      "path": "src/components/ui/card.jsx",
+      "mode": "100644",
+      "blob": "2985cca80f03eae3175a3ee94936204141e38b6f",
+      "size": 1440,
+      "destination": "src/components/ui/card.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "2985cca80f03eae3175a3ee94936204141e38b6f"
+      }
+    },
+    {
+      "path": "src/components/ui/carousel.jsx",
+      "mode": "100644",
+      "blob": "99ea00e24fa0ef2a0004a5b03364538000e4f0fa",
+      "size": 4821,
+      "destination": "src/components/ui/carousel.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "99ea00e24fa0ef2a0004a5b03364538000e4f0fa"
+      }
+    },
+    {
+      "path": "src/components/ui/chart.jsx",
+      "mode": "100644",
+      "blob": "bcef1067f7f7ac55b64cf2bc7c615d829d0e30a6",
+      "size": 8639,
+      "destination": "src/components/ui/chart.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "bcef1067f7f7ac55b64cf2bc7c615d829d0e30a6"
+      }
+    },
+    {
+      "path": "src/components/ui/checkbox.jsx",
+      "mode": "100644",
+      "blob": "5e0c96bf7bcb9878da9239772b3ff361a5e8a1c0",
+      "size": 880,
+      "destination": "src/components/ui/checkbox.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "5e0c96bf7bcb9878da9239772b3ff361a5e8a1c0"
+      }
+    },
+    {
+      "path": "src/components/ui/collapsible.jsx",
+      "mode": "100644",
+      "blob": "9fa48946afd1eb56bd932377fd888e3986304676",
+      "size": 329,
+      "destination": "src/components/ui/collapsible.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "9fa48946afd1eb56bd932377fd888e3986304676"
+      }
+    },
+    {
+      "path": "src/components/ui/command.jsx",
+      "mode": "100644",
+      "blob": "f2d7522c280fc359befbabaa9ff260c0eef41d35",
+      "size": 3897,
+      "destination": "src/components/ui/command.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "f2d7522c280fc359befbabaa9ff260c0eef41d35"
+      }
+    },
+    {
+      "path": "src/components/ui/context-menu.jsx",
+      "mode": "100644",
+      "blob": "fdfdbae6c8f1c6e807033e5e9b7656da0e8a84c2",
+      "size": 5995,
+      "destination": "src/components/ui/context-menu.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "fdfdbae6c8f1c6e807033e5e9b7656da0e8a84c2"
+      }
+    },
+    {
+      "path": "src/components/ui/dialog.jsx",
+      "mode": "100644",
+      "blob": "0d7981be135e34293afee34cae75a4703d146805",
+      "size": 3228,
+      "destination": "src/components/ui/dialog.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "0d7981be135e34293afee34cae75a4703d146805"
+      }
+    },
+    {
+      "path": "src/components/ui/drawer.jsx",
+      "mode": "100644",
+      "blob": "6d21646d8e212d938b7c0e6a537715c563ac2086",
+      "size": 2359,
+      "destination": "src/components/ui/drawer.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "6d21646d8e212d938b7c0e6a537715c563ac2086"
+      }
+    },
+    {
+      "path": "src/components/ui/dropdown-menu.jsx",
+      "mode": "100644",
+      "blob": "4ac6fd6c4cf59e544601b74fd0f5d7949b9ad39d",
+      "size": 6157,
+      "destination": "src/components/ui/dropdown-menu.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "4ac6fd6c4cf59e544601b74fd0f5d7949b9ad39d"
+      }
+    },
+    {
+      "path": "src/components/ui/form.jsx",
+      "mode": "100644",
+      "blob": "e77d4a167be7d854eb94702c0142d8e673d967ca",
+      "size": 3141,
+      "destination": "src/components/ui/form.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "e77d4a167be7d854eb94702c0142d8e673d967ca"
+      }
+    },
+    {
+      "path": "src/components/ui/hover-card.jsx",
+      "mode": "100644",
+      "blob": "605a5994a8fd4b4b2a8b7b18ee13328ebb35542b",
+      "size": 1070,
+      "destination": "src/components/ui/hover-card.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "605a5994a8fd4b4b2a8b7b18ee13328ebb35542b"
+      }
+    },
+    {
+      "path": "src/components/ui/input-otp.jsx",
+      "mode": "100644",
+      "blob": "53832275b6fa001e1c880410de0c43b3845a146f",
+      "size": 1811,
+      "destination": "src/components/ui/input-otp.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "53832275b6fa001e1c880410de0c43b3845a146f"
+      }
+    },
+    {
+      "path": "src/components/ui/input.jsx",
+      "mode": "100644",
+      "blob": "41ec05e41cc0da39f253ccc6a32a3fdb5e439ff9",
+      "size": 690,
+      "destination": "src/components/ui/input.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "41ec05e41cc0da39f253ccc6a32a3fdb5e439ff9"
+      }
+    },
+    {
+      "path": "src/components/ui/label.jsx",
+      "mode": "100644",
+      "blob": "a1f40999c1466ed84fdd2ad1a8944781f516c9ba",
+      "size": 525,
+      "destination": "src/components/ui/label.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "a1f40999c1466ed84fdd2ad1a8944781f516c9ba"
+      }
+    },
+    {
+      "path": "src/components/ui/menubar.jsx",
+      "mode": "100644",
+      "blob": "2b3c71f9d668ac0d72aba075d8e4f27119912dd7",
+      "size": 6790,
+      "destination": "src/components/ui/menubar.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "2b3c71f9d668ac0d72aba075d8e4f27119912dd7"
+      }
+    },
+    {
+      "path": "src/components/ui/navigation-menu.jsx",
+      "mode": "100644",
+      "blob": "161bd25d409d464391badc869ca3536803444f8b",
+      "size": 4217,
+      "destination": "src/components/ui/navigation-menu.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "161bd25d409d464391badc869ca3536803444f8b"
+      }
+    },
+    {
+      "path": "src/components/ui/pagination.jsx",
+      "mode": "100644",
+      "blob": "193407e6d2bf990665776a932a865b764df2a3a7",
+      "size": 2322,
+      "destination": "src/components/ui/pagination.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "193407e6d2bf990665776a932a865b764df2a3a7"
+      }
+    },
+    {
+      "path": "src/components/ui/popover.jsx",
+      "mode": "100644",
+      "blob": "b9f9d4cd0415ef14e188fb06dd125960a57a5056",
+      "size": 1166,
+      "destination": "src/components/ui/popover.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "b9f9d4cd0415ef14e188fb06dd125960a57a5056"
+      }
+    },
+    {
+      "path": "src/components/ui/progress.jsx",
+      "mode": "100644",
+      "blob": "cab97c91bb57e7d114c175c05b958c031637b11b",
+      "size": 667,
+      "destination": "src/components/ui/progress.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "cab97c91bb57e7d114c175c05b958c031637b11b"
+      }
+    },
+    {
+      "path": "src/components/ui/radio-group.jsx",
+      "mode": "100644",
+      "blob": "9d9b615d5c68f561819c076f631c4aeeb3641ac6",
+      "size": 1135,
+      "destination": "src/components/ui/radio-group.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "9d9b615d5c68f561819c076f631c4aeeb3641ac6"
+      }
+    },
+    {
+      "path": "src/components/ui/resizable.jsx",
+      "mode": "100644",
+      "blob": "4a0ec573b7288185851ba987ed3f1748d00aa602",
+      "size": 1570,
+      "destination": "src/components/ui/resizable.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "4a0ec573b7288185851ba987ed3f1748d00aa602"
+      }
+    },
+    {
+      "path": "src/components/ui/scroll-area.jsx",
+      "mode": "100644",
+      "blob": "dc3d3840ca9a57627ec2edcc938111a877c67761",
+      "size": 1362,
+      "destination": "src/components/ui/scroll-area.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "dc3d3840ca9a57627ec2edcc938111a877c67761"
+      }
+    },
+    {
+      "path": "src/components/ui/select.jsx",
+      "mode": "100644",
+      "blob": "2cb4519bf9edd3b4f995aec8a412fb7f297969f4",
+      "size": 4677,
+      "destination": "src/components/ui/select.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "2cb4519bf9edd3b4f995aec8a412fb7f297969f4"
+      }
+    },
+    {
+      "path": "src/components/ui/separator.jsx",
+      "mode": "100644",
+      "blob": "c40b88839ea28b3755355e6a9841301315abf908",
+      "size": 600,
+      "destination": "src/components/ui/separator.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "c40b88839ea28b3755355e6a9841301315abf908"
+      }
+    },
+    {
+      "path": "src/components/ui/sheet.jsx",
+      "mode": "100644",
+      "blob": "cdb27be136fb8b89bc1a4769f392d6d4cc1d1575",
+      "size": 3549,
+      "destination": "src/components/ui/sheet.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "cdb27be136fb8b89bc1a4769f392d6d4cc1d1575"
+      }
+    },
+    {
+      "path": "src/components/ui/sidebar.jsx",
+      "mode": "100644",
+      "blob": "bd30d0db89e9496ef449ed0fc90b230c40f31c1a",
+      "size": 20643,
+      "destination": "src/components/ui/sidebar.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "bd30d0db89e9496ef449ed0fc90b230c40f31c1a"
+      }
+    },
+    {
+      "path": "src/components/ui/skeleton.jsx",
+      "mode": "100644",
+      "blob": "9c864f3118079204967b42bd3102cbed037d42a0",
+      "size": 227,
+      "destination": "src/components/ui/skeleton.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "9c864f3118079204967b42bd3102cbed037d42a0"
+      }
+    },
+    {
+      "path": "src/components/ui/slider.jsx",
+      "mode": "100644",
+      "blob": "6062ce5e4b36a90b148d55eb0cb080ac3f47330c",
+      "size": 914,
+      "destination": "src/components/ui/slider.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "6062ce5e4b36a90b148d55eb0cb080ac3f47330c"
+      }
+    },
+    {
+      "path": "src/components/ui/sonner.jsx",
+      "mode": "100644",
+      "blob": "bd51a926e1a133c35aa2000f6795d292989cd014",
+      "size": 799,
+      "destination": "src/components/ui/sonner.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "bd51a926e1a133c35aa2000f6795d292989cd014"
+      }
+    },
+    {
+      "path": "src/components/ui/switch.jsx",
+      "mode": "100644",
+      "blob": "5ef3287b76983539c22e5d2d3c05d6b69347beec",
+      "size": 1025,
+      "destination": "src/components/ui/switch.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "5ef3287b76983539c22e5d2d3c05d6b69347beec"
+      }
+    },
+    {
+      "path": "src/components/ui/table.jsx",
+      "mode": "100644",
+      "blob": "07443a1a5a091046a7bed640882106fbc2df47cf",
+      "size": 2231,
+      "destination": "src/components/ui/table.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "07443a1a5a091046a7bed640882106fbc2df47cf"
+      }
+    },
+    {
+      "path": "src/components/ui/tabs.jsx",
+      "mode": "100644",
+      "blob": "b674eb93009a3f5da27631ea28a99604fc6321cd",
+      "size": 1529,
+      "destination": "src/components/ui/tabs.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "b674eb93009a3f5da27631ea28a99604fc6321cd"
+      }
+    },
+    {
+      "path": "src/components/ui/textarea.jsx",
+      "mode": "100644",
+      "blob": "b1a0b40747b3ec3c6bd857c72de0e501e2e5a0a6",
+      "size": 587,
+      "destination": "src/components/ui/textarea.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "b1a0b40747b3ec3c6bd857c72de0e501e2e5a0a6"
+      }
+    },
+    {
+      "path": "src/components/ui/toast.jsx",
+      "mode": "100644",
+      "blob": "6313005b9e39dca39940cae95a1ccdc1ae020cc3",
+      "size": 3844,
+      "destination": "src/components/ui/toast.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "6313005b9e39dca39940cae95a1ccdc1ae020cc3"
+      }
+    },
+    {
+      "path": "src/components/ui/toaster.jsx",
+      "mode": "100644",
+      "blob": "2655b3415d84c4935bc15ee061497dfe196a524f",
+      "size": 821,
+      "destination": "src/components/ui/toaster.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "2655b3415d84c4935bc15ee061497dfe196a524f"
+      }
+    },
+    {
+      "path": "src/components/ui/toggle-group.jsx",
+      "mode": "100644",
+      "blob": "c1cfc9a1441c3c1d72f3085b328ad29893642dea",
+      "size": 1284,
+      "destination": "src/components/ui/toggle-group.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "c1cfc9a1441c3c1d72f3085b328ad29893642dea"
+      }
+    },
+    {
+      "path": "src/components/ui/toggle.jsx",
+      "mode": "100644",
+      "blob": "49d072c2bc04281405a6c1c613ec4ed222e42bf3",
+      "size": 1310,
+      "destination": "src/components/ui/toggle.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "49d072c2bc04281405a6c1c613ec4ed222e42bf3"
+      }
+    },
+    {
+      "path": "src/components/ui/tooltip.jsx",
+      "mode": "100644",
+      "blob": "4cca6c16c89d36cfbd5015cc4a887d6865477296",
+      "size": 1091,
+      "destination": "src/components/ui/tooltip.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "4cca6c16c89d36cfbd5015cc4a887d6865477296"
+      }
+    },
+    {
+      "path": "src/components/ui/use-toast.jsx",
+      "mode": "100644",
+      "blob": "91eba909edac80782d3d5904bb5d812b6db5ebd5",
+      "size": 2995,
+      "destination": "src/components/ui/use-toast.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "91eba909edac80782d3d5904bb5d812b6db5ebd5"
+      }
+    },
+    {
+      "path": "src/docs/CHANGELOG.md",
+      "mode": "100644",
+      "blob": "e0ef439172b0ed358e3a1ace5f264e3e2993933e",
+      "size": 20644,
+      "destination": "src/docs/CHANGELOG.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "e0ef439172b0ed358e3a1ace5f264e3e2993933e"
+      }
+    },
+    {
+      "path": "src/docs/CPA_FILL_MODE.md",
+      "mode": "100644",
+      "blob": "d65e02b07f01482695173db2411efcd0b89da90f",
+      "size": 3966,
+      "destination": "src/docs/CPA_FILL_MODE.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "d65e02b07f01482695173db2411efcd0b89da90f"
+      }
+    },
+    {
+      "path": "src/docs/DRIVE_SYNC.md",
+      "mode": "100644",
+      "blob": "0330c1bac6a3f7e3379db3f4007685fd4a37f6e9",
+      "size": 5329,
+      "destination": "src/docs/DRIVE_SYNC.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "0330c1bac6a3f7e3379db3f4007685fd4a37f6e9"
+      }
+    },
+    {
+      "path": "src/docs/MULTI_YEAR_HISTORY.md",
+      "mode": "100644",
+      "blob": "20fbf6d86c25061fb17e8039eacbbbb455b98e77",
+      "size": 5500,
+      "destination": "src/docs/MULTI_YEAR_HISTORY.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "20fbf6d86c25061fb17e8039eacbbbb455b98e77"
+      }
+    },
+    {
+      "path": "src/docs/PDF_MODULE.md",
+      "mode": "100644",
+      "blob": "055bfbd521e7744f56aae64f3237aa44a029b3a0",
+      "size": 16336,
+      "destination": "src/docs/PDF_MODULE.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "055bfbd521e7744f56aae64f3237aa44a029b3a0"
+      }
+    },
+    {
+      "path": "src/docs/QUESTIONNAIRE_STATE_MACHINE.md",
+      "mode": "100644",
+      "blob": "b444d4ac3fdcfbdaba6c0c164ad6cb0eee816663",
+      "size": 15590,
+      "destination": "src/docs/QUESTIONNAIRE_STATE_MACHINE.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "b444d4ac3fdcfbdaba6c0c164ad6cb0eee816663"
+      }
+    },
+    {
+      "path": "src/docs/QUESTIONNAIRE_STATE_MACHINE_DIAGRAMS.md",
+      "mode": "100644",
+      "blob": "a59b965798072455fe1f33e678ea8a9a8ce5e023",
+      "size": 5293,
+      "destination": "src/docs/QUESTIONNAIRE_STATE_MACHINE_DIAGRAMS.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "a59b965798072455fe1f33e678ea8a9a8ce5e023"
+      }
+    },
+    {
+      "path": "src/docs/SECURITY.md",
+      "mode": "100644",
+      "blob": "01d60d41ed5d2fe1427618f75db95697a01d1c5f",
+      "size": 8522,
+      "destination": "src/docs/SECURITY.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "01d60d41ed5d2fe1427618f75db95697a01d1c5f"
+      }
+    },
+    {
+      "path": "src/docs/SUBMISSION_ARCHIVING_FLOW.md",
+      "mode": "100644",
+      "blob": "131c9eff6a1500bc3e3b8cb86e0bf72cd4137371",
+      "size": 5768,
+      "destination": "src/docs/SUBMISSION_ARCHIVING_FLOW.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "131c9eff6a1500bc3e3b8cb86e0bf72cd4137371"
+      }
+    },
+    {
+      "path": "src/docs/SUBMISSION_CENTRIC_DASHBOARD.md",
+      "mode": "100644",
+      "blob": "bd290b316ae6bce13ce68a852f9abb3cba041b69",
+      "size": 5996,
+      "destination": "src/docs/SUBMISSION_CENTRIC_DASHBOARD.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "bd290b316ae6bce13ce68a852f9abb3cba041b69"
+      }
+    },
+    {
+      "path": "src/docs/TEST_SUITE_PLAN.md",
+      "mode": "100644",
+      "blob": "4a187ca2f1777670e04c2e75e27d4c84091f16f3",
+      "size": 10365,
+      "destination": "src/docs/TEST_SUITE_PLAN.md",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "4a187ca2f1777670e04c2e75e27d4c84091f16f3"
+      }
+    },
+    {
+      "path": "src/hooks/use-mobile.jsx",
+      "mode": "100644",
+      "blob": "9c47a0dc4a3bf071f43e0e8660d6618ee48de2e6",
+      "size": 545,
+      "destination": "src/hooks/use-mobile.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "9c47a0dc4a3bf071f43e0e8660d6618ee48de2e6"
+      }
+    },
+    {
+      "path": "src/index.css",
+      "mode": "100644",
+      "blob": "b620d9f77bbb8f42ce72dfcee6b6d6f80e1956f6",
+      "size": 1799,
+      "destination": "src/index.css",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "b620d9f77bbb8f42ce72dfcee6b6d6f80e1956f6"
+      }
+    },
+    {
+      "path": "src/instrument.js",
+      "mode": "100644",
+      "blob": "5738f0545b986e87d486cda09602701309ccd86b",
+      "size": 872,
+      "destination": "src/instrument.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "5738f0545b986e87d486cda09602701309ccd86b"
+      }
+    },
+    {
+      "path": "src/lib/AuthContext.jsx",
+      "mode": "100644",
+      "blob": "35a27e0329ffad73fa10c549da6907f0e89157ef",
+      "size": 5145,
+      "destination": "src/lib/AuthContext.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "35a27e0329ffad73fa10c549da6907f0e89157ef"
+      }
+    },
+    {
+      "path": "src/lib/PageNotFound.jsx",
+      "mode": "100644",
+      "blob": "cce903d507cd0c57e3015d63b2a198dc84fbb9ed",
+      "size": 3930,
+      "destination": "src/lib/PageNotFound.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "cce903d507cd0c57e3015d63b2a198dc84fbb9ed"
+      }
+    },
+    {
+      "path": "src/lib/__tests__/questionnaire-steps.test.js",
+      "mode": "100644",
+      "blob": "ed46a1276a52f999a228c5c257036e0a1d706592",
+      "size": 9410,
+      "destination": "src/lib/__tests__/questionnaire-steps.test.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "ed46a1276a52f999a228c5c257036e0a1d706592"
+      }
+    },
+    {
+      "path": "src/lib/__tests__/questionnaire-template.test.js",
+      "mode": "100644",
+      "blob": "f5faa043137785c90af260487ec5f8eb1bf7fde5",
+      "size": 7988,
+      "destination": "src/lib/__tests__/questionnaire-template.test.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "f5faa043137785c90af260487ec5f8eb1bf7fde5"
+      }
+    },
+    {
+      "path": "src/lib/__tests__/submission-compat.test.js",
+      "mode": "100644",
+      "blob": "ecdcab6310e887d5feb45705a772dc67c8d8e952",
+      "size": 12176,
+      "destination": "src/lib/__tests__/submission-compat.test.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "ecdcab6310e887d5feb45705a772dc67c8d8e952"
+      }
+    },
+    {
+      "path": "src/lib/app-params.js",
+      "mode": "100644",
+      "blob": "0e49475c1da152991e61d2601e773da5ad3180c1",
+      "size": 2517,
+      "destination": "src/lib/app-params.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "0e49475c1da152991e61d2601e773da5ad3180c1"
+      }
+    },
+    {
+      "path": "src/lib/default-template.js",
+      "mode": "100644",
+      "blob": "bfb763be51e75ff7575768682cd07368dc02898e",
+      "size": 5502,
+      "destination": "src/lib/default-template.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "bfb763be51e75ff7575768682cd07368dc02898e"
+      }
+    },
+    {
+      "path": "src/lib/pdfme-config.js",
+      "mode": "100644",
+      "blob": "e9359685ee474d41ff493c71fb3b16843acb521d",
+      "size": 14108,
+      "destination": "src/lib/pdfme-config.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "e9359685ee474d41ff493c71fb3b16843acb521d"
+      }
+    },
+    {
+      "path": "src/lib/query-client.js",
+      "mode": "100644",
+      "blob": "9b4d087911d64d0909bd9823f1aa3eb50e2a7340",
+      "size": 197,
+      "destination": "src/lib/query-client.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "9b4d087911d64d0909bd9823f1aa3eb50e2a7340"
+      }
+    },
+    {
+      "path": "src/lib/questionnaire-steps.js",
+      "mode": "100644",
+      "blob": "0729ea3a9efa46273dd1c866efb484fb6f83a0e5",
+      "size": 3137,
+      "destination": "src/lib/questionnaire-steps.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "0729ea3a9efa46273dd1c866efb484fb6f83a0e5"
+      }
+    },
+    {
+      "path": "src/lib/questionnaire-template.js",
+      "mode": "100644",
+      "blob": "31aa4d2412d2030dd0a012247af70de2ca6e66ad",
+      "size": 8437,
+      "destination": "src/lib/questionnaire-template.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "31aa4d2412d2030dd0a012247af70de2ca6e66ad"
+      }
+    },
+    {
+      "path": "src/lib/submission-compat.js",
+      "mode": "100644",
+      "blob": "60fab544b0e37dd165ab47fd9f9fc1fdf7a1dacb",
+      "size": 6649,
+      "destination": "src/lib/submission-compat.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "60fab544b0e37dd165ab47fd9f9fc1fdf7a1dacb"
+      }
+    },
+    {
+      "path": "src/lib/utils.js",
+      "mode": "100644",
+      "blob": "a2b6729dd3aa0866a931ae95f3e103bb4551b2d9",
+      "size": 190,
+      "destination": "src/lib/utils.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "a2b6729dd3aa0866a931ae95f3e103bb4551b2d9"
+      }
+    },
+    {
+      "path": "src/main.jsx",
+      "mode": "100644",
+      "blob": "0a36d8e55ce6ba449a36cb9c36bf02df5415a4ca",
+      "size": 478,
+      "destination": "src/main.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "0a36d8e55ce6ba449a36cb9c36bf02df5415a4ca"
+      }
+    },
+    {
+      "path": "src/pages/ClientQuestionnaire.jsx",
+      "mode": "100644",
+      "blob": "9a5954b96a388128da810bce00d50838cfca2003",
+      "size": 22407,
+      "destination": "src/pages/ClientQuestionnaire.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "9a5954b96a388128da810bce00d50838cfca2003"
+      }
+    },
+    {
+      "path": "src/pages/ClientsPage.jsx",
+      "mode": "100644",
+      "blob": "176bec65aea339396f2d961274b5c9d3fa647b93",
+      "size": 13700,
+      "destination": "src/pages/ClientsPage.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "176bec65aea339396f2d961274b5c9d3fa647b93"
+      }
+    },
+    {
+      "path": "src/pages/CpaDashboard.jsx",
+      "mode": "100644",
+      "blob": "6b5f414de11be5cc44b489529e162285eaee90fd",
+      "size": 9663,
+      "destination": "src/pages/CpaDashboard.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "6b5f414de11be5cc44b489529e162285eaee90fd"
+      }
+    },
+    {
+      "path": "src/pages/CpaFillQuestionnaire.jsx",
+      "mode": "100644",
+      "blob": "a4c0fe453c5701f04ab372ef747a31c297efe1cf",
+      "size": 15376,
+      "destination": "src/pages/CpaFillQuestionnaire.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "a4c0fe453c5701f04ab372ef747a31c297efe1cf"
+      }
+    },
+    {
+      "path": "src/pages/PdfSignCanvasOverlay.jsx",
+      "mode": "100644",
+      "blob": "e2ce4ad1d92b953990f6c0be16e8c932ec703467",
+      "size": 29071,
+      "destination": "src/pages/PdfSignCanvasOverlay.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "e2ce4ad1d92b953990f6c0be16e8c932ec703467"
+      }
+    },
+    {
+      "path": "src/pages/PdfSignIframeOverlay.jsx",
+      "mode": "100644",
+      "blob": "414e181c39b5d321a562c67e5b9ec434b9571f19",
+      "size": 31940,
+      "destination": "src/pages/PdfSignIframeOverlay.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "414e181c39b5d321a562c67e5b9ec434b9571f19"
+      }
+    },
+    {
+      "path": "src/pages/PdfSignPage.jsx",
+      "mode": "100644",
+      "blob": "2c5060ffd4f4e17276c20949d95c999f1a50783c",
+      "size": 7627,
+      "destination": "src/pages/PdfSignPage.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "2c5060ffd4f4e17276c20949d95c999f1a50783c"
+      }
+    },
+    {
+      "path": "src/pages/PdfSignPageMobile.jsx",
+      "mode": "100644",
+      "blob": "4c45cac3505929a89ce3f70eace578e222033425",
+      "size": 29127,
+      "destination": "src/pages/PdfSignPageMobile.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "4c45cac3505929a89ce3f70eace578e222033425"
+      }
+    },
+    {
+      "path": "src/pages/PdfSignTest.jsx",
+      "mode": "100644",
+      "blob": "6b51bd94afe03f983b2532b9123902388f1201c1",
+      "size": 5336,
+      "destination": "src/pages/PdfSignTest.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "6b51bd94afe03f983b2532b9123902388f1201c1"
+      }
+    },
+    {
+      "path": "src/pages/PdfTemplateEditor.jsx",
+      "mode": "100644",
+      "blob": "a5106d57a3d604a58ed39d30d00a753b42edb88e",
+      "size": 28060,
+      "destination": "src/pages/PdfTemplateEditor.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "a5106d57a3d604a58ed39d30d00a753b42edb88e"
+      }
+    },
+    {
+      "path": "src/pages/PdfTestPage.jsx",
+      "mode": "100644",
+      "blob": "25405bb55d5bdfa3d34f71a71a9a0b44af7f2345",
+      "size": 32830,
+      "destination": "src/pages/PdfTestPage.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "25405bb55d5bdfa3d34f71a71a9a0b44af7f2345"
+      }
+    },
+    {
+      "path": "src/pages/QuestionnaireSettings.jsx",
+      "mode": "100644",
+      "blob": "31b4aec94ae4e2232e8b98f0961e62af437739dc",
+      "size": 2004,
+      "destination": "src/pages/QuestionnaireSettings.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "31b4aec94ae4e2232e8b98f0961e62af437739dc"
+      }
+    },
+    {
+      "path": "src/pages/Settings.jsx",
+      "mode": "100644",
+      "blob": "68160b8cd0ee4264d2043c3e46d064713a891947",
+      "size": 9348,
+      "destination": "src/pages/Settings.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "68160b8cd0ee4264d2043c3e46d064713a891947"
+      }
+    },
+    {
+      "path": "src/pages/UserManagement.jsx",
+      "mode": "100644",
+      "blob": "e9d0022ded318c8f5280b69afc4bdb70518b54cb",
+      "size": 1704,
+      "destination": "src/pages/UserManagement.jsx",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "e9d0022ded318c8f5280b69afc4bdb70518b54cb"
+      }
+    },
+    {
+      "path": "src/utils/index.ts",
+      "mode": "100644",
+      "blob": "a6f8502a52b339af2df064810b40650053376d21",
+      "size": 97,
+      "destination": "src/utils/index.ts",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "a6f8502a52b339af2df064810b40650053376d21"
+      }
+    },
+    {
+      "path": "tailwind.config.js",
+      "mode": "100644",
+      "blob": "8f5edd91d88f55e54af4e3652ea4bc746e585d77",
+      "size": 2488,
+      "destination": "tailwind.config.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "8f5edd91d88f55e54af4e3652ea4bc746e585d77"
+      }
+    },
+    {
+      "path": "vite.config.js",
+      "mode": "100644",
+      "blob": "5905912103cd65e1b828ada5e89f7d73f03781c3",
+      "size": 1183,
+      "destination": "vite.config.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "5905912103cd65e1b828ada5e89f7d73f03781c3"
+      }
+    },
+    {
+      "path": "vitest.config.js",
+      "mode": "100644",
+      "blob": "ce5b701b011a4a08217faf9bb00313db2b0dc7b7",
+      "size": 314,
+      "destination": "vitest.config.js",
+      "disposition": "copy-exact",
+      "verification": {
+        "status": "verified-exact",
+        "destinationBlob": "ce5b701b011a4a08217faf9bb00313db2b0dc7b7"
+      }
+    }
+  ]
+}

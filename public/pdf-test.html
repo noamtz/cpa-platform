@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Form Test — AuditFlow</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap');
+    
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Heebo', sans-serif;
+      background: #f8f5f0;
+      color: #2d3748;
+      direction: rtl;
+    }
+    
+    .header {
+      background: white;
+      border-bottom: 1px solid #e8dfd4;
+      padding: 12px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .header .logo {
+      width: 36px; height: 36px;
+      background: #e8763a;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-weight: bold; font-size: 18px;
+    }
+    .header h1 { font-size: 18px; font-weight: 700; }
+    .header p { font-size: 12px; color: #888; }
+    
+    .tabs {
+      display: flex;
+      gap: 8px;
+      padding: 16px 24px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .tab {
+      padding: 10px 20px;
+      border-radius: 12px;
+      border: 2px solid #e8dfd4;
+      background: white;
+      cursor: pointer;
+      font-family: 'Heebo', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .tab:hover { border-color: #e8763a; color: #e8763a; }
+    .tab.active { border-color: #e8763a; background: #fef3ec; color: #e8763a; }
+    
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px 40px;
+    }
+    
+    #designer-container, #form-container, #viewer-container {
+      background: white;
+      border: 1px solid #e8dfd4;
+      border-radius: 16px;
+      overflow: hidden;
+      min-height: 600px;
+    }
+    
+    .controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      font-family: 'Heebo', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-primary { background: #e8763a; color: white; }
+    .btn-primary:hover { background: #d06830; }
+    .btn-outline { background: white; color: #2d3748; border: 2px solid #e8dfd4; }
+    .btn-outline:hover { border-color: #e8763a; color: #e8763a; }
+    .btn-green { background: #38a169; color: white; }
+    .btn-green:hover { background: #2f855a; }
+    
+    .status {
+      background: #fef3ec;
+      border: 1px solid #fbd38d;
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: #975a16;
+    }
+    
+    .info {
+      background: #ebf8ff;
+      border: 1px solid #bee3f8;
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: #2b6cb0;
+    }
+    
+    .hidden { display: none; }
+    
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+      flex-direction: column;
+      gap: 12px;
+      color: #888;
+    }
+    .spinner {
+      width: 40px; height: 40px;
+      border: 4px solid #e8dfd4;
+      border-top-color: #e8763a;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo">₪</div>
+    <div>
+      <h1>בדיקת טפסי PDF</h1>
+      <p>מצב בדיקה — ללא שרת</p>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('designer')" id="tab-designer">
+      📐 עורך (רו"ח)
+    </button>
+    <button class="tab" onclick="switchTab('form')" id="tab-form">
+      ✍️ טופס (לקוח)
+    </button>
+    <button class="tab" onclick="switchTab('viewer')" id="tab-viewer">
+      👁️ תצוגה מקדימה
+    </button>
+  </div>
+
+  <div class="container">
+
+    <!-- ===== DESIGNER TAB ===== -->
+    <div id="panel-designer">
+      <div class="info">
+        📐 <strong>עורך הטפסים (צד רו"ח):</strong> 
+        העלו PDF → גררו שדות (טקסט, צ'קבוקס, חתימה) → שמרו תבנית.
+        <br>השתמשו בלחצן "הוסף שדה" בסרגל הכלים הימני של pdfme.
+      </div>
+      <div class="controls">
+        <button class="btn btn-outline" onclick="uploadPdfToDesigner()">📄 העלאת PDF</button>
+        <button class="btn btn-primary" onclick="saveTemplate()">💾 שמור תבנית</button>
+        <button class="btn btn-outline" onclick="exportTemplate()">📋 ייצוא JSON</button>
+      </div>
+      <div id="designer-container">
+        <div class="loading" id="designer-loading">
+          <div class="spinner"></div>
+          <span>טוען עורך pdfme...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== FORM TAB ===== -->
+    <div id="panel-form" class="hidden">
+      <div class="info">
+        ✍️ <strong>טופס (צד לקוח):</strong> 
+        הלקוח רואה את הטופס עם שדות שהרו"ח הגדיר. 
+        שדות טקסט ממולאים אוטומטית, הלקוח ממלא צ'קבוקס וחותם.
+      </div>
+      <div class="status" id="form-status">
+        ⚠️ יש ליצור תבנית קודם (לחצו "שמור תבנית" בלשונית העורך)
+      </div>
+      <div class="controls">
+        <button class="btn btn-primary" onclick="loadForm()">🔄 טען טופס</button>
+        <button class="btn btn-green" onclick="getFormInputs()">✅ קבל תשובות</button>
+      </div>
+      <div id="form-container">
+        <div class="loading">
+          <span>יש ליצור תבנית תחילה</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== VIEWER TAB ===== -->
+    <div id="panel-viewer" class="hidden">
+      <div class="info">
+        👁️ <strong>תצוגה מקדימה:</strong> 
+        כך יראה ה-PDF הסופי. ניתן גם להוריד את ה-PDF.
+      </div>
+      <div class="status" id="viewer-status">
+        ⚠️ יש למלא את הטופס קודם (לחצו "קבל תשובות" בלשונית הטופס)
+      </div>
+      <div class="controls">
+        <button class="btn btn-primary" onclick="loadViewer()">🔄 טען תצוגה</button>
+        <button class="btn btn-green" onclick="downloadPdf()">📥 הורד PDF</button>
+      </div>
+      <div id="viewer-container">
+        <div class="loading">
+          <span>יש למלא טופס תחילה</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Load pdfme from CDN -->
+  <script type="module">
+    import { Designer, Form, Viewer } from 'https://esm.sh/@pdfme/ui@5?bundle';
+    import { generate } from 'https://esm.sh/@pdfme/generator@5?bundle';
+    import { text, readOnlyText, image, signature, checkbox } from 'https://esm.sh/@pdfme/schemas@5?bundle';
+
+    // Make available globally
+    window.pdfme = { Designer, Form, Viewer, generate, text, readOnlyText, image, signature, checkbox };
+
+    const plugins = {
+      Text: text,
+      ReadOnlyText: readOnlyText,
+      Image: image,
+      Signature: signature,
+      Checkbox: checkbox,
+    };
+
+    // State
+    let designerInstance = null;
+    let formInstance = null;
+    let viewerInstance = null;
+    let savedTemplate = null;
+    let savedInputs = null;
+
+    // ============ DESIGNER ============
+
+    function initDesigner(basePdf) {
+      const container = document.getElementById('designer-container');
+      container.innerHTML = '';
+
+      if (designerInstance) {
+        designerInstance.destroy();
+      }
+
+      const template = {
+        basePdf: basePdf || { width: 210, height: 297, padding: [10, 10, 10, 10] },
+        schemas: [[]],
+      };
+
+      designerInstance = new Designer({
+        domContainer: container,
+        template,
+        plugins,
+        options: {
+          theme: {
+            token: { colorPrimary: '#e8763a' },
+          },
+        },
+      });
+
+      console.log('✅ Designer initialized');
+    }
+
+    // Init with blank A4
+    setTimeout(() => initDesigner(), 500);
+
+    window.uploadPdfToDesigner = () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.pdf';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const pdfData = new Uint8Array(ev.target.result);
+          if (designerInstance) {
+            const tpl = designerInstance.getTemplate();
+            designerInstance.updateTemplate({ ...tpl, basePdf: pdfData });
+          } else {
+            initDesigner(pdfData);
+          }
+          console.log('✅ PDF uploaded to designer');
+        };
+        reader.readAsArrayBuffer(file);
+      };
+      input.click();
+    };
+
+    window.saveTemplate = () => {
+      if (!designerInstance) { alert('העורך לא מוכן'); return; }
+      savedTemplate = designerInstance.getTemplate();
+      console.log('✅ Template saved:', savedTemplate);
+      document.getElementById('form-status').textContent = '✅ תבנית נטענה! לחצו "טען טופס"';
+      document.getElementById('form-status').style.background = '#f0fff4';
+      document.getElementById('form-status').style.borderColor = '#c6f6d5';
+      document.getElementById('form-status').style.color = '#276749';
+      alert('תבנית נשמרה! עברו ללשונית "טופס" לבדוק');
+    };
+
+    window.exportTemplate = () => {
+      if (!designerInstance) { alert('העורך לא מוכן'); return; }
+      const tpl = designerInstance.getTemplate();
+      
+      // Convert basePdf to base64 for export
+      let exportTpl = { ...tpl };
+      if (tpl.basePdf instanceof Uint8Array || tpl.basePdf instanceof ArrayBuffer) {
+        const bytes = tpl.basePdf instanceof ArrayBuffer ? new Uint8Array(tpl.basePdf) : tpl.basePdf;
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        exportTpl.basePdf = btoa(binary);
+      }
+      
+      const json = JSON.stringify(exportTpl, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'pdf-template.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      console.log('✅ Template exported');
+    };
+
+    // ============ FORM ============
+
+    window.loadForm = () => {
+      if (!savedTemplate) { alert('יש ליצור תבנית קודם (לשונית "עורך")'); return; }
+
+      const container = document.getElementById('form-container');
+      container.innerHTML = '';
+
+      if (formInstance) formInstance.destroy();
+
+      // Mock auto-fill data (simulating client data)
+      const mockInputs = [{}];
+      savedTemplate.schemas.forEach((pageSchemas, pageIdx) => {
+        if (!mockInputs[pageIdx]) mockInputs[pageIdx] = {};
+        pageSchemas.forEach((field) => {
+          const name = field.name?.toLowerCase?.();
+          if (name?.includes('name') || name?.includes('שם')) {
+            mockInputs[pageIdx][field.name] = 'ישראל ישראלי';
+          } else if (name?.includes('email') || name?.includes('מייל')) {
+            mockInputs[pageIdx][field.name] = 'israel@example.com';
+          } else if (name?.includes('phone') || name?.includes('טלפון')) {
+            mockInputs[pageIdx][field.name] = '050-1234567';
+          } else if (name?.includes('year') || name?.includes('שנ')) {
+            mockInputs[pageIdx][field.name] = '2024';
+          }
+        });
+      });
+
+      formInstance = new Form({
+        domContainer: container,
+        template: savedTemplate,
+        inputs: mockInputs,
+        plugins,
+      });
+
+      document.getElementById('form-status').textContent = '✅ טופס נטען — מלאו את השדות וחתמו';
+      document.getElementById('form-status').style.background = '#f0fff4';
+      document.getElementById('form-status').style.borderColor = '#c6f6d5';
+      document.getElementById('form-status').style.color = '#276749';
+      console.log('✅ Form loaded with mock data');
+    };
+
+    window.getFormInputs = () => {
+      if (!formInstance) { alert('יש לטעון טופס קודם'); return; }
+      savedInputs = formInstance.getInputs();
+      console.log('✅ Form inputs:', savedInputs);
+      
+      document.getElementById('viewer-status').textContent = '✅ תשובות נשמרו! לחצו "טען תצוגה"';
+      document.getElementById('viewer-status').style.background = '#f0fff4';
+      document.getElementById('viewer-status').style.borderColor = '#c6f6d5';
+      document.getElementById('viewer-status').style.color = '#276749';
+      alert('תשובות נשמרו! עברו ללשונית "תצוגה מקדימה"');
+    };
+
+    // ============ VIEWER ============
+
+    window.loadViewer = () => {
+      if (!savedTemplate || !savedInputs) { alert('יש למלא טופס קודם'); return; }
+
+      const container = document.getElementById('viewer-container');
+      container.innerHTML = '';
+
+      if (viewerInstance) viewerInstance.destroy();
+
+      viewerInstance = new Viewer({
+        domContainer: container,
+        template: savedTemplate,
+        inputs: savedInputs,
+        plugins,
+      });
+
+      document.getElementById('viewer-status').textContent = '✅ תצוגה מקדימה — כך ייראה ה-PDF הסופי';
+      console.log('✅ Viewer loaded');
+    };
+
+    window.downloadPdf = async () => {
+      if (!savedTemplate || !savedInputs) { alert('יש למלא טופס קודם'); return; }
+
+      try {
+        const pdf = await generate({
+          template: savedTemplate,
+          inputs: savedInputs,
+          plugins,
+        });
+
+        const blob = new Blob([pdf.buffer], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'signed-form.pdf';
+        a.click();
+        URL.revokeObjectURL(url);
+        console.log('✅ PDF downloaded');
+      } catch (e) {
+        console.error('PDF generation failed:', e);
+        alert('שגיאה ביצירת PDF: ' + e.message);
+      }
+    };
+
+    // ============ TAB SWITCHING ============
+
+    window.switchTab = (tab) => {
+      ['designer', 'form', 'viewer'].forEach((t) => {
+        document.getElementById(`panel-${t}`).classList.toggle('hidden', t !== tab);
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+      });
+    };
+  </script>
+
+</body>
+</html>

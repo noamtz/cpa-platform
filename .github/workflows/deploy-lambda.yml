@@ -1,0 +1,82 @@
+name: Deploy PDF Lambda (Test)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lambda/pdf-generator/**'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  id-token: write   # Required for OIDC
+  contents: read
+
+env:
+  AWS_REGION: il-central-1
+  S3_BUCKET: taxflow-lambda-deployments-test
+  S3_KEY: pdf-generator/deployment.zip
+  LAMBDA_FUNCTION: taxflow-pdf-generator-test
+  HEALTH_URL: https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com/health
+
+jobs:
+  deploy:
+    # Legacy AuditFlow deployment evidence only; disabled in cpa-platform. See #9.
+    if: github.repository == 'noamtz/auditflow'
+    name: Build & Deploy Lambda
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::006296770641:role/github-actions-taxflow
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build deployment package
+        run: |
+          chmod +x lambda/pdf-generator/build.sh
+          lambda/pdf-generator/build.sh
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp lambda/pdf-generator/deployment.zip \
+            s3://${{ env.S3_BUCKET }}/${{ env.S3_KEY }}
+          echo "✅ Uploaded deployment.zip to s3://${{ env.S3_BUCKET }}/${{ env.S3_KEY }}"
+
+      - name: Update Lambda function code
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ env.LAMBDA_FUNCTION }} \
+            --s3-bucket ${{ env.S3_BUCKET }} \
+            --s3-key ${{ env.S3_KEY }} \
+            --region ${{ env.AWS_REGION }} \
+            --output json | jq '{FunctionName, CodeSize, LastModified, State}'
+
+      - name: Wait for Lambda update
+        run: |
+          echo "⏳ Waiting for Lambda to be Active..."
+          aws lambda wait function-updated \
+            --function-name ${{ env.LAMBDA_FUNCTION }} \
+            --region ${{ env.AWS_REGION }}
+          echo "✅ Lambda function is Active"
+
+      - name: Health check
+        run: |
+          echo "🏥 Hitting ${{ env.HEALTH_URL }}..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" "${{ env.HEALTH_URL }}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Health check failed!"
+            exit 1
+          fi
+          echo "✅ Health check passed"

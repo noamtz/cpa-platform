@@ -1,0 +1,118 @@
+name: Deploy PDF Lambda (Prod)
+
+on:
+  workflow_dispatch:
+    inputs:
+      description:
+        description: 'Deployment description (what changed?)'
+        required: false
+        default: ''
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: il-central-1
+  S3_BUCKET: taxflow-lambda-deployments-prod
+  S3_KEY: pdf-generator/deployment.zip
+  LAMBDA_FUNCTION: taxflow-pdf-generator-prod
+  LAMBDA_ALIAS: live
+  HEALTH_URL: https://hickopn9f0.execute-api.il-central-1.amazonaws.com/health
+
+jobs:
+  deploy:
+    # Legacy AuditFlow deployment evidence only; disabled in cpa-platform. See #9.
+    if: github.repository == 'noamtz/auditflow'
+    name: Build & Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::006296770641:role/github-actions-taxflow
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build deployment package
+        run: |
+          chmod +x lambda/pdf-generator/build.sh
+          lambda/pdf-generator/build.sh
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp lambda/pdf-generator/deployment.zip \
+            s3://${{ env.S3_BUCKET }}/${{ env.S3_KEY }}
+          echo "✅ Uploaded deployment.zip to s3://${{ env.S3_BUCKET }}/${{ env.S3_KEY }}"
+
+      - name: Update Lambda function code
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ env.LAMBDA_FUNCTION }} \
+            --s3-bucket ${{ env.S3_BUCKET }} \
+            --s3-key ${{ env.S3_KEY }} \
+            --region ${{ env.AWS_REGION }} \
+            --output json | jq '{FunctionName, CodeSize, LastModified, State}'
+
+      - name: Wait for Lambda update
+        run: |
+          echo "⏳ Waiting for Lambda to be Active..."
+          aws lambda wait function-updated \
+            --function-name ${{ env.LAMBDA_FUNCTION }} \
+            --region ${{ env.AWS_REGION }}
+          echo "✅ Lambda function is Active"
+
+      - name: Publish new Lambda version
+        id: publish
+        run: |
+          VERSION=$(aws lambda publish-version \
+            --function-name ${{ env.LAMBDA_FUNCTION }} \
+            --description "deploy: ${{ github.sha }} - ${{ inputs.description }}" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'Version' --output text)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "📌 Published Lambda version: $VERSION"
+
+      - name: Update alias to new version
+        run: |
+          aws lambda update-alias \
+            --function-name ${{ env.LAMBDA_FUNCTION }} \
+            --name ${{ env.LAMBDA_ALIAS }} \
+            --function-version ${{ steps.publish.outputs.version }} \
+            --region ${{ env.AWS_REGION }} \
+            --output json | jq '{Name, FunctionVersion, Description}'
+          echo "✅ Alias '${{ env.LAMBDA_ALIAS }}' → version ${{ steps.publish.outputs.version }}"
+
+      - name: Health check
+        run: |
+          echo "🏥 Hitting ${{ env.HEALTH_URL }}..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" "${{ env.HEALTH_URL }}")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -1)
+          echo "Status: $HTTP_CODE"
+          echo "Response: $BODY"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Health check failed!"
+            exit 1
+          fi
+          echo "✅ Health check passed"
+
+      - name: Deployment summary
+        run: |
+          echo "## 🚀 Production Deployment Complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Detail | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Lambda Version | \`${{ steps.publish.outputs.version }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Commit | \`${{ github.sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Description | ${{ inputs.description }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Triggered by | @${{ github.actor }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Health check | ✅ Passed |" >> "$GITHUB_STEP_SUMMARY"

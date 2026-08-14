@@ -1,0 +1,27 @@
+{
+  "name": "QuestionnaireTemplate",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "number",
+      "description": "Template version number",
+      "default": 1
+    },
+    "is_active": {
+      "type": "boolean",
+      "description": "Whether this template is currently active",
+      "default": true
+    },
+    "steps": {
+      "type": "string",
+      "description": "JSON-encoded array of questionnaire steps"
+    },
+    "created_by_email": {
+      "type": "string",
+      "description": "Email of the user who created this template"
+    }
+  },
+  "required": [
+    "steps"
+  ]
+}

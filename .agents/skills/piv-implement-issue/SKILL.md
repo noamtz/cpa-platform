@@ -11,12 +11,13 @@ Resolve `<issue-number>` from the user's request before running any command and 
 
 **This skill implements fixes for GitHub issues based on RCA documents:**
 - Working in a local Git repository with GitHub origin
-- Confirm the original issue links a canonical RCA artifact in the configured GitHub Project.
+- Confirm `docs/issues/issue-<issue-number>.md` exists and corresponds to the original bug issue.
 - GitHub CLI with the `noamtz` credential available through `python tooling/github.py` (optional, for status updates)
 
 ## RCA Document to Reference
 
-Read the linked RCA issue body by following `.agents/references/github-project-documents.md`.
+Read the full local RCA at `docs/issues/issue-<issue-number>.md` by following
+`.agents/references/github-project-documents.md`.
 
 **Optional - View GitHub issue for context:**
 ```bash

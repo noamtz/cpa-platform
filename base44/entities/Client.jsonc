@@ -1,0 +1,69 @@
+{
+  "name": "Client",
+  "type": "object",
+  "properties": {
+    "full_name": {
+      "type": "string",
+      "description": "\u05e9\u05dd \u05de\u05dc\u05d0 \u05e9\u05dc \u05d4\u05dc\u05e7\u05d5\u05d7"
+    },
+    "email": {
+      "type": "string",
+      "description": "\u05db\u05ea\u05d5\u05d1\u05ea \u05de\u05d9\u05d9\u05dc"
+    },
+    "phone": {
+      "type": "string",
+      "description": "\u05de\u05e1\u05e4\u05e8 \u05d8\u05dc\u05e4\u05d5\u05df"
+    },
+    "token": {
+      "type": "string",
+      "description": "\u05d8\u05d5\u05e7\u05df \u05d9\u05d9\u05d7\u05d5\u05d3\u05d9 \u05dc\u05d2\u05d9\u05e9\u05d4 \u05dc\u05dc\u05d0 \u05e1\u05d9\u05e1\u05de\u05d4"
+    },
+    "tax_year": {
+      "type": "number",
+      "description": "\u05e9\u05e0\u05ea \u05d4\u05de\u05e1",
+      "default": 2024
+    },
+    "osek_type": {
+      "type": "string",
+      "enum": [
+        "\u05e2\u05d5\u05e1\u05e7 \u05e4\u05d8\u05d5\u05e8",
+        "\u05e2\u05d5\u05e1\u05e7 \u05de\u05d5\u05e8\u05e9\u05d4"
+      ],
+      "description": "\u05e1\u05d5\u05d2 \u05d4\u05e2\u05d5\u05e1\u05e7"
+    },
+    "pricing": {
+      "type": "number",
+      "description": "\u05de\u05d7\u05d9\u05e8 \u05d1\u05e9\u05e7\u05dc\u05d9\u05dd",
+      "default": 1500
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "in_progress",
+        "completed",
+        "ready_for_ira",
+        "reviewed"
+      ],
+      "default": "pending",
+      "description": "\u05e1\u05d8\u05d8\u05d5\u05e1 \u05d4\u05d2\u05e9\u05ea \u05d4\u05de\u05e1\u05de\u05db\u05d9\u05dd"
+    },
+    "notes": {
+      "type": "string",
+      "description": "\u05d4\u05e2\u05e8\u05d5\u05ea \u05e4\u05e0\u05d9\u05de\u05d9\u05d5\u05ea \u05e9\u05dc \u05e8\u05d5\u05d0\u05d4 \u05d4\u05d7\u05e9\u05d1\u05d5\u05df"
+    },
+    "last_activity": {
+      "type": "string",
+      "format": "date-time",
+      "description": "\u05e4\u05e2\u05d9\u05dc\u05d5\u05ea \u05d0\u05d7\u05e8\u05d5\u05e0\u05d4"
+    },
+    "is_archived": {
+      "type": "boolean",
+      "description": "\u05d4\u05d0\u05dd \u05d4\u05dc\u05e7\u05d5\u05d7 \u05d1\u05d0\u05e8\u05db\u05d9\u05d5\u05df",
+      "default": false
+    }
+  },
+  "required": [
+    "full_name"
+  ]
+}
