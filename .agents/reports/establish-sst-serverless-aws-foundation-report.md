@@ -6,8 +6,8 @@
 
 **Branch**: `feat/issue-4-sst-foundation`
 
-**Status**: PARTIAL — implementation and authorized local/test deployment are complete; the OIDC workflow proof
-requires the normal commit/push/PR handoff, and SST cannot diff an undeployed production stage.
+**Status**: COMPLETE — implementation, authorized test deployment, and OIDC CI redeployment are verified. The
+attempted production preview remains documented as unavailable because SST cannot diff an undeployed stage.
 
 ## Summary
 
@@ -42,6 +42,8 @@ Base44 cutover, deletion, or destructive replacement was performed.
   rejection.
 - Deployed the named `test` stage once with the owner-authenticated SSO profile, verified it live, and confirmed a
   subsequent test diff contains no AWS resource creates, updates, replacements, or deletes.
+- Proved the same-repository GitHub workflow validates its immutable OIDC claims, assumes the test role, previews,
+  redeploys the stage idempotently, and passes the complete live verifier.
 - Configured and verified the GitHub `test` Environment deploy-role variable without printing its value.
 - Updated repository and AWS operations documentation with ownership, stage, preview, deployment, and safety
   boundaries.
@@ -80,25 +82,20 @@ Result: **3 files / 28 tests passed**.
   HTTP API, Node 20 ARM Lambda, deployed Router, exact OIDC trust, no administrator policy, SPA root/deep link,
   exact public health JSON, and unauthenticated protected-route rejection.
 - GitHub Environment variable and branch policies: **pass**, with values withheld.
+- GitHub OIDC workflow: **pass** — exact claim validation, assumed-role identity/region, clean-run platform type
+  install, focused validation/build, test diff, test deploy, and live verification all completed successfully.
 - `git diff --check`: **pass** (Git for Windows emitted informational future line-ending warnings).
 - Protected-boundary scan: **pass** — no changes under `infra/{test,prod}/`, `lambda/pdf-generator/`, the three
   imported PDF workflows, `src/api/base44Client.js`, or product source paths.
 
-## Partial validations and handoff items
+## Documented limitations
 
 1. **Production diff:** the ignored production file loaded successfully and its values passed fail-closed parsing,
    but SST 3.19.3 returned `Stage not found` because `production` has never been deployed. SST requires prior stage
    state before `sst diff`; initializing it with `sst deploy` was not authorized. Production safety remains covered
    by contract tests: protection and retention are enabled, tables have deletion protection/PITR, Cognito has
    deletion protection, files are versioned, and the alert-only USD 10 budget is below the ILS 50/month ceiling.
-2. **OIDC CI run:** PR #21 is open. Its initial job failed before runner allocation because GitHub evaluates
-   Environment policies against the pull-request merge ref rather than the head branch name. The Environment was
-   narrowed to the exact `refs/pull/21/merge` ref while retaining `main`. The next run proved OIDC claim validation
-   and role assumption, then found that a clean runner needs `sst install --stage test` to generate platform types
-   before strict type-checking. After that fix, CI validation, diff, and deployment passed; the final verifier found
-   that the role needed read-only `iam:ListAttachedRolePolicies` permission to prove it has no managed administrator
-   policy. That verification action is now explicit; a green rerun is still required before calling AC #5 complete.
-3. **Imported-manifest verifier:** all 11 importer unit tests passed, but `--verify-applied` correctly reported the
+2. **Imported-manifest verifier:** all 11 importer unit tests passed, but `--verify-applied` correctly reported the
    first intentionally changed imported root file. That command enforces byte identity for the entire imported
    tree and therefore cannot pass after the plan-required package/ESLint/README updates. Explicit protected-path
    comparison passed and is the relevant immutable-boundary evidence for this feature.
@@ -123,6 +120,9 @@ Result: **3 files / 28 tests passed**.
   types from the owner-authenticated bootstrap.
 - The test deploy role includes `iam:ListAttachedRolePolicies` only on `auditflow-test-*` roles so the live verifier
   can prove that no managed administrator policy is attached after CI deployment.
+- The newly added role self-inspection permission required one owner-authenticated, non-destructive test-role update
+  before the already-running OIDC role could apply and verify that permission itself. The subsequent unchanged OIDC
+  rerun completed diff, deploy, and live verification successfully.
 - No commit, push, or pull request was created by `piv-implement`; those remain the prescribed next workflow steps.
 
 ## Cost and safety evidence
