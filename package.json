@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": "20.17.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -11,7 +14,13 @@
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "sst:install": "sst install --stage test",
+    "sst:diff:test": "sst diff --stage test --print-logs",
+    "sst:deploy:test": "sst deploy --stage test --print-logs",
+    "test:foundation": "vitest run --config vitest.foundation.config.js",
+    "typecheck:foundation": "tsc -p ./tsconfig.foundation.json",
+    "lint:foundation": "eslint sst.config.ts infra/sst backend/api tooling/verify_sst_foundation.mjs --quiet --no-error-on-unmatched-pattern"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.41",
@@ -89,6 +98,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",
+    "@types/aws-lambda": "8.10.162",
     "@types/node": "^22.13.5",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
@@ -103,8 +113,10 @@
     "globals": "^15.14.0",
     "playwright": "^1.61.1",
     "postcss": "^8.5.3",
+    "sst": "3.19.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.8.2",
+    "typescript-eslint": "8.67.0",
     "vite": "^6.1.0",
     "vitest": "^4.1.6"
   }

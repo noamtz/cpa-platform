@@ -24,6 +24,36 @@ The baseline report records which checks already fail at the pinned source revis
 cleanup with migration changes. Run the development server with `npm run dev` after supplying the required local
 runtime configuration through an ignored local configuration file.
 
+## SST foundation operations
+
+The non-PDF AWS foundation uses SST 3.19.3 in `il-central-1`. It accepts only the exact stages `test` and
+`production`; aliases such as `prod` are rejected. Use an authenticated AWS profile that has been independently
+verified against the intended AuditFlow account:
+
+```powershell
+$env:AWS_PROFILE = "<profile>"
+$env:AWS_REGION = "il-central-1"
+npm run sst:install
+npm run test:foundation
+npm run typecheck:foundation
+npm run lint:foundation
+npm run sst:diff:test
+npm run sst:deploy:test
+node tooling/verify_sst_foundation.mjs --mode live --stage test --outputs .sst/outputs.json
+```
+
+Production is retained and protected. A production preview additionally requires an ignored
+`.env.production.local`, copied from `.env.example`, with a valid alert email and a positive monthly USD budget.
+Never commit that file or its values. Production deployment, removal, DNS, certificates, and changes to the
+existing Terraform/PDF stacks require separate authorization. SST 3.19.3 cannot diff a stage that has never been
+deployed; if it reports `Stage not found`, do not initialize production through a deployment merely to obtain a
+preview. Use the production contract tests until a separately authorized production deployment creates the stage.
+
+The active `Deploy SST test` workflow assumes the separate `auditflow-test-github-deploy` role through the GitHub
+`test` Environment. Set only its ARN as the Environment variable `AWS_DEPLOY_ROLE_ARN`; the workflow validates its
+immutable repository OIDC subject before assuming the role. The account-level GitHub OIDC provider remains
+Terraform-owned, while SST owns only this issue-scoped role and the new serverless foundation resources.
+
 ## Codex project setup
 
 The repository also contains `AGENTS.md`, repo skills, custom agents, hooks, an MCP server, and optional Archon

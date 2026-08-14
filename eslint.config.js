@@ -3,6 +3,13 @@ import pluginJs from "@eslint/js";
 import pluginReact from "eslint-plugin-react";
 import pluginReactHooks from "eslint-plugin-react-hooks";
 import pluginUnusedImports from "eslint-plugin-unused-imports";
+import tseslint from "typescript-eslint";
+
+const foundationTypeScriptFiles = [
+  "sst.config.ts",
+  "infra/sst/**/*.ts",
+  "backend/api/**/*.ts",
+];
 
 export default [
   {
@@ -55,6 +62,36 @@ export default [
         { ignore: ["cmdk-input-wrapper", "toast-close"] },
       ],
       "react-hooks/rules-of-hooks": "error",
+    },
+  },
+  ...tseslint.configs.recommended.map((config) => ({
+    ...config,
+    files: foundationTypeScriptFiles,
+    languageOptions: {
+      ...config.languageOptions,
+      globals: globals.node,
+      parserOptions: {
+        ...config.languageOptions?.parserOptions,
+        project: "./tsconfig.foundation.json",
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  })),
+  {
+    files: ["sst.config.ts"],
+    rules: {
+      "@typescript-eslint/triple-slash-reference": "off",
+    },
+  },
+  {
+    files: ["tooling/verify_sst_foundation.mjs"],
+    ...pluginJs.configs.recommended,
+    languageOptions: {
+      globals: globals.node,
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: "module",
+      },
     },
   },
 ];
