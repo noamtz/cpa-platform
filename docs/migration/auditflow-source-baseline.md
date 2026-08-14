@@ -68,7 +68,8 @@ performed because this change locks the production baseline rather than altering
 
 The repository-specific validation also passed:
 
-- Importer unit suite: 9 tests passed.
+- Importer unit suite: 9 tests passed at import; the post-merge Windows portability regression expands the suite
+  to 11 passing tests.
 - Codex layer: 31 skills and 6 custom agents valid.
 - Manifest JSON parsed and all 184 final dispositions independently reverified.
 - Workflow guards and imported ignore rules were present.
@@ -120,7 +121,9 @@ python tooling/import_auditflow_source.py inspect `
 Committed-manifest verification compares immutable evidence: repository identities, the pinned source commit/tree
 and inventory, disposition counts, and every per-file blob verification. The manifest retains the Git version,
 destination branch, and pre-import destination commit as provenance observations, but later commits, branch
-checkouts, or Git upgrades do not invalidate otherwise identical import evidence.
+checkouts, or Git upgrades do not invalidate otherwise identical import evidence. Destination verification hashes
+the path-aware canonical content that Git would commit, so clean LF and CRLF worktrees reproduce the same blob
+evidence; source archive verification remains byte-exact with Git filters disabled.
 
 ## Result
 

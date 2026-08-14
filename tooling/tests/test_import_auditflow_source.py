@@ -201,6 +201,77 @@ class ImportAuditFlowSourceTests(unittest.TestCase):
         self.assertEqual((output / "app.txt").read_bytes(), b"exact application bytes\n")
         self.assertFalse((output / ".git").exists())
 
+    def test_committed_manifest_verifies_from_fresh_crlf_checkout(self) -> None:
+        with contextlib.redirect_stdout(io.StringIO()):
+            importer.apply_command(self.apply_args())
+        commit_all(self.destination, "commit imported baseline")
+
+        destination_remote = self.root / "destination-remote.git"
+        windows_checkout = self.root / "windows-checkout"
+        run_git(self.root, "clone", "--bare", str(self.destination), str(destination_remote))
+        run_git(
+            self.root,
+            "-c",
+            "core.autocrlf=true",
+            "clone",
+            str(destination_remote),
+            str(windows_checkout),
+        )
+        run_git(windows_checkout, "config", "core.autocrlf", "true")
+        run_git(
+            windows_checkout,
+            "remote",
+            "set-url",
+            "origin",
+            "https://example.invalid/destination.git",
+        )
+
+        self.assertIn(b"\r\n", (windows_checkout / "app.txt").read_bytes())
+        workflow_path = next(iter(importer.WORKFLOW_JOBS))
+        workflow = windows_checkout / Path(*workflow_path.split("/"))
+        self.assertIn(b"\r\n", workflow.read_bytes())
+        self.assertEqual(
+            run_git(windows_checkout, "status", "--porcelain=v1", "-z"),
+            b"",
+        )
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            importer.inspect_command(
+                self.inspect_args(
+                    destination=windows_checkout,
+                    verify_applied=True,
+                    manifest=windows_checkout / "docs/migration/manifest.json",
+                )
+            )
+
+        app_path = windows_checkout / "app.txt"
+        app_path.write_bytes(app_path.read_bytes() + b"meaningful edit\r\n")
+        with self.assertRaisesRegex(importer.ImportFailure, "Destination blob mismatch"):
+            importer.inspect_command(
+                self.inspect_args(
+                    destination=windows_checkout,
+                    verify_applied=True,
+                    manifest=windows_checkout / "docs/migration/manifest.json",
+                )
+            )
+
+    def test_workflow_guard_removal_accepts_crlf_and_rejects_duplicates(self) -> None:
+        path = next(iter(importer.WORKFLOW_JOBS))
+        source = (
+            "name: Fixture\n\non: workflow_dispatch\n\njobs:\n  deploy:\n"
+            "    runs-on: ubuntu-latest\n"
+        ).encode()
+        adapted = importer.adapt_workflow(source, path)
+        crlf_adapted = adapted.replace(b"\n", b"\r\n")
+
+        self.assertEqual(
+            importer.remove_workflow_guard(crlf_adapted, path),
+            source.replace(b"\n", b"\r\n"),
+        )
+        guard = (importer.WORKFLOW_COMMENT + importer.WORKFLOW_GUARD).encode()
+        with self.assertRaisesRegex(importer.ImportFailure, "missing or duplicated"):
+            importer.remove_workflow_guard(adapted + guard, path)
+
     def test_dirty_destination_is_rejected(self) -> None:
         write_file(self.destination, "dirty.txt", "uncommitted\n")
         with self.assertRaisesRegex(importer.ImportFailure, "Destination repository is dirty"):

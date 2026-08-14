@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import io
 import json
 import subprocess
@@ -304,6 +303,19 @@ def raw_blob_id(repo: Path, path: Path) -> str:
     return decode(git(repo, "hash-object", "--no-filters", str(path)))
 
 
+def canonical_blob_id(repo: Path, path: Path, payload: bytes | None = None) -> str:
+    try:
+        relative_path = path.resolve(strict=True).relative_to(repo.resolve(strict=True)).as_posix()
+    except ValueError as exc:
+        raise ImportFailure(f"Path is outside repository: {path}") from exc
+    arguments = ["hash-object", f"--path={relative_path}"]
+    if payload is None:
+        arguments.append(str(path))
+    else:
+        arguments.append("--stdin")
+    return decode(git(repo, *arguments, input_bytes=payload))
+
+
 def adapt_workflow(source_bytes: bytes, path: str) -> bytes:
     try:
         text = source_bytes.decode("utf-8")
@@ -323,10 +335,13 @@ def remove_workflow_guard(destination_bytes: bytes, path: str) -> bytes:
         text = destination_bytes.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ImportFailure(f"Adapted workflow is not UTF-8: {path}") from exc
-    block = WORKFLOW_COMMENT + WORKFLOW_GUARD
-    if text.count(block) != 1:
+    lf_block = WORKFLOW_COMMENT + WORKFLOW_GUARD
+    blocks = (lf_block, lf_block.replace("\n", "\r\n"))
+    match_counts = [(block, text.count(block)) for block in blocks]
+    if sum(count for _, count in match_counts) != 1:
         raise ImportFailure(f"Workflow guard is missing or duplicated: {path}")
-    return text.replace(block, "", 1).encode("utf-8")
+    matched_block = next(block for block, count in match_counts if count == 1)
+    return text.replace(matched_block, "", 1).encode("utf-8")
 
 
 def merge_gitignore(destination_bytes: bytes, source_bytes: bytes) -> bytes:
@@ -433,7 +448,7 @@ def verify_destination_entry(
     destination_file = contained_path(destination, entry.path)
     if not destination_file.is_file():
         raise ImportFailure(f"Destination is missing imported path: {entry.path}")
-    destination_blob = raw_blob_id(destination, destination_file)
+    destination_blob = canonical_blob_id(destination, destination_file)
     if entry.disposition == "copy-exact":
         if destination_blob != entry.object_id:
             raise ImportFailure(
@@ -442,8 +457,7 @@ def verify_destination_entry(
         return {"status": "verified-exact", "destinationBlob": destination_blob}
     if entry.disposition == "adapt-after-copy":
         restored = remove_workflow_guard(destination_file.read_bytes(), entry.path)
-        header = b"blob " + str(len(restored)).encode() + b"\0"
-        if hashlib.sha1(header + restored).hexdigest() != entry.object_id:
+        if canonical_blob_id(destination, destination_file, restored) != entry.object_id:
             raise ImportFailure(f"Workflow has changes beyond its repository guard: {entry.path}")
         return {"status": "verified-adapted", "destinationBlob": destination_blob}
     verify_gitignore(source_file.read_bytes(), destination_file.read_bytes())
