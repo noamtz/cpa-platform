@@ -33,6 +33,7 @@ const roleManagementActions = [
   "iam:DeleteRole",
   "iam:GetRole",
   "iam:GetRolePolicy",
+  "iam:ListAttachedRolePolicies",
   "iam:ListRolePolicies",
   "iam:PutRolePolicy",
   "iam:DeleteRolePolicy",

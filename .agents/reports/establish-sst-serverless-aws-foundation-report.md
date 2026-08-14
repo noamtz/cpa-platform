@@ -95,8 +95,9 @@ Result: **3 files / 28 tests passed**.
    Environment policies against the pull-request merge ref rather than the head branch name. The Environment was
    narrowed to the exact `refs/pull/21/merge` ref while retaining `main`. The next run proved OIDC claim validation
    and role assumption, then found that a clean runner needs `sst install --stage test` to generate platform types
-   before strict type-checking. That install step is now explicit; a green rerun is still required before calling
-   AC #5 complete.
+   before strict type-checking. After that fix, CI validation, diff, and deployment passed; the final verifier found
+   that the role needed read-only `iam:ListAttachedRolePolicies` permission to prove it has no managed administrator
+   policy. That verification action is now explicit; a green rerun is still required before calling AC #5 complete.
 3. **Imported-manifest verifier:** all 11 importer unit tests passed, but `--verify-applied` correctly reported the
    first intentionally changed imported root file. That command enforces byte identity for the entire imported
    tree and therefore cannot pass after the plan-required package/ESLint/README updates. Explicit protected-path
@@ -120,6 +121,8 @@ Result: **3 files / 28 tests passed**.
 - The clean GitHub runner requires an explicit `npm run sst:install` after AWS role assumption so SST's generated
   platform globals exist before `typecheck:foundation`; local validation had retained those ignored generated
   types from the owner-authenticated bootstrap.
+- The test deploy role includes `iam:ListAttachedRolePolicies` only on `auditflow-test-*` roles so the live verifier
+  can prove that no managed administrator policy is attached after CI deployment.
 - No commit, push, or pull request was created by `piv-implement`; those remain the prescribed next workflow steps.
 
 ## Cost and safety evidence
