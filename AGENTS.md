@@ -24,12 +24,14 @@ base44/entities/                    # Source data contracts and migration inputs
 base44/functions/*/entry.ts         # Endpoint behavior and security evidence, not target runtime code.
 base44/agents/                      # Reference readiness-agent behavior, not a target Base44 dependency.
 lambda/pdf-generator/               # Existing AWS PDF rendering and generation boundary.
+poc-server/                         # Legacy development-only PDF signing POC; migration evidence, not target runtime.
 infra/{test,prod}/main.tf           # Existing test and production infrastructure for the PDF API.
-.github/workflows/                  # Existing PDF Lambda deployment and rollback automation.
+.github/workflows/                  # Imported PDF deployment/rollback evidence; disabled in this repository.
 docs/PRD.md                         # Product inventory for parity discovery; code remains authoritative.
 docs/user-journeys/                 # Evidence-backed journey and permission inventory.
+docs/migration/                     # Imported-source manifest, baseline, and verification evidence.
 .agents/ and .codex/                # Codex rules, on-demand references, skills, agents, hooks, and configuration.
-tooling/                            # Deterministic validation and local MCP tooling for the Codex layer.
+tooling/                            # Source-import verification, GitHub/Project helpers, Codex validation, and local MCP tooling.
 ```
 
 ## Where new code goes
@@ -54,7 +56,7 @@ Evidence paths below are relative to this repository. The external production-so
   Wiki page.
 - **Source integrity:** Make rewrite changes here; treat `C:\Users\ntzur\workspace-antigravity\auditflow` as read-only unless the user explicitly requests changes there. Reproduce and verify the imported baseline through `tooling/import_auditflow_source.py` and `docs/migration/auditflow-source-manifest.json`. Evidence: rewrite/input boundary in `.agents/references/auditflow-rewrite-target.md`.
 - **Parity:** Add evidence before replacing behavior, and keep the working Base44 path until its AWS replacement has verified parity and a rollback-safe cutover. Evidence: rewrite-workspace `.agents/references/auditflow-rewrite-target.md` and source `.agents/AGENTS.md`.
-- **Git:** Use feature branches for major work, reserve direct `main` changes for hotfixes, and prefix commits with `feat:`, `fix:`, `refactor:`, `infra:`, or `test:`. Evidence: source `.agents/AGENTS.md`.
+- **Git:** Use feature branches for major work, reserve direct `main` changes for hotfixes, and prefix commits with `feat:`, `fix:`, `refactor:`, `infra:`, `test:`, or `docs:`. Evidence: source `.agents/AGENTS.md` and this repository's accepted documentation history.
 - **GitHub identity:** This repository belongs exclusively to GitHub user `noamtz`, with origin `git@github.com:noamtz/cpa-platform.git`. Never use `noamtznm` here; that account belongs to unrelated work. Run GitHub CLI operations through `python tooling/github.py ...`, which selects the `noamtz` credential explicitly. The `github-projects` MCP launcher is bound to the same credential.
 - **Validation:** Use Node 20.17.0 and run `npm ci`, `npm test`, `npm run typecheck`, `npm run lint`, and
   `npm run build` here. Compare known baseline failures with `docs/migration/auditflow-source-baseline.md`. For
