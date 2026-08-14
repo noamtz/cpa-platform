@@ -93,6 +93,9 @@ jobs:
           test "${AWS_REGION}" = "il-central-1"
           aws sts get-caller-identity --output json >/dev/null
 
+      - name: Install SST platform types
+        run: npm run sst:install
+
       - name: Validate foundation
         run: |
           npm run test:foundation

@@ -93,8 +93,10 @@ Result: **3 files / 28 tests passed**.
    deletion protection, files are versioned, and the alert-only USD 10 budget is below the ILS 50/month ceiling.
 2. **OIDC CI run:** PR #21 is open. Its initial job failed before runner allocation because GitHub evaluates
    Environment policies against the pull-request merge ref rather than the head branch name. The Environment was
-   narrowed to the exact `refs/pull/21/merge` ref while retaining `main`; a green rerun is still required to prove
-   OIDC assumption and idempotent CI redeployment before calling AC #5 complete.
+   narrowed to the exact `refs/pull/21/merge` ref while retaining `main`. The next run proved OIDC claim validation
+   and role assumption, then found that a clean runner needs `sst install --stage test` to generate platform types
+   before strict type-checking. That install step is now explicit; a green rerun is still required before calling
+   AC #5 complete.
 3. **Imported-manifest verifier:** all 11 importer unit tests passed, but `--verify-applied` correctly reported the
    first intentionally changed imported root file. That command enforces byte identity for the entire imported
    tree and therefore cannot pass after the plan-required package/ESLint/README updates. Explicit protected-path
@@ -115,6 +117,9 @@ Result: **3 files / 28 tests passed**.
 - GitHub Environment policies match `GITHUB_REF` for pull-request jobs, so the planned `feat/issue-4-*` head-branch
   pattern was replaced with the exact `refs/pull/21/merge` ref after the first PR job failed before runner
   allocation. This permits only PR #21 plus `main`, not every pull request.
+- The clean GitHub runner requires an explicit `npm run sst:install` after AWS role assumption so SST's generated
+  platform globals exist before `typecheck:foundation`; local validation had retained those ignored generated
+  types from the owner-authenticated bootstrap.
 - No commit, push, or pull request was created by `piv-implement`; those remain the prescribed next workflow steps.
 
 ## Cost and safety evidence
