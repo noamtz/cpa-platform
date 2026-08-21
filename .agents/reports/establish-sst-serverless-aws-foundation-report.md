@@ -161,3 +161,8 @@ because SST uses `app/auditflow/test.json`; the policy was corrected to the exac
 read-only access to AuditFlow's `_fallback` secret object, while remaining closed to other apps and stages. The
 final live gate preserves that exact-key boundary. The deployed stack tracks **92 resources**. Production remains
 undeployed and untouched.
+
+The following OIDC deploy reached asset upload and failed closed on SST's required `s3:PutObjectTagging` call.
+The shared asset permission now includes only object-tag read/write alongside the already-required content upload;
+asset deletion and broader state access remain denied. The owner-authenticated reconciliation returned the stack
+to its verified 92-resource state before the final OIDC retry.

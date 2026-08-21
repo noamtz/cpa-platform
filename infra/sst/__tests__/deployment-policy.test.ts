@@ -106,6 +106,7 @@ describe("test deployment IAM policy", () => {
         "arn:aws:s3:::sst-state-kkkvushrzufd/secret/auditflow/_fallback.json",
     });
     expect(actions(assets!)).not.toContain("s3:DeleteObject");
+    expect(actions(assets!)).toContain("s3:PutObjectTagging");
     expect(JSON.stringify(policy)).not.toContain("sst-state-kkkvushrzufd/*\"");
   });
 
