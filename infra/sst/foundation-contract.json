@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "app": "auditflow",
+  "sstVersion": "3.19.3",
+  "region": "il-central-1",
+  "stages": ["test", "production"],
+  "tables": [
+    { "logicalName": "ClientTable", "primaryIndex": { "hashKey": "id" }, "globalIndexes": { "byCreatedDate": { "hashKey": "record_type", "rangeKey": "created_date" } } },
+    { "logicalName": "SubmissionTable", "primaryIndex": { "hashKey": "id" }, "globalIndexes": { "byClientYear": { "hashKey": "client_id", "rangeKey": "tax_year" }, "byCreatedDate": { "hashKey": "record_type", "rangeKey": "created_date" } } },
+    { "logicalName": "QuestionnaireTemplateTable", "primaryIndex": { "hashKey": "id" }, "globalIndexes": { "byVersion": { "hashKey": "record_type", "rangeKey": "version" } } },
+    { "logicalName": "PdfTemplateTable", "primaryIndex": { "hashKey": "id" }, "globalIndexes": { "byCreatedDate": { "hashKey": "record_type", "rangeKey": "created_date" } } },
+    { "logicalName": "SyncedDriveFileTable", "primaryIndex": { "hashKey": "id" }, "globalIndexes": { "bySubmission": { "hashKey": "submission_id", "rangeKey": "created_date" } } },
+    { "logicalName": "UserTable", "primaryIndex": { "hashKey": "id" }, "globalIndexes": { "byCognitoSubject": { "hashKey": "cognito_sub" } } },
+    { "logicalName": "ChangeJournalTable", "primaryIndex": { "hashKey": "scope", "rangeKey": "sequence" }, "globalIndexes": { "byEntity": { "hashKey": "entity_key", "rangeKey": "sequence" } } }
+  ],
+  "buckets": [
+    { "logicalName": "FilesBucket", "private": true, "cors": false, "versioning": true },
+    { "logicalName": "TemporaryOutputsBucket", "private": true, "cors": false, "versioning": false, "expirationDays": 1 }
+  ],
+  "routes": [
+    { "route": "GET /health", "authorization": "none" },
+    { "route": "GET /auth/health", "authorization": "cognito-jwt" }
+  ],
+  "router": {
+    "apiPrefix": "/api",
+    "rewritePattern": "^/api/(.*)$",
+    "rewriteReplacement": "/$1",
+    "spaFallback": "index.html"
+  },
+  "oidc": {
+    "providerUrl": "token.actions.githubusercontent.com",
+    "audience": "sts.amazonaws.com",
+    "subject": "repo:noamtz@2631641/cpa-platform@1332935468:environment:test"
+  },
+  "inventory": {
+    "tables": 7,
+    "buckets": 2,
+    "routers": 1,
+    "staticSites": 1,
+    "apis": 1,
+    "apiFunctions": 1,
+    "userPools": 1,
+    "userPoolClients": 1,
+    "jwtAuthorizers": 1
+  },
+  "outputKeys": [
+    "stage",
+    "routerUrl",
+    "siteUrl",
+    "apiUrl",
+    "apiId",
+    "apiFunctionName",
+    "routerDistributionId",
+    "healthUrl",
+    "protectedHealthUrl",
+    "tableNames",
+    "bucketNames",
+    "userPoolId",
+    "userPoolClientId",
+    "testDeployRoleArn"
+  ]
+}

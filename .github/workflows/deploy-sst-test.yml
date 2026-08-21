@@ -1,0 +1,118 @@
+name: Deploy SST test
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "sst.config.ts"
+      - "infra/sst/**"
+      - "backend/api/**"
+      - "tooling/verify_sst_foundation.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/deploy-sst-test.yml"
+  push:
+    branches: [main]
+    paths:
+      - "sst.config.ts"
+      - "infra/sst/**"
+      - "backend/api/**"
+      - "tooling/verify_sst_foundation.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/deploy-sst-test.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: auditflow-sst-test
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    environment: test
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: il-central-1
+      AWS_DEFAULT_REGION: il-central-1
+      SST_STAGE: test
+      EXPECTED_OIDC_AUDIENCE: sts.amazonaws.com
+      EXPECTED_OIDC_SUBJECT: repo:noamtz@2631641/cpa-platform@1332935468:environment:test
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20.17.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.17.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate GitHub OIDC claims
+        shell: bash
+        run: |
+          response="$(curl --fail --silent --show-error \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${EXPECTED_OIDC_AUDIENCE}")"
+          OIDC_RESPONSE="$response" node <<'NODE'
+          const response = JSON.parse(process.env.OIDC_RESPONSE);
+          const token = response.value;
+          if (!token) throw new Error("GitHub did not return an OIDC token");
+          const payload = JSON.parse(
+            Buffer.from(token.split(".")[1], "base64url").toString("utf8"),
+          );
+          if (payload.aud !== process.env.EXPECTED_OIDC_AUDIENCE) {
+            throw new Error("Unexpected OIDC audience");
+          }
+          if (payload.sub !== process.env.EXPECTED_OIDC_SUBJECT) {
+            throw new Error("Unexpected OIDC subject");
+          }
+          process.stdout.write("OIDC claim validation passed\n");
+          NODE
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: auditflow-sst-test
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS session
+        shell: bash
+        run: |
+          test "${AWS_REGION}" = "il-central-1"
+          aws sts get-caller-identity --output json >/dev/null
+
+      - name: Install SST platform types
+        run: npm run sst:install
+
+      - name: Validate foundation
+        run: |
+          npm run test:foundation
+          npm run typecheck:foundation
+          npm run lint:foundation
+          npm run build
+          node tooling/verify_sst_foundation.mjs --mode contract --stage test
+
+      - name: Preview test deployment
+        run: npx sst diff --stage test --print-logs
+
+      - name: Deploy test stage
+        run: npx sst deploy --stage test --print-logs
+
+      - name: Verify live test foundation
+        run: >-
+          node tooling/verify_sst_foundation.mjs
+          --mode live
+          --stage test
+          --outputs .sst/outputs.json

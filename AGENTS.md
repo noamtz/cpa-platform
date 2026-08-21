@@ -26,7 +26,10 @@ base44/agents/                      # Reference readiness-agent behavior, not a 
 lambda/pdf-generator/               # Existing AWS PDF rendering and generation boundary.
 poc-server/                         # Legacy development-only PDF signing POC; migration evidence, not target runtime.
 infra/{test,prod}/main.tf           # Existing test and production infrastructure for the PDF API.
-.github/workflows/                  # Imported PDF deployment/rollback evidence; disabled in this repository.
+infra/sst/                          # Active SST v3 contracts and test/production foundation components.
+backend/api/                        # Modular non-PDF Lambda API handlers and route tests.
+sst.config.ts                       # Strict-stage SST entry point for the serverless compatibility layer.
+.github/workflows/                  # Disabled imported PDF evidence plus the active SST test workflow.
 docs/PRD.md                         # Product inventory for parity discovery; code remains authoritative.
 docs/user-journeys/                 # Evidence-backed journey and permission inventory.
 docs/migration/                     # Imported-source manifest, baseline, and verification evidence.
@@ -60,8 +63,10 @@ Evidence paths below are relative to this repository. The external production-so
 - **GitHub identity:** This repository belongs exclusively to GitHub user `noamtz`, with origin `git@github.com:noamtz/cpa-platform.git`. Never use `noamtznm` here; that account belongs to unrelated work. Run GitHub CLI operations through `python tooling/github.py ...`, which selects the `noamtz` credential explicitly. The `github-projects` MCP launcher is bound to the same credential.
 - **Validation:** Use Node 20.17.0 and run `npm ci`, `npm test`, `npm run typecheck`, `npm run lint`, and
   `npm run build` here. Compare known baseline failures with `docs/migration/auditflow-source-baseline.md`. For
-  AI-layer changes, also run `python tooling/validate_codex_layer.py`. Evidence: `package.json`, the migration
-  baseline report, and `tooling/validate_codex_layer.py`.
+  SST foundation changes, also run `npm run test:foundation`, `npm run typecheck:foundation`,
+  `npm run lint:foundation`, and the contract verifier. For AI-layer changes, also run
+  `python tooling/validate_codex_layer.py`. Evidence: `package.json`, the migration baseline report, and
+  `tooling/validate_codex_layer.py`.
 - **Project documents:** Use GitHub as the course's Jira/Confluence equivalent: GitHub Issues and the configured Project hold actionable work (epics, stories, tasks, and bugs), while the GitHub Wiki holds canonical PRDs and architecture documents. Keep agent working artifacts versioned locally: implementation plans under `.agents/plans/`, RCAs under `docs/issues/`, implementation and execution reports under `.agents/reports/` or `.agents/execution-reports/`, code reviews under `.agents/code-reviews/`, and system reviews under `.agents/system-reviews/`. Post review verdicts to the pull request and RCA summaries to the original bug issue; do not create tracker issues merely to store reports. Do not duplicate Wiki documents in this repository or create a fallback when the Wiki is unavailable; report the missing Wiki, Project identity, or authentication prerequisite instead. Keep code-operational contracts in this repository. Read `.agents/references/github-project-documents.md` before creating, reading, or updating a project artifact.
 
 Read the relevant contract before changing its area:
