@@ -220,12 +220,13 @@ export function buildTestDeploymentPolicy({
   const sstAssetBucketArn = "arn:aws:s3:::sst-asset-kkkvushrzufd";
   const sstStateBucketArn = "arn:aws:s3:::sst-state-kkkvushrzufd";
   const sstStageStatePrefixes = [
-    `*/${appName}/${stage}`,
+    `*/${appName}/${stage}.json`,
     `*/${appName}/${stage}/*`,
   ];
   const sstStageStateObjects = sstStageStatePrefixes.map(
     (prefix) => `${sstStateBucketArn}/${prefix}`,
   );
+  const sstFallbackSecretPrefix = `secret/${appName}/_fallback.json`;
 
   return {
     Version: "2012-10-17",
@@ -252,7 +253,7 @@ export function buildTestDeploymentPolicy({
         Resource: sstStateBucketArn,
         Condition: {
           StringLike: {
-            "s3:prefix": sstStageStatePrefixes,
+            "s3:prefix": [...sstStageStatePrefixes, sstFallbackSecretPrefix],
           },
         },
       },
@@ -261,6 +262,12 @@ export function buildTestDeploymentPolicy({
         Effect: "Allow",
         Action: ["s3:DeleteObject", "s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"],
         Resource: sstStageStateObjects,
+      },
+      {
+        Sid: "ReadSstFallbackSecret",
+        Effect: "Allow",
+        Action: ["s3:GetObject", "s3:GetObjectVersion"],
+        Resource: `${sstStateBucketArn}/${sstFallbackSecretPrefix}`,
       },
       {
         Sid: "UseSstAssetStorage",

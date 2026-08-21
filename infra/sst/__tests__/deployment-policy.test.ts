@@ -95,9 +95,16 @@ describe("test deployment IAM policy", () => {
     );
 
     expect(state?.Resource).toEqual([
-      "arn:aws:s3:::sst-state-kkkvushrzufd/*/auditflow/test",
+      "arn:aws:s3:::sst-state-kkkvushrzufd/*/auditflow/test.json",
       "arn:aws:s3:::sst-state-kkkvushrzufd/*/auditflow/test/*",
     ]);
+    expect(
+      policy.Statement.find(({ Sid }) => Sid === "ReadSstFallbackSecret"),
+    ).toMatchObject({
+      Action: ["s3:GetObject", "s3:GetObjectVersion"],
+      Resource:
+        "arn:aws:s3:::sst-state-kkkvushrzufd/secret/auditflow/_fallback.json",
+    });
     expect(actions(assets!)).not.toContain("s3:DeleteObject");
     expect(JSON.stringify(policy)).not.toContain("sst-state-kkkvushrzufd/*\"");
   });

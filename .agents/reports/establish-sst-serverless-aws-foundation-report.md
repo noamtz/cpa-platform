@@ -155,6 +155,9 @@ All four blocking review findings were remediated before merge:
 
 Regression coverage increased the foundation suite to **5 files / 45 tests**. The owner-authenticated test-stage
 deployment updated the restricted role without replacing or deleting application resources. The final live run
-passed AWS Access Analyzer, five IAM policy simulations, boundary attachment/content checks, all resource checks,
-and the public/protected endpoint probes. The deployed stack tracks **92 resources**. Production remains
+passed AWS Access Analyzer, six IAM policy simulations, boundary attachment/content checks, all resource checks,
+and the public/protected endpoint probes. The first narrowed-role GitHub preview failed closed before deployment
+because SST uses `app/auditflow/test.json`; the policy was corrected to the exact `.json` stage objects plus
+read-only access to AuditFlow's `_fallback` secret object, while remaining closed to other apps and stages. The
+final live gate preserves that exact-key boundary. The deployed stack tracks **92 resources**. Production remains
 undeployed and untouched.
