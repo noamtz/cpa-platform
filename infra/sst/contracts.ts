@@ -154,6 +154,7 @@ export const authContract = {
 
 export const deploymentContract = {
   roleLogicalName: "TestDeployRole",
+  workloadBoundaryLogicalName: "WorkloadPermissionsBoundary",
   providerUrl: "token.actions.githubusercontent.com",
   audience: "sts.amazonaws.com",
   subject:

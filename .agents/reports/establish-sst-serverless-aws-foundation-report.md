@@ -138,3 +138,23 @@ expire after one day, and logs use bounded retention and safe structured message
 - Dependency issue: `#3`
 - Epic: `#1`
 - Architecture: `Architecture-AuditFlow-Platform-Migration` in the repository Wiki
+
+## PR #21 security-remediation addendum (2026-08-21)
+
+All four blocking review findings were remediated before merge:
+
+- The test OIDC deploy role now has an explicit self-mutation deny, can create workload roles only with the
+  stage-specific permissions boundary, and can pass roles only to Lambda.
+- Service mutations are restricted to deterministic `auditflow-test-*` resources or exact SST application/stage
+  tags. Mutable SST state is restricted to `auditflow/test` object keys, and global access is limited to enumerated
+  discovery and create APIs that do not support resource ARNs.
+- Production configuration requires an explicit operator-supplied ILS/USD rate and fails closed when the converted
+  monthly budget exceeds ILS 50. The retained USD 10 alert converts to ILS 30.73 at the reviewed rate of 3.073.
+- The bucket CORS verifier accepts only `NoSuchCORSConfiguration`; authorization, throttling, redirect, and other
+  failures no longer count as privacy evidence.
+
+Regression coverage increased the foundation suite to **5 files / 45 tests**. The owner-authenticated test-stage
+deployment updated the restricted role without replacing or deleting application resources. The final live run
+passed AWS Access Analyzer, five IAM policy simulations, boundary attachment/content checks, all resource checks,
+and the public/protected endpoint probes. The deployed stack tracks **92 resources**. Production remains
+undeployed and untouched.

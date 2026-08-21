@@ -6,6 +6,7 @@ export default defineConfig({
     environment: "node",
     include: [
       "infra/sst/__tests__/**/*.test.ts",
+      "infra/sst/__tests__/**/*.test.js",
       "backend/api/__tests__/**/*.test.ts",
     ],
     exclude: ["node_modules", "dist", ".sst"],

@@ -135,6 +135,22 @@ function runAws(arguments_, { allowFailure = false } = {}) {
   };
 }
 
+export function parseAwsCliErrorCode(stderr) {
+  return /\(([^()]+)\)\s+when calling/.exec(stderr)?.[1];
+}
+
+export function assertBrowserCorsAbsent(result, logicalName) {
+  if (result.ok) {
+    fail(`${logicalName} unexpectedly has browser CORS configured.`);
+  }
+
+  const errorCode = parseAwsCliErrorCode(result.stderr ?? "");
+  assert(
+    errorCode === "NoSuchCORSConfiguration",
+    `${logicalName} CORS verification failed with ${errorCode ?? "an unknown AWS error"}.`,
+  );
+}
+
 function assertHttpsUrl(value, label, hostSuffix, expectedPath) {
   const url = new URL(value);
   assert(url.protocol === "https:", `${label} must use HTTPS.`);
@@ -144,6 +160,33 @@ function assertHttpsUrl(value, label, hostSuffix, expectedPath) {
   }
   assert(!url.username && !url.password, `${label} must not contain credentials.`);
   return url;
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [value];
+}
+
+function findPolicyStatement(policy, sid) {
+  return policy.Statement.find((statement) => statement.Sid === sid);
+}
+
+function simulatePrincipalAction(roleArn, action, resourceArn, context = []) {
+  const arguments_ = [
+    "iam",
+    "simulate-principal-policy",
+    "--policy-source-arn",
+    roleArn,
+    "--action-names",
+    action,
+    "--resource-arns",
+    resourceArn,
+  ];
+  if (context.length > 0) {
+    arguments_.push("--context-entries", ...context);
+  }
+  const result = runAws(arguments_).value.EvaluationResults?.[0];
+  assert(result?.EvalActionName === action, `IAM simulation omitted ${action}.`);
+  return result.EvalDecision;
 }
 
 async function fetchText(url, expectedStatus) {
@@ -241,7 +284,7 @@ async function verifyLive(contract, stage, outputsPath) {
       ["s3api", "get-bucket-cors", "--bucket", bucketName],
       { allowFailure: true },
     );
-    assert(!cors.ok, `${logicalName} unexpectedly has browser CORS configured.`);
+    assertBrowserCorsAbsent(cors, logicalName);
   }
 
   const fileVersioning = runAws([
@@ -352,11 +395,175 @@ async function verifyLive(contract, stage, outputsPath) {
   assert(
     inlinePolicy.Statement.every(
       (statement) =>
-        statement.Effect === "Allow" &&
-        statement.Action !== "*" &&
-        ![].concat(statement.Action).includes("iam:*"),
+        !asArray(statement.Action).includes("*") &&
+        !asArray(statement.Action).includes("iam:*"),
     ),
     "Test deploy role contains an administrator-style action.",
+  );
+  const selfDeny = findPolicyStatement(
+    inlinePolicy,
+    "DenyDeployRoleSelfMutation",
+  );
+  assert(
+    selfDeny?.Effect === "Deny" &&
+      asArray(selfDeny.Resource).includes(roleArn) &&
+      asArray(selfDeny.Action).includes("iam:PutRolePolicy") &&
+      asArray(selfDeny.Action).includes("iam:UpdateAssumeRolePolicy"),
+    "Test deploy role is not explicitly protected from self-mutation.",
+  );
+  const boundedCreate = findPolicyStatement(
+    inlinePolicy,
+    "CreateBoundedWorkloadRoles",
+  );
+  const workloadBoundaryArn =
+    boundedCreate?.Condition?.StringEquals?.["iam:PermissionsBoundary"];
+  assert(
+    typeof workloadBoundaryArn === "string" &&
+      workloadBoundaryArn.endsWith("/auditflow-test-workload-boundary"),
+    "Workload-role creation does not require the test permissions boundary.",
+  );
+  const passRole = findPolicyStatement(
+    inlinePolicy,
+    "PassBoundedRolesOnlyToLambda",
+  );
+  assert(
+    passRole?.Condition?.StringEquals?.["iam:PassedToService"] ===
+      "lambda.amazonaws.com",
+    "iam:PassRole is not restricted to Lambda.",
+  );
+  assert(
+    inlinePolicy.Statement.every((statement) => {
+      if (statement.Effect !== "Allow" || statement.Resource !== "*") {
+        return true;
+      }
+      return statement.Sid === "GlobalDiscoveryOnly" || statement.Condition;
+    }),
+    "A service mutation retains unconditioned global resource scope.",
+  );
+
+  const policyFindings = runAws([
+    "accessanalyzer",
+    "validate-policy",
+    "--policy-type",
+    "IDENTITY_POLICY",
+    "--policy-document",
+    JSON.stringify(inlinePolicy),
+  ]).value.findings;
+  const blockingPolicyFindings = policyFindings.filter(({ findingType }) =>
+    ["ERROR", "SECURITY_WARNING"].includes(findingType),
+  );
+  assert(
+    blockingPolicyFindings.length === 0,
+    `Access Analyzer reported blocking policy findings: ${blockingPolicyFindings
+      .map(
+        ({ findingType, issueCode, findingDetails }) =>
+          `${findingType}:${issueCode}:${findingDetails}`,
+      )
+      .join(", ")}.`,
+  );
+
+  const workloadRoleArn = lambda.Role;
+  const workloadRoleName = workloadRoleArn.slice(
+    workloadRoleArn.lastIndexOf("/") + 1,
+  );
+  const workloadRole = runAws([
+    "iam",
+    "get-role",
+    "--role-name",
+    workloadRoleName,
+  ]).value.Role;
+  assert(
+    workloadRole.PermissionsBoundary?.PermissionsBoundaryArn ===
+      workloadBoundaryArn,
+    "API Lambda role is missing the workload permissions boundary.",
+  );
+  const workloadBoundary = runAws([
+    "iam",
+    "get-policy",
+    "--policy-arn",
+    workloadBoundaryArn,
+  ]).value.Policy;
+  const workloadBoundaryDocument = runAws([
+    "iam",
+    "get-policy-version",
+    "--policy-arn",
+    workloadBoundaryArn,
+    "--version-id",
+    workloadBoundary.DefaultVersionId,
+  ]).value.PolicyVersion.Document;
+  assert(
+    workloadBoundaryDocument.Statement.every(
+      (statement) =>
+        asArray(statement.Resource).every((resource) => resource !== "*") &&
+        asArray(statement.Action).every(
+          (action) => !action.startsWith("iam:") && !action.startsWith("sts:"),
+        ),
+    ),
+    "Workload permissions boundary permits global, IAM, or STS access.",
+  );
+
+  const workloadProbeArn = roleArn.replace(
+    "auditflow-test-github-deploy",
+    "auditflow-test-policy-probe",
+  );
+  const tagContext = [
+    "ContextKeyName=iam:ResourceTag/sst:app,ContextKeyValues=auditflow,ContextKeyType=string",
+    "ContextKeyName=iam:ResourceTag/sst:stage,ContextKeyValues=test,ContextKeyType=string",
+  ];
+  assert(
+    simulatePrincipalAction(
+      roleArn,
+      "iam:PutRolePolicy",
+      roleArn,
+    ) === "explicitDeny",
+    "Policy simulation did not deny deploy-role self-mutation.",
+  );
+  assert(
+    simulatePrincipalAction(
+      roleArn,
+      "iam:CreateRole",
+      workloadProbeArn,
+    ) !== "allowed",
+    "Policy simulation allowed a workload role without the boundary.",
+  );
+  assert(
+    simulatePrincipalAction(
+      roleArn,
+      "iam:PassRole",
+      workloadProbeArn,
+      [
+        ...tagContext,
+        "ContextKeyName=iam:PassedToService,ContextKeyValues=ec2.amazonaws.com,ContextKeyType=string",
+      ],
+    ) !== "allowed",
+    "Policy simulation allowed a workload role to be passed outside Lambda.",
+  );
+  assert(
+    simulatePrincipalAction(
+      roleArn,
+      "s3:DeleteBucket",
+      "arn:aws:s3:::unrelated-policy-probe",
+    ) !== "allowed",
+    "Policy simulation allowed mutation of an unrelated S3 bucket.",
+  );
+  assert(
+    simulatePrincipalAction(
+      roleArn,
+      "s3:PutObject",
+      "arn:aws:s3:::sst-state-kkkvushrzufd/app/unrelated/production",
+    ) !== "allowed",
+    "Policy simulation allowed mutation of unrelated SST state.",
+  );
+  assert(
+    simulatePrincipalAction(
+      roleArn,
+      "lambda:DeleteFunction",
+      roleArn.replace(
+        /arn:aws:iam::(\d+):role\/.+/,
+        "arn:aws:lambda:il-central-1:$1:function:unrelated-policy-probe",
+      ),
+    ) !== "allowed",
+    "Policy simulation allowed mutation of an unrelated Lambda function.",
   );
 
   const root = await fetchText(outputs.routerUrl, 200);
@@ -400,6 +607,12 @@ async function verifyLive(contract, stage, outputsPath) {
       routerDeployed: true,
       exactOidcTrust: true,
       noAdministratorPolicy: true,
+      noDeployRoleSelfMutation: true,
+      workloadBoundaryAttached: true,
+      passRoleLambdaOnly: true,
+      serviceMutationsScoped: true,
+      accessAnalyzerClean: true,
+      iamSimulationPassed: true,
       healthOk: true,
       protectedHealthRejected: true,
     },
@@ -428,7 +641,9 @@ async function main() {
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 
-main().catch((error) => {
-  process.stderr.write(`SST foundation verification failed: ${error.message}\n`);
-  process.exitCode = 1;
-});
+if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    process.stderr.write(`SST foundation verification failed: ${error.message}\n`);
+    process.exitCode = 1;
+  });
+}

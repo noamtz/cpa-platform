@@ -34,6 +34,7 @@ describe("stage settings", () => {
     const settings = getStageSettings("production", {
       AUDITFLOW_BUDGET_ALERT_EMAIL: "owner@example.invalid",
       AUDITFLOW_MONTHLY_BUDGET_USD: "10",
+      AUDITFLOW_ILS_PER_USD: "3.073",
     });
 
     expect(settings).toEqual({
@@ -45,6 +46,8 @@ describe("stage settings", () => {
       budget: {
         alertEmail: "owner@example.invalid",
         monthlyLimitUsd: 10,
+        ilsPerUsd: 3.073,
+        convertedMonthlyLimitIls: 30.73,
       },
     });
     expect(AWS_REGION).toBe("il-central-1");
@@ -55,16 +58,43 @@ describe("stage settings", () => {
     {},
     { AUDITFLOW_BUDGET_ALERT_EMAIL: "owner@example.invalid" },
     {
+      AUDITFLOW_BUDGET_ALERT_EMAIL: "owner@example.invalid",
+      AUDITFLOW_MONTHLY_BUDGET_USD: "10",
+    },
+    {
       AUDITFLOW_BUDGET_ALERT_EMAIL: "not-an-email",
       AUDITFLOW_MONTHLY_BUDGET_USD: "10",
+      AUDITFLOW_ILS_PER_USD: "3.073",
     },
     {
       AUDITFLOW_BUDGET_ALERT_EMAIL: "owner@example.invalid",
       AUDITFLOW_MONTHLY_BUDGET_USD: "0",
+      AUDITFLOW_ILS_PER_USD: "3.073",
     },
     {
       AUDITFLOW_BUDGET_ALERT_EMAIL: "owner@example.invalid",
       AUDITFLOW_MONTHLY_BUDGET_USD: "not-a-number",
+      AUDITFLOW_ILS_PER_USD: "3.073",
+    },
+    {
+      AUDITFLOW_BUDGET_ALERT_EMAIL: "owner@example.invalid",
+      AUDITFLOW_MONTHLY_BUDGET_USD: "10",
+      AUDITFLOW_ILS_PER_USD: "0",
+    },
+    {
+      AUDITFLOW_BUDGET_ALERT_EMAIL: "owner@example.invalid",
+      AUDITFLOW_MONTHLY_BUDGET_USD: "10",
+      AUDITFLOW_ILS_PER_USD: "not-a-number",
+    },
+    {
+      AUDITFLOW_BUDGET_ALERT_EMAIL: "owner@example.invalid",
+      AUDITFLOW_MONTHLY_BUDGET_USD: "100000",
+      AUDITFLOW_ILS_PER_USD: "3.073",
+    },
+    {
+      AUDITFLOW_BUDGET_ALERT_EMAIL: "owner@example.invalid",
+      AUDITFLOW_MONTHLY_BUDGET_USD: "10",
+      AUDITFLOW_ILS_PER_USD: "5.01",
     },
   ])("fails closed on invalid production budget settings", (environment) => {
     expect(() => getStageSettings("production", environment)).toThrow();

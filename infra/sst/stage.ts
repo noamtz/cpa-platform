@@ -9,6 +9,8 @@ export type StageName = (typeof allowedStages)[number];
 export interface ProductionBudgetSettings {
   readonly alertEmail: string;
   readonly monthlyLimitUsd: number;
+  readonly ilsPerUsd: number;
+  readonly convertedMonthlyLimitIls: number;
 }
 
 export interface StageSettings {
@@ -24,6 +26,7 @@ export interface StageEnvironment {
   readonly [key: string]: string | undefined;
   readonly AUDITFLOW_BUDGET_ALERT_EMAIL?: string;
   readonly AUDITFLOW_MONTHLY_BUDGET_USD?: string;
+  readonly AUDITFLOW_ILS_PER_USD?: string;
 }
 
 export function parseStage(value: string | undefined): StageName {
@@ -42,6 +45,8 @@ function parseProductionBudget(
   const alertEmail = environment.AUDITFLOW_BUDGET_ALERT_EMAIL;
   const rawMonthlyLimit = environment.AUDITFLOW_MONTHLY_BUDGET_USD;
   const monthlyLimitUsd = Number(rawMonthlyLimit);
+  const rawIlsPerUsd = environment.AUDITFLOW_ILS_PER_USD;
+  const ilsPerUsd = Number(rawIlsPerUsd);
 
   if (!alertEmail || !/^\S+@\S+\.\S+$/.test(alertEmail)) {
     throw new Error(
@@ -55,7 +60,25 @@ function parseProductionBudget(
     );
   }
 
-  return { alertEmail, monthlyLimitUsd };
+  if (!rawIlsPerUsd || !Number.isFinite(ilsPerUsd) || ilsPerUsd <= 0) {
+    throw new Error(
+      "Production requires a positive AUDITFLOW_ILS_PER_USD operator rate.",
+    );
+  }
+
+  const convertedMonthlyLimitIls = monthlyLimitUsd * ilsPerUsd;
+  if (convertedMonthlyLimitIls > MONTHLY_COST_CEILING_ILS) {
+    throw new Error(
+      `Production monthly budget exceeds the ILS ${MONTHLY_COST_CEILING_ILS} ceiling.`,
+    );
+  }
+
+  return {
+    alertEmail,
+    monthlyLimitUsd,
+    ilsPerUsd,
+    convertedMonthlyLimitIls,
+  };
 }
 
 export function getStageSettings(

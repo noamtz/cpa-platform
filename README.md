@@ -43,7 +43,9 @@ node tooling/verify_sst_foundation.mjs --mode live --stage test --outputs .sst/o
 ```
 
 Production is retained and protected. A production preview additionally requires an ignored
-`.env.production.local`, copied from `.env.example`, with a valid alert email and a positive monthly USD budget.
+`.env.production.local`, copied from `.env.example`, with a valid alert email, a positive monthly USD budget, and
+the operator-reviewed ILS/USD conversion rate. Configuration fails closed when the converted limit exceeds the
+ILS 50 monthly ceiling. Refresh the rate before every production preview or deployment.
 Never commit that file or its values. Production deployment, removal, DNS, certificates, and changes to the
 existing Terraform/PDF stacks require separate authorization. SST 3.19.3 cannot diff a stage that has never been
 deployed; if it reports `Stage not found`, do not initialize production through a deployment merely to obtain a
@@ -51,8 +53,12 @@ preview. Use the production contract tests until a separately authorized product
 
 The active `Deploy SST test` workflow assumes the separate `auditflow-test-github-deploy` role through the GitHub
 `test` Environment. Set only its ARN as the Environment variable `AWS_DEPLOY_ROLE_ARN`; the workflow validates its
-immutable repository OIDC subject before assuming the role. The account-level GitHub OIDC provider remains
-Terraform-owned, while SST owns only this issue-scoped role and the new serverless foundation resources.
+immutable repository OIDC subject before assuming the role. The role cannot mutate itself. SST workload roles
+must use the stage permissions boundary, and CI can pass them only to Lambda. Changes to the deploy role or the
+boundary require an owner-authenticated bootstrap deployment; ordinary stage deployments remain OIDC-automated.
+Mutable objects in the shared SST state bucket are restricted to the exact `auditflow/test` key space.
+The account-level GitHub OIDC provider remains Terraform-owned, while SST owns only this issue-scoped role and the
+new serverless foundation resources.
 
 ## Codex project setup
 

@@ -7,9 +7,18 @@ CloudFront/S3 application shell, HTTP API and Lambda, DynamoDB tables, private b
 separate test deployment role. It reuses, but does not modify, the account-level GitHub OIDC provider owned by
 Terraform. Resource ownership must not cross those boundaries.
 
+The test OIDC role may inspect but never mutate itself. Workload roles require the stage permissions boundary and
+may be passed only to Lambda. Service mutations are restricted to deterministic AuditFlow stage ARNs or the
+`sst:app`/`sst:stage` tag boundary; only explicitly enumerated discovery calls and tag-gated creation APIs retain
+global resource scope. Changing the deploy role or workload boundary requires the owner-authenticated AWS profile,
+while ordinary test diffs and deployments remain automated through OIDC. Shared SST state-bucket mutation is
+restricted to object keys for the exact `auditflow/test` stage.
+
 Only exact `test` and `production` SST stages are accepted. The test stage is removable for iteration;
 production is protected and retained and requires an alert-only monthly AWS budget. Production configuration is
-loaded from ignored `.env.production.local`; do not print or commit it. The GitHub `test` Environment supplies the
+loaded from ignored `.env.production.local`; it requires an operator-reviewed ILS/USD rate and fails when the
+converted budget exceeds ILS 50. Refresh the rate before a production preview or deployment, and do not print or
+commit the ignored configuration. The GitHub `test` Environment supplies the
 test deploy-role ARN as `AWS_DEPLOY_ROLE_ARN`, and `.github/workflows/deploy-sst-test.yml` validates the immutable
 repository OIDC audience and subject before deployment.
 

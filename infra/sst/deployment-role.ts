@@ -1,62 +1,38 @@
 import { deploymentContract } from "./contracts";
+import {
+  buildTestDeploymentPolicy,
+  buildWorkloadBoundaryPolicy,
+} from "./deployment-policy";
 import type { StageSettings } from "./stage";
 
-const foundationDeploymentActions = [
-  "apigateway:*",
-  "cloudfront:*",
-  "cloudfront-keyvaluestore:*",
-  "cognito-idp:*",
-  "dynamodb:*",
-  "ecr:BatchCheckLayerAvailability",
-  "ecr:BatchGetImage",
-  "ecr:CompleteLayerUpload",
-  "ecr:DescribeImages",
-  "ecr:DescribeRepositories",
-  "ecr:GetAuthorizationToken",
-  "ecr:GetDownloadUrlForLayer",
-  "ecr:InitiateLayerUpload",
-  "ecr:ListImages",
-  "ecr:PutImage",
-  "ecr:UploadLayerPart",
-  "lambda:*",
-  "logs:*",
-  "s3:*",
-  "ssm:*",
-  "sts:GetCallerIdentity",
-  "tag:GetResources",
-  "tag:GetTagKeys",
-  "tag:GetTagValues",
-] as const;
-
-const roleManagementActions = [
-  "iam:CreateRole",
-  "iam:DeleteRole",
-  "iam:GetRole",
-  "iam:GetRolePolicy",
-  "iam:ListAttachedRolePolicies",
-  "iam:ListRolePolicies",
-  "iam:PutRolePolicy",
-  "iam:DeleteRolePolicy",
-  "iam:TagRole",
-  "iam:UntagRole",
-  "iam:UpdateAssumeRolePolicy",
-  "iam:UpdateRole",
-  "iam:UpdateRoleDescription",
-  "iam:PassRole",
-] as const;
-
 export async function createTestDeploymentRole(stage: StageSettings) {
+  const caller = await aws.getCallerIdentity({});
+  const boundaryName = `${$app.name}-${stage.name}-workload-boundary`;
+  const workloadBoundary = new aws.iam.Policy(
+    deploymentContract.workloadBoundaryLogicalName,
+    {
+      name: boundaryName,
+      description: `Maximum runtime permissions for ${$app.name} ${stage.name} workloads`,
+      policy: JSON.stringify(
+        buildWorkloadBoundaryPolicy(caller.accountId, stage.name),
+      ),
+      tags: {
+        "sst:app": $app.name,
+        "sst:stage": stage.name,
+        ManagedBy: "owner-bootstrap",
+      },
+    },
+  );
+
   if (stage.name !== "test") {
-    return undefined;
+    return { role: undefined, workloadBoundary };
   }
 
-  const caller = await aws.getCallerIdentity({});
   const providerArn = `arn:aws:iam::${caller.accountId}:oidc-provider/${deploymentContract.providerUrl}`;
-  const managedRoleArn = `arn:aws:iam::${caller.accountId}:role/${$app.name}-test-*`;
 
-  return new aws.iam.Role(deploymentContract.roleLogicalName, {
+  const role = new aws.iam.Role(deploymentContract.roleLogicalName, {
     name: `${$app.name}-test-github-deploy`,
-    description: "Issue #4 least-privilege SST test-stage deployment role",
+    description: "Owner-bootstrapped least-privilege SST test deployment role",
     maxSessionDuration: 3600,
     assumeRolePolicy: JSON.stringify({
       Version: "2012-10-17",
@@ -79,29 +55,22 @@ export async function createTestDeploymentRole(stage: StageSettings) {
     inlinePolicies: [
       {
         name: "auditflow-test-foundation-deploy",
-        policy: JSON.stringify({
-          Version: "2012-10-17",
-          Statement: [
-            {
-              Sid: "FoundationServices",
-              Effect: "Allow",
-              Action: foundationDeploymentActions,
-              Resource: "*",
-            },
-            {
-              Sid: "FoundationRoleManagement",
-              Effect: "Allow",
-              Action: roleManagementActions,
-              Resource: managedRoleArn,
-            },
-          ],
-        }),
+        policy: workloadBoundary.arn.apply((workloadBoundaryArn) =>
+          JSON.stringify(
+            buildTestDeploymentPolicy({
+              accountId: caller.accountId,
+              workloadBoundaryArn,
+            }),
+          ),
+        ),
       },
     ],
     tags: {
-      Application: $app.name,
-      Stage: stage.name,
-      ManagedBy: "sst",
+      "sst:app": $app.name,
+      "sst:stage": stage.name,
+      ManagedBy: "owner-bootstrap",
     },
   });
+
+  return { role, workloadBoundary };
 }

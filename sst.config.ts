@@ -45,8 +45,13 @@ export default $config({
     const storage = createStorage(stage);
     const authentication = createAuthentication(stage);
     createCostControls(stage);
-    const application = createApplication(stage, storage, authentication);
     const testDeployRole = await createTestDeploymentRole(stage);
+    const application = createApplication(
+      stage,
+      storage,
+      authentication,
+      testDeployRole.workloadBoundary.arn,
+    );
 
     return {
       stage: stage.name,
@@ -72,7 +77,7 @@ export default $config({
       ),
       userPoolId: authentication.userPool.id,
       userPoolClientId: authentication.userPoolClient.id,
-      testDeployRoleArn: testDeployRole?.arn ?? "",
+      testDeployRoleArn: testDeployRole.role?.arn ?? "",
     };
   },
 });

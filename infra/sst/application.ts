@@ -11,6 +11,7 @@ export function createApplication(
   stage: StageSettings,
   storage: FoundationStorage,
   authentication: FoundationAuthentication,
+  workloadBoundaryArn: $util.Input<string>,
 ) {
   const router = new sst.aws.Router(routerContract.logicalName);
   const api = new sst.aws.ApiGatewayV2("ApplicationApi", {
@@ -40,6 +41,11 @@ export function createApplication(
       ...storage.bucketList,
       authentication.userPool,
     ],
+    transform: {
+      role(args) {
+        args.permissionsBoundary = workloadBoundaryArn;
+      },
+    },
   });
 
   const authorizer = api.addAuthorizer({
