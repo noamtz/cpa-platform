@@ -58,9 +58,10 @@ Evidence paths below are relative to this repository. The external production-so
   `.agents/references/auditflow-rewrite-target.md` and the canonical `Architecture-AuditFlow-Platform-Migration`
   Wiki page.
 - **Migration status:** Core CPA authentication, Client/Submission/User compatibility, invitations, and journaled
-  mutations are implemented locally through the SST foundation. The facade retains only the Wiki-approved temporary
-  PDF/template/readiness allowlist; test deployment, user creation, data seeding, and live acceptance still require
-  explicit authorization.
+  mutations are deployed to the SST test stage and the live foundation plus managed-login redirect are verified.
+  The first synthetic admin and its linked User fixture are bootstrapped. The facade retains only the Wiki-approved
+  temporary PDF/template/readiness allowlist; authenticated acceptance, broader data seeding, and every production
+  action still require explicit authorization.
 - **Source integrity:** Make rewrite changes here; treat `C:\Users\ntzur\workspace-antigravity\auditflow` as read-only unless the user explicitly requests changes there. Reproduce and verify the imported baseline through `tooling/import_auditflow_source.py` and `docs/migration/auditflow-source-manifest.json`. Evidence: rewrite/input boundary in `.agents/references/auditflow-rewrite-target.md`.
 - **Parity:** Add evidence before replacing behavior, and keep the working Base44 path until its AWS replacement has verified parity and a rollback-safe cutover. Evidence: rewrite-workspace `.agents/references/auditflow-rewrite-target.md` and source `.agents/AGENTS.md`.
 - **Git:** Use feature branches for major work, reserve direct `main` changes for hotfixes, and prefix commits with `feat:`, `fix:`, `refactor:`, `infra:`, `test:`, or `docs:`. Evidence: source `.agents/AGENTS.md` and this repository's accepted documentation history.

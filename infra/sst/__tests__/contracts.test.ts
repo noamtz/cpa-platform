@@ -54,6 +54,7 @@ describe("foundation resource contract", () => {
       resourceServerLogicalName: authContract.resourceServerLogicalName,
       resourceServerIdentifier: authContract.resourceServerIdentifier,
       scopeName: authContract.scopeName,
+      authorityType: authContract.authorityType,
       apiScope: authContract.apiScope,
       allowedOAuthFlows: authContract.allowedOAuthFlows,
       allowedOAuthScopes: authContract.allowedOAuthScopes,
@@ -210,6 +211,7 @@ describe("foundation resource contract", () => {
       spaFallback: "index.html",
     });
     expect(authContract.clientSecret).toBe(false);
+    expect(authContract.authorityType).toBe("regional-user-pool-issuer");
     expect(authContract.allowedOAuthFlows).toEqual(["code"]);
     expect(authContract.allowedOAuthScopes).toEqual([
       "openid",

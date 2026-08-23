@@ -94,7 +94,7 @@ export function createAuthentication(
     },
   );
 
-  const authority = $interpolate`https://${domain.domain}.auth.${AWS_REGION}.amazoncognito.com`;
+  const authority = $interpolate`https://cognito-idp.${AWS_REGION}.amazonaws.com/${userPool.id}`;
 
   return {
     userPool,

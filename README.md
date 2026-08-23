@@ -30,7 +30,8 @@ The CPA application uses Cognito managed login with authorization code/PKCE and 
 `openid auditflow-api/cpa`. Local browser configuration uses `VITE_COGNITO_AUTHORITY`,
 `VITE_COGNITO_CLIENT_ID`, `VITE_COGNITO_CALLBACK_URL`, and `VITE_COGNITO_LOGOUT_URL`; the local callback is
 `http://localhost:5173/auth/callback`. Keep these public identifiers stage-specific and never add credentials or a
-client secret to browser configuration. Invited CPA users receive Cognito's temporary-password setup flow and must
+client secret to browser configuration. `VITE_COGNITO_AUTHORITY` is the regional user-pool issuer used for OIDC
+discovery, not the separate managed-login domain. Invited CPA users receive Cognito's temporary-password setup flow and must
 choose a new password at managed login before using the application.
 
 `src/api/base44Client.js` is a temporary hybrid compatibility facade. CPA auth, Client, Submission, User,

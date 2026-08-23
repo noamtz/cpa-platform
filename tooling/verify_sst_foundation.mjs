@@ -107,6 +107,7 @@ function verifyContract(contract, stage) {
   assert(
     contract.auth.resourceServerIdentifier === "auditflow-api" &&
       contract.auth.scopeName === "cpa" &&
+      contract.auth.authorityType === "regional-user-pool-issuer" &&
       contract.auth.apiScope === "auditflow-api/cpa" &&
       JSON.stringify(contract.auth.allowedOAuthFlows) ===
         JSON.stringify(["code"]) &&
@@ -249,7 +250,8 @@ async function verifyLive(contract, stage, outputsPath) {
   const authAuthority = assertHttpsUrl(
     outputs.authAuthority,
     "Cognito authority",
-    ".amazoncognito.com",
+    "cognito-idp.il-central-1.amazonaws.com",
+    `/${outputs.userPoolId}`,
   );
   assert(
     outputs.authCallbackUrl ===
@@ -421,9 +423,29 @@ async function verifyLive(contract, stage, outputsPath) {
         contract.auth.refreshTokenRotation.retryGracePeriodSeconds,
     "Refresh-token rotation is not configured exactly.",
   );
-  const domainMarker = authAuthority.hostname.indexOf(".auth.");
-  assert(domainMarker > 0, "Cognito authority is not a prefix-domain URL.");
-  const domainPrefix = authAuthority.hostname.slice(0, domainMarker);
+  const discovery = await fetchText(
+    `${authAuthority.href.replace(/\/$/, "")}/.well-known/openid-configuration`,
+    200,
+  );
+  let discoveryMetadata;
+  try {
+    discoveryMetadata = JSON.parse(discovery.text);
+  } catch {
+    fail("Cognito OIDC discovery did not return JSON.");
+  }
+  assert(
+    discoveryMetadata.issuer === outputs.authAuthority,
+    "Cognito discovery issuer differs from the browser authority.",
+  );
+  const authorizationEndpoint = assertHttpsUrl(
+    discoveryMetadata.authorization_endpoint,
+    "Cognito authorization endpoint",
+    ".amazoncognito.com",
+    "/oauth2/authorize",
+  );
+  const domainMarker = authorizationEndpoint.hostname.indexOf(".auth.");
+  assert(domainMarker > 0, "Cognito authorization endpoint is not on the managed-login domain.");
+  const domainPrefix = authorizationEndpoint.hostname.slice(0, domainMarker);
   const domain = runAws([
     "cognito-idp",
     "describe-user-pool-domain",

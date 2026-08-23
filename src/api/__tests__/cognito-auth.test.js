@@ -28,7 +28,7 @@ function setup() {
   }
   const auth = createCognitoAuth({
     config: {
-      authority: "https://login.example.test",
+      authority: "https://cognito-idp.il-central-1.amazonaws.com/il-central-1_EXAMPLE",
       clientId: "client-id",
       callbackUrl: "https://app.example.test/auth/callback",
       logoutUrl: "https://app.example.test/",
@@ -45,6 +45,7 @@ describe("Cognito browser auth", () => {
   it("configures code/PKCE OIDC with exact scopes and session-scoped stores", () => {
     const { manager } = setup();
     expect(manager.settings).toMatchObject({
+      authority: "https://cognito-idp.il-central-1.amazonaws.com/il-central-1_EXAMPLE",
       response_type: "code",
       scope: OIDC_SCOPE,
       loadUserInfo: false,

@@ -6,12 +6,12 @@
 
 **Branch**: `feature/implement-cognito-core-cpa-compatibility`
 
-**Status**: PARTIAL — local implementation and validation are complete; the test-stage preview is blocked by an
-expired named AWS SSO session, and deployment/user/data creation plus live acceptance were not authorized.
+**Status**: PARTIAL — implementation, test deployment, live foundation verification, managed-login redirect, and
+first synthetic-admin bootstrap are complete; human completion of the temporary-password login flow is pending.
 
 ## Summary
 
-Implemented the local Cognito and AWS compatibility slice for the CPA application. The SST contract now defines
+Implemented and test-deployed the Cognito and AWS compatibility slice for the CPA application. The SST contract now defines
 the managed-login domain/resource server, exact CPA scope and route authorization, User listing index, application
 outputs, and a no-secret code-flow client. Because the provider pinned by SST 3.19.3 does not expose refresh-token
 rotation, the test deploy command performs an explicit describe/update/verify compatibility step after deployment.
@@ -48,6 +48,12 @@ approved PDF/template/readiness surfaces remain delegated pending their downstre
 - Added Cognito browser auth, same-origin bearer HTTP, AWS compatibility mappings, callback page/route, simplified
   latent AuthContext, explicit compatibility allowlists, and UI-safe integration deferral handling.
 - Updated the safe local configuration example, README operating guidance, and repository architecture/status map.
+- Previewed and deployed the authorized test-stage changes, applied refresh-token rotation, and passed the full
+  live foundation/security verifier.
+- Corrected the browser authority after human smoke testing exposed discovery against the managed-login domain.
+  The deployed authority is now the regional user-pool issuer; discovery returns the managed-login authorization
+  endpoint, and an isolated browser reaches the Cognito sign-in page with authorization code/S256 PKCE and exact
+  scopes.
 
 ## Validation results
 
@@ -66,20 +72,34 @@ approved PDF/template/readiness surfaces remain delegated pending their downstre
 - Codex-layer validation: PASS — 31 skills and 6 custom agents.
 - Codebase-search self-test: PASS.
 - `git diff --check`: PASS (informational Git for Windows future line-ending warnings only).
-- Named AWS identity preflight: BLOCKED — the SSO token expired and automatic refresh failed. No SST preview was
-  attempted without a verified identity.
-- Test deployment/live verifier/two-user acceptance: NOT RUN — not authorized by this execution request.
+- Named AWS identity preflight: PASS after the owner completed interactive SSO login; identifiers were withheld.
+- Test preview: PASS — expected additive routes/domain/resource server, in-place User GSI/pool/client/Lambda/site
+  updates, and ephemeral build/artifact replacement only; no stateful replacement or deletion.
+- Test deployment: PASS — all 150 SST/Pulumi resources converged and refresh-token rotation was enabled/verified.
+- Live verifier: PASS — exact inventory, active User index, managed login, discovery issuer/authorization split,
+  refresh rotation, fourteen scoped CPA routes, IAM boundaries/simulations, health, and protected rejection.
+- Post-deploy diff: PASS — only the ephemeral StaticSite build trigger remained.
+- Isolated browser redirect smoke: PASS — the deployed app reached Cognito sign-in with code/S256 PKCE, the exact
+  callback, and `openid auditflow-api/cpa`; the temporary browser profile was deleted afterward.
+- Synthetic-admin bootstrap: PASS — Cognito created and enabled the account in the expected
+  `FORCE_CHANGE_PASSWORD` state, requested email delivery of the invitation, and the User table contains exactly
+  one linked admin fixture. No address or subject identifier is recorded in this report.
+- Synthetic-user/two-user authenticated acceptance: NOT RUN — human completion of the temporary-password login
+  flow is still required; the broader second-user exercise remains deferred to the agreed feature checkpoint.
 
 ## Deviations and limitations
 
 - SST 3.19.3's bundled provider lacks the Cognito refresh-token rotation field. The implementation therefore uses
   a test-only AWS SDK post-deploy step that describes the deployed client, preserves all returned writable settings,
-  enables the required grace period, and describes again to prove convergence. It has not been run against AWS.
-- Task 15's exact test-stage diff could not be reviewed because the established named AWS SSO session had expired.
-  Reauthenticate that session, rerun the identity preflight, and then run `npm run sst:diff:test`; preview remains
-  distinct from deployment authorization.
-- Task 16 remains intentionally pending. No AWS deployment, user creation, temporary-password exercise, DynamoDB
-  fixture, external integration call, production operation, or Base44/source-repository mutation occurred.
+  enables the required grace period, and describes again to prove convergence. The deployed test client passed this
+  check, and the corrective redeployment proved the step is idempotent.
+- The initial browser configuration used the managed-login domain as `oidc-client-ts` authority. Human smoke testing
+  correctly exposed the resulting discovery 404/CORS failure. AWS documents discovery on the regional user-pool
+  issuer, while authorize/token/logout remain on managed login; the implementation and live verifier now enforce
+  that split.
+- Task 16 is only partially complete. Test infrastructure was deployed, browser redirect was proved, and the first
+  synthetic admin plus linked User fixture were created, but the temporary-password flow and authenticated
+  application exercise have not yet run.
 - Layered tests cover handler authorization/routing, repositories against fake SDK commands, services/journal
   transaction composition and failure behavior, and facade compatibility. The real Gateway/Cognito/DynamoDB
   assembled path remains part of the separately authorized live exercise.
@@ -88,11 +108,11 @@ approved PDF/template/readiness surfaces remain delegated pending their downstre
 
 ## Remaining gates
 
-1. Restore the named AWS SSO session and run the sanitized identity preflight.
-2. Run and inspect `npm run sst:diff:test`; abort on replacement, deletion, or unrelated drift.
-3. Obtain explicit authorization before `npm run sst:deploy:test`, synthetic user/data creation, or the two-user
-   browser/API/journal acceptance exercise.
-4. After those live gates pass, update this report from PARTIAL to COMPLETE with sanitized evidence only.
+1. Complete the invitation's temporary-password challenge, then exercise callback, `/cpa/me`, reload/session
+   restore, and managed logout.
+2. Defer the broader second-user and business-mutation UI exercise until the agreed downstream feature checkpoint,
+   or complete it now if the owner expands the acceptance scope.
+3. Update this report from PARTIAL to COMPLETE after the selected authenticated acceptance gate passes.
 
 ## Related
 

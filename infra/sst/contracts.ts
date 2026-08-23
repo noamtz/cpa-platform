@@ -241,6 +241,7 @@ export const authContract = {
   userPoolDomainLogicalName: "UserPoolDomain",
   resourceServerLogicalName: "CpaResourceServer",
   authorizerName: "CognitoAuthorizer",
+  authorityType: "regional-user-pool-issuer",
   signInAlias: "email",
   clientSecret: false,
   resourceServerIdentifier: "auditflow-api",
