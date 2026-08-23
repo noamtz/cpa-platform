@@ -16,6 +16,7 @@ export default function Settings() {
   const [basePath, setBasePath] = useState("");
   const [savingBasePath, setSavingBasePath] = useState(false);
   const [submissions, setSubmissions] = useState([]);
+  const [integrationMessage, setIntegrationMessage] = useState("");
 
   const checkConnection = async () => {
     setCheckingConnection(true);
@@ -55,23 +56,29 @@ export default function Settings() {
 
   const handleConnect = async () => {
     setConnecting(true);
-    const url = await base44.connectors.connectAppUser("69fb22f94d2b7077430e5187");
-    const popup = window.open(url, "_blank");
-    
-    const timer = setInterval(() => {
-      if (!popup || popup.closed) {
-        clearInterval(timer);
-        setConnecting(false);
-        // Small delay to allow token to propagate after OAuth completes
-        setTimeout(() => checkConnection(), 1500);
-      }
-    }, 500);
+    setIntegrationMessage("");
+    try {
+      await base44.connectors.connectAppUser("69fb22f94d2b7077430e5187");
+      await checkConnection();
+    } catch (error) {
+      setIntegrationMessage(error.message || "Google Drive is not available yet.");
+    } finally {
+      setConnecting(false);
+    }
   };
 
   const handleDisconnect = async () => {
-    await base44.connectors.disconnectAppUser("69fb22f94d2b7077430e5187");
-    setConnected(false);
-    setConnectedEmail(null);
+    setConnecting(true);
+    setIntegrationMessage("");
+    try {
+      await base44.connectors.disconnectAppUser("69fb22f94d2b7077430e5187");
+      setConnected(false);
+      setConnectedEmail(null);
+    } catch (error) {
+      setIntegrationMessage(error.message || "Google Drive is not available yet.");
+    } finally {
+      setConnecting(false);
+    }
   };
 
   if (loading) {
@@ -202,6 +209,12 @@ export default function Settings() {
               <Link className="w-4 h-4" />
               {connecting ? "מתחבר..." : "חיבור ל-Google Drive"}
             </Button>
+          )}
+
+          {integrationMessage && (
+            <p className="text-sm text-destructive" role="alert">
+              {integrationMessage}
+            </p>
           )}
         </div>
 

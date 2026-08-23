@@ -25,9 +25,10 @@ export interface BucketContract {
 }
 
 export interface ApiRouteContract {
-  readonly route: `GET /${string}`;
+  readonly route: `${"GET" | "POST" | "PATCH"} /${string}`;
   readonly path: `/${string}`;
   readonly authorization: "none" | "cognito-jwt";
+  readonly authorizationScopes?: readonly string[];
 }
 
 export const tableContracts = [
@@ -86,10 +87,16 @@ export const tableContracts = [
   {
     logicalName: "UserTable",
     entityName: "User",
-    fields: { id: "string", cognito_sub: "string" },
+    fields: {
+      id: "string",
+      cognito_sub: "string",
+      record_type: "string",
+      created_date: "string",
+    },
     primaryIndex: { hashKey: "id" },
     globalIndexes: {
       byCognitoSubject: { hashKey: "cognito_sub" },
+      byCreatedDate: { hashKey: "record_type", rangeKey: "created_date" },
     },
   },
   {
@@ -132,6 +139,90 @@ export const apiRoutes = {
     path: "/auth/health",
     authorization: "cognito-jwt",
   },
+  clientQuery: {
+    route: "POST /cpa/clients/query",
+    path: "/cpa/clients/query",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  clientCreate: {
+    route: "POST /cpa/clients",
+    path: "/cpa/clients",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  clientUpdate: {
+    route: "PATCH /cpa/clients/{id}",
+    path: "/cpa/clients/{id}",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  clientTokenRotation: {
+    route: "POST /cpa/clients/{id}/token-rotation",
+    path: "/cpa/clients/{id}/token-rotation",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  submissionQuery: {
+    route: "POST /cpa/submissions/query",
+    path: "/cpa/submissions/query",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  submissionUpdate: {
+    route: "PATCH /cpa/submissions/{id}",
+    path: "/cpa/submissions/{id}",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  userQuery: {
+    route: "POST /cpa/users/query",
+    path: "/cpa/users/query",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  me: {
+    route: "GET /cpa/me",
+    path: "/cpa/me",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  meUpdate: {
+    route: "PATCH /cpa/me",
+    path: "/cpa/me",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  userInvitation: {
+    route: "POST /cpa/users/invitations",
+    path: "/cpa/users/invitations",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  googleDriveSync: {
+    route: "POST /cpa/integrations/google-drive/sync",
+    path: "/cpa/integrations/google-drive/sync",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  googleDriveConnect: {
+    route: "POST /cpa/integrations/google-drive/connect",
+    path: "/cpa/integrations/google-drive/connect",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  googleDriveDisconnect: {
+    route: "POST /cpa/integrations/google-drive/disconnect",
+    path: "/cpa/integrations/google-drive/disconnect",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  telegramNotify: {
+    route: "POST /cpa/integrations/telegram/notify",
+    path: "/cpa/integrations/telegram/notify",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
 } as const satisfies Readonly<Record<string, ApiRouteContract>>;
 
 export const routerContract = {
@@ -147,9 +238,27 @@ export const routerContract = {
 export const authContract = {
   userPoolLogicalName: "UserPool",
   userPoolClientLogicalName: "UserPoolClient",
+  userPoolDomainLogicalName: "UserPoolDomain",
+  resourceServerLogicalName: "CpaResourceServer",
   authorizerName: "CognitoAuthorizer",
   signInAlias: "email",
   clientSecret: false,
+  resourceServerIdentifier: "auditflow-api",
+  resourceServerName: "AuditFlow API",
+  scopeName: "cpa",
+  scopeDescription: "Access the CPA compatibility API",
+  apiScope: "auditflow-api/cpa",
+  allowedOAuthFlows: ["code"],
+  allowedOAuthScopes: ["openid", "auditflow-api/cpa"],
+  callbackPath: "/auth/callback",
+  logoutPath: "/",
+  localOrigin: "http://localhost:5173",
+  refreshTokenValidityDays: 30,
+  refreshTokenRotation: {
+    feature: "ENABLED",
+    retryGracePeriodSeconds: 10,
+    providerCompatibility: "post-deploy-sdk-update",
+  },
 } as const;
 
 export const deploymentContract = {
@@ -182,6 +291,8 @@ export const expectedInventory = {
   apiFunctions: 1,
   userPools: 1,
   userPoolClients: 1,
+  userPoolDomains: 1,
+  resourceServers: 1,
   jwtAuthorizers: 1,
 } as const;
 
@@ -199,5 +310,9 @@ export const expectedOutputKeys = [
   "bucketNames",
   "userPoolId",
   "userPoolClientId",
+  "authAuthority",
+  "authCallbackUrl",
+  "authLogoutUrl",
+  "authScope",
   "testDeployRoleArn",
 ] as const;

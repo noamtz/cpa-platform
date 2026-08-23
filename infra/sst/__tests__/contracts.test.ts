@@ -41,11 +41,29 @@ describe("foundation resource contract", () => {
       })),
     );
     expect(verifierContract.routes).toEqual(
-      Object.values(apiRoutes).map(({ route, authorization }) => ({
+      Object.values(apiRoutes).map(({ route, authorization, ...routeContract }) => ({
         route,
         authorization,
+        ...("authorizationScopes" in routeContract
+          ? { authorizationScopes: routeContract.authorizationScopes }
+          : {}),
       })),
     );
+    expect(verifierContract.auth).toEqual({
+      domainLogicalName: authContract.userPoolDomainLogicalName,
+      resourceServerLogicalName: authContract.resourceServerLogicalName,
+      resourceServerIdentifier: authContract.resourceServerIdentifier,
+      scopeName: authContract.scopeName,
+      apiScope: authContract.apiScope,
+      allowedOAuthFlows: authContract.allowedOAuthFlows,
+      allowedOAuthScopes: authContract.allowedOAuthScopes,
+      callbackPath: authContract.callbackPath,
+      logoutPath: authContract.logoutPath,
+      localOrigin: authContract.localOrigin,
+      clientSecret: authContract.clientSecret,
+      refreshTokenValidityDays: authContract.refreshTokenValidityDays,
+      refreshTokenRotation: authContract.refreshTokenRotation,
+    });
     expect(verifierContract.router).toMatchObject({
       apiPrefix: routerContract.apiPrefix,
       rewritePattern: routerContract.rewritePattern,
@@ -73,6 +91,8 @@ describe("foundation resource contract", () => {
       apiFunctions: 1,
       userPools: 1,
       userPoolClients: 1,
+      userPoolDomains: 1,
+      resourceServers: 1,
       jwtAuthorizers: 1,
     });
     expect(tableContracts.map(({ logicalName }) => logicalName)).toEqual([
@@ -108,8 +128,9 @@ describe("foundation resource contract", () => {
       hashKey: "record_type",
       rangeKey: "version",
     });
-    expect(user?.globalIndexes.byCognitoSubject).toEqual({
-      hashKey: "cognito_sub",
+    expect(user?.globalIndexes).toEqual({
+      byCognitoSubject: { hashKey: "cognito_sub" },
+      byCreatedDate: { hashKey: "record_type", rangeKey: "created_date" },
     });
     expect(changeJournal?.primaryIndex).toEqual({
       hashKey: "scope",
@@ -152,6 +173,35 @@ describe("foundation resource contract", () => {
       authorization: "none",
     });
     expect(apiRoutes.protectedHealth.authorization).toBe("cognito-jwt");
+    const cpaRoutes = Object.values(apiRoutes).filter(({ path }) =>
+      path.startsWith("/cpa/"),
+    );
+    expect(cpaRoutes).toHaveLength(14);
+    expect(
+      cpaRoutes.every(
+        (route) =>
+          route.authorization === "cognito-jwt" &&
+          "authorizationScopes" in route &&
+          JSON.stringify(route.authorizationScopes) ===
+            JSON.stringify([authContract.apiScope]),
+      ),
+    ).toBe(true);
+    expect(cpaRoutes.map(({ route }) => route)).toEqual([
+      "POST /cpa/clients/query",
+      "POST /cpa/clients",
+      "PATCH /cpa/clients/{id}",
+      "POST /cpa/clients/{id}/token-rotation",
+      "POST /cpa/submissions/query",
+      "PATCH /cpa/submissions/{id}",
+      "POST /cpa/users/query",
+      "GET /cpa/me",
+      "PATCH /cpa/me",
+      "POST /cpa/users/invitations",
+      "POST /cpa/integrations/google-drive/sync",
+      "POST /cpa/integrations/google-drive/connect",
+      "POST /cpa/integrations/google-drive/disconnect",
+      "POST /cpa/integrations/telegram/notify",
+    ]);
     expect(routerContract).toMatchObject({
       apiPrefix: "/api",
       apiPattern: "/api/*",
@@ -160,6 +210,16 @@ describe("foundation resource contract", () => {
       spaFallback: "index.html",
     });
     expect(authContract.clientSecret).toBe(false);
+    expect(authContract.allowedOAuthFlows).toEqual(["code"]);
+    expect(authContract.allowedOAuthScopes).toEqual([
+      "openid",
+      "auditflow-api/cpa",
+    ]);
+    expect(authContract.refreshTokenRotation).toEqual({
+      feature: "ENABLED",
+      retryGracePeriodSeconds: 10,
+      providerCompatibility: "post-deploy-sdk-update",
+    });
   });
 
   it("uses an exact GitHub environment subject without legacy or wildcard trust", () => {

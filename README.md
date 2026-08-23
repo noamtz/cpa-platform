@@ -24,6 +24,28 @@ The baseline report records which checks already fail at the pinned source revis
 cleanup with migration changes. Run the development server with `npm run dev` after supplying the required local
 runtime configuration through an ignored local configuration file.
 
+### CPA browser authentication and compatibility
+
+The CPA application uses Cognito managed login with authorization code/PKCE and the exact scopes
+`openid auditflow-api/cpa`. Local browser configuration uses `VITE_COGNITO_AUTHORITY`,
+`VITE_COGNITO_CLIENT_ID`, `VITE_COGNITO_CALLBACK_URL`, and `VITE_COGNITO_LOGOUT_URL`; the local callback is
+`http://localhost:5173/auth/callback`. Keep these public identifiers stage-specific and never add credentials or a
+client secret to browser configuration. Invited CPA users receive Cognito's temporary-password setup flow and must
+choose a new password at managed login before using the application.
+
+`src/api/base44Client.js` is a temporary hybrid compatibility facade. CPA auth, Client, Submission, User,
+invitation, Drive, and Telegram methods are AWS-only and never fall back when AWS rejects a request. Only the
+explicit PDF-template, signed-file, and readiness-agent allowlist remains on Base44 while its downstream migration
+tickets are incomplete. Direct legacy `/api/apps/...` calls do not pass through this facade and are not provided by
+the SST API.
+
+Drive and Telegram endpoints deliberately return HTTP 501 with `FEATURE_NOT_IMPLEMENTED`; they do not construct
+external clients or mutate sync/notification state. The UI keeps the controls visible and displays this controlled
+deferral without opening a connector popup. Client, Submission, and User mutations use a DynamoDB transaction that
+also advances the global journal cursor and writes immutable evidence. A transaction supports at most 100 actions,
+journal entries are limited to 350,000 serialized bytes and 500 file references, and excess evidence is rejected
+before the business mutation rather than truncated.
+
 ## SST foundation operations
 
 The non-PDF AWS foundation uses SST 3.19.3 in `il-central-1`. It accepts only the exact stages `test` and
@@ -50,6 +72,11 @@ Never commit that file or its values. Production deployment, removal, DNS, certi
 existing Terraform/PDF stacks require separate authorization. SST 3.19.3 cannot diff a stage that has never been
 deployed; if it reports `Stage not found`, do not initialize production through a deployment merely to obtain a
 preview. Use the production contract tests until a separately authorized production deployment creates the stage.
+
+`npm run sst:diff:test` is a read-only review gate, not deployment approval. `npm run sst:deploy:test` performs the
+test deployment and then applies/verifies refresh-token rotation through the AWS SDK because the pinned SST provider
+does not expose that setting. Do not run the deploy command, create test users, seed DynamoDB, or perform the
+two-user acceptance exercise without explicit owner authorization for that exact scope.
 
 The active `Deploy SST test` workflow assumes the separate `auditflow-test-github-deploy` role through the GitHub
 `test` Environment. Set only its ARN as the Environment variable `AWS_DEPLOY_ROLE_ARN`; the workflow validates its

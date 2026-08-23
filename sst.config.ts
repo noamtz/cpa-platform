@@ -30,7 +30,7 @@ export default $config({
       { createStorage },
       { createAuthentication },
       { createCostControls },
-      { createApplication },
+      { createApplication, createApplicationRouter },
       { createTestDeploymentRole },
     ] = await Promise.all([
       import("./infra/sst/stage"),
@@ -43,7 +43,8 @@ export default $config({
 
     const stage = getStageSettings($app.stage);
     const storage = createStorage(stage);
-    const authentication = createAuthentication(stage);
+    const router = createApplicationRouter();
+    const authentication = createAuthentication(stage, router.url);
     createCostControls(stage);
     const testDeployRole = await createTestDeploymentRole(stage);
     const application = createApplication(
@@ -51,6 +52,7 @@ export default $config({
       storage,
       authentication,
       testDeployRole.workloadBoundary.arn,
+      router,
     );
 
     return {
@@ -77,6 +79,10 @@ export default $config({
       ),
       userPoolId: authentication.userPool.id,
       userPoolClientId: authentication.userPoolClient.id,
+      authAuthority: authentication.authority,
+      authCallbackUrl: authentication.callbackUrl,
+      authLogoutUrl: authentication.logoutUrl,
+      authScope: authentication.scope,
       testDeployRoleArn: testDeployRole.role?.arn ?? "",
     };
   },
