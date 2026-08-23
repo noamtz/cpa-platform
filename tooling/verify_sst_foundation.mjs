@@ -146,13 +146,72 @@ function verifyContract(contract, stage) {
   };
 }
 
+const retryableAwsErrorCodes = new Set([
+  "InternalError",
+  "InternalFailure",
+  "RequestLimitExceeded",
+  "ServiceUnavailableException",
+  "Throttling",
+  "ThrottlingException",
+  "TooManyRequestsException",
+]);
+
+export function parseAwsCliErrorCode(stderr) {
+  return /\(([^()]+)\)\s+when calling/.exec(stderr)?.[1];
+}
+
+export function isRetryableAwsCliFailure(result) {
+  if (result.error?.code && ["ECONNRESET", "ETIMEDOUT"].includes(result.error.code)) {
+    return true;
+  }
+
+  const stderr = result.stderr ?? "";
+  const errorCode = parseAwsCliErrorCode(stderr);
+  return (
+    retryableAwsErrorCodes.has(errorCode) ||
+    /connect timeout|read timeout|could not connect to the endpoint|connection (?:was )?(?:closed|reset)|temporarily unavailable|tls handshake timeout/i.test(
+      stderr,
+    )
+  );
+}
+
+function waitSynchronously(delayMilliseconds) {
+  Atomics.wait(
+    new Int32Array(new SharedArrayBuffer(4)),
+    0,
+    0,
+    delayMilliseconds,
+  );
+}
+
+export function retryAwsCliCommand(
+  execute,
+  { maxAttempts = 3, delayMilliseconds = 2_000, wait = waitSynchronously } = {},
+) {
+  let result;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    result = execute();
+    if (
+      result.status === 0 ||
+      attempt === maxAttempts ||
+      !isRetryableAwsCliFailure(result)
+    ) {
+      return result;
+    }
+    wait(delayMilliseconds * attempt);
+  }
+  return result;
+}
+
 function runAws(arguments_, { allowFailure = false } = {}) {
-  const result = spawnSync("aws", [...arguments_, "--output", "json"], {
-    cwd: repositoryRoot,
-    encoding: "utf8",
-    windowsHide: true,
-    env: process.env,
-  });
+  const result = retryAwsCliCommand(() =>
+    spawnSync("aws", [...arguments_, "--output", "json"], {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      windowsHide: true,
+      env: process.env,
+    }),
+  );
   if (result.error) {
     fail(`AWS CLI could not run ${arguments_[0]} ${arguments_[1] ?? ""}.`);
   }
@@ -164,10 +223,6 @@ function runAws(arguments_, { allowFailure = false } = {}) {
     ok: true,
     value: result.stdout.trim() ? JSON.parse(result.stdout) : {},
   };
-}
-
-export function parseAwsCliErrorCode(stderr) {
-  return /\(([^()]+)\)\s+when calling/.exec(stderr)?.[1];
 }
 
 export function assertBrowserCorsAbsent(result, logicalName) {
