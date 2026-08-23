@@ -295,6 +295,18 @@ class ResumeTests(unittest.TestCase):
             with self.assertRaisesRegex(exporter.SnapshotFailure, "resume_config_drift"):
                 exporter._initialize_or_resume(output, bridge, 999, None, 0, True)
 
+    def test_resume_rejects_a_different_exporter_version(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            bridge = FakeBridge()
+            run_root, state = exporter._initialize_or_resume(
+                output, bridge, 1000, None, 0, False
+            )
+            state["toolVersion"] = "0.9.0"
+            exporter.write_json(run_root / "state.json", state)
+            with self.assertRaisesRegex(exporter.SnapshotFailure, "tool_version_mismatch"):
+                exporter._initialize_or_resume(output, bridge, 1000, None, 0, True)
+
     def test_resume_discards_only_uncheckpointed_partial_downloads(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
@@ -316,6 +328,15 @@ class ResumeTests(unittest.TestCase):
             first, _ = exporter._initialize_or_resume(output, FakeBridge(), 1000, None, 0, False)
             second, _ = exporter._initialize_or_resume(output, FakeBridge(), 1000, None, 0, False)
             self.assertNotEqual(first, second)
+
+    def test_concurrent_export_fails_before_loading_or_overwriting_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary).resolve()
+            with exporter._exclusive_export_lock(output):
+                with self.assertRaisesRegex(exporter.SnapshotFailure, "export_lock_held"):
+                    exporter.export_snapshot(
+                        FakeBridge(), output, downloader=synthetic_downloader
+                    )
 
 
 class DiscoveryTests(unittest.TestCase):
@@ -507,6 +528,46 @@ class DownloadTests(unittest.TestCase):
         ):
             parsed = exporter.validate_download_url("https://files.example.test/a", None)
         self.assertEqual(parsed.hostname, "files.example.test")
+
+    def test_default_transport_uses_the_validated_address_without_second_dns_lookup(self) -> None:
+        public_result = [(2, 1, 6, "", ("8.8.8.8", 443))]
+        private_rebind = [(2, 1, 6, "", ("127.0.0.1", 443))]
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            exporter.socket,
+            "getaddrinfo",
+            side_effect=[public_result, private_rebind],
+        ) as resolver, mock.patch.object(
+            exporter,
+            "_open_pinned_request",
+            return_value=FakeResponse(b"fixture"),
+        ) as pinned_open:
+            exporter.download_to_store(
+                "https://files.example.test/item",
+                Path(temporary),
+                allowed_hosts=frozenset({"files.example.test"}),
+            )
+        self.assertEqual(resolver.call_count, 1)
+        self.assertEqual(pinned_open.call_args.args[1], ("8.8.8.8",))
+
+    def test_pinned_connection_preserves_tls_hostname(self) -> None:
+        tls_context = mock.Mock()
+        raw_socket = mock.Mock()
+        wrapped_socket = mock.Mock()
+        tls_context.wrap_socket.return_value = wrapped_socket
+        connection = exporter._PinnedHTTPSConnection(
+            "files.example.test",
+            pinned_address="8.8.8.8",
+            context=tls_context,
+        )
+        connection._create_connection = mock.Mock(return_value=raw_socket)
+        connection.connect()
+        connection._create_connection.assert_called_once_with(
+            ("8.8.8.8", 443), connection.timeout, connection.source_address
+        )
+        tls_context.wrap_socket.assert_called_once_with(
+            raw_socket, server_hostname="files.example.test"
+        )
+        self.assertIs(connection.sock, wrapped_socket)
 
     def test_allowlist_is_absolute_private_canonical_and_immutable(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -856,6 +917,55 @@ class SnapshotIntegrationTests(unittest.TestCase):
             )
             self.assertTrue(all(manifest["gates"].values()))
             self.assertTrue(all(count >= 2 for count in attempts.values()))
+
+    def test_expired_later_batch_url_is_refreshed_before_retry(self) -> None:
+        class ExpiringBatchBridge(FakeBridge):
+            def __init__(self) -> None:
+                super().__init__()
+                self.refreshed: list[str] = []
+
+            def sign_files(
+                self, source_references: list[str]
+            ) -> list[exporter.SigningResult]:
+                return [
+                    exporter.SigningResult(
+                        f"https://signed.example.test/original-{index}", None
+                    )
+                    for index, _ in enumerate(source_references)
+                ]
+
+            def sign_file(self, source_reference: str) -> str:
+                self.refreshed.append(source_reference)
+                return "https://signed.example.test/refreshed"
+
+        attempts: list[str] = []
+
+        def expiry_aware_downloader(
+            url: str,
+            run_root: Path,
+            *,
+            allowed_hosts: frozenset[str] | None,
+        ) -> exporter.DownloadResult:
+            attempts.append(url)
+            if url.endswith("original-1"):
+                raise exporter.SnapshotFailure("download_failed")
+            return synthetic_downloader(url, run_root, allowed_hosts=allowed_hosts)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            allowlist = root / "allowlist.json"
+            allowlist.write_text('["files.example.test"]', encoding="utf-8")
+            bridge = ExpiringBatchBridge()
+            _, manifest = exporter.export_snapshot(
+                bridge,
+                root,
+                public_host_allowlist=allowlist,
+                downloader=expiry_aware_downloader,
+            )
+            self.assertTrue(all(manifest["gates"].values()))
+            self.assertEqual(len(bridge.refreshed), 1)
+            self.assertIn("https://signed.example.test/original-1", attempts)
+            self.assertIn("https://signed.example.test/refreshed", attempts)
 
     def test_public_host_review_pause_resumes_with_immutable_allowlist(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

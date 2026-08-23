@@ -34,6 +34,8 @@ closure. Offline verification independently rehashed the resulting private snaps
 - Removed the exporter-owned disposable Deno cache after discovering that the earlier source-literal request
   protocol could retain private references; the replacement bridge program is static and cache scans find no
   embedded canonical signing requests.
+- Resolved all four PR #22 review findings with exporter-version resume compatibility, exclusive export locking,
+  expiry-aware private URL refresh, and DNS-pinned HTTPS transport.
 
 ## Production evidence
 
@@ -60,7 +62,7 @@ counts above. No dashboard export or record-level dashboard data was retained in
 
 ## Tests and validation
 
-- Python exporter/importer suite: PASS — 69 tests (58 exporter/viewer + 11 importer).
+- Python exporter/importer suite: PASS — 74 tests (63 exporter/viewer + 11 importer).
 - Snapshot viewer JavaScript syntax, no-network/no-browser-storage safeguards, and snapshot contract tests: PASS.
 - Snapshot viewer browser smoke test and WCAG A/AA automated audit: PASS — zero violations (color contrast
   remained an automated-audit manual-review item because the local-file page could not expose computed colors).
@@ -79,6 +81,8 @@ counts above. No dashboard export or record-level dashboard data was retained in
 - Pre-commit technical review: PASS after four in-scope fixes covering independent manifest reconciliation,
   diagnostic signing batch limits, unexpected-error redaction, and globally routable download addresses.
 - Strengthened offline verification of the completed production snapshot after the review fixes: PASS.
+- PR #22 regression coverage: PASS — version mismatch rejection, concurrent exporter rejection, expired batched
+  URL refresh, single-lookup DNS rebinding protection, and TLS hostname preservation.
 
 ## Plan amendments and deviations
 
@@ -94,6 +98,10 @@ counts above. No dashboard export or record-level dashboard data was retained in
   checkpoints after production exposed a redirect target beyond the initial approved host.
 - Added bounded retry for generic transport failures and explicit non-retryable HTTP 404/410 classification after
   one otherwise complete rehearsal ended with a single transient `download_failed` finding.
+- Added a cross-process output-root lock around the complete export/resume lifecycle after review identified that
+  atomic state-file replacement alone could still lose checkpoints between concurrent processes.
+- Added the exporter version to immutable resume compatibility, refreshed failed batched signed URLs individually,
+  and pinned HTTPS connections to already-validated DNS addresses without weakening TLS hostname verification.
 
 ## Manual gate
 

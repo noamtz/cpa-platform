@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import argparse
 import collections
+import contextlib
 import datetime as dt
 import hashlib
+import http.client
 import ipaddress
 import json
 import math
@@ -27,7 +29,7 @@ from typing import Any, Callable, Mapping, Protocol, Sequence
 
 SCHEMA_VERSION = 1
 SUMMARY_SCHEMA_VERSION = 1
-TOOL_VERSION = "1.0.0"
+TOOL_VERSION = "1.1.0"
 BASE44_CLI_VERSION = "0.1.10"
 DENO_VERSION = "2.9.5"
 MINIMUM_NODE_VERSION = (20, 19, 0)
@@ -543,13 +545,14 @@ def load_public_host_allowlist(path: Path | None) -> tuple[frozenset[str], str |
     return frozenset(normalized), sha256_bytes(canonical_json_bytes(normalized)), len(normalized)
 
 
-def _validate_public_addresses(host: str) -> None:
+def _validate_public_addresses(host: str) -> tuple[str, ...]:
     try:
         addresses = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
     except OSError as exc:
         raise SnapshotFailure("host_resolution_failed") from exc
     if not addresses:
         raise SnapshotFailure("host_resolution_failed")
+    validated: set[str] = set()
     for address in addresses:
         try:
             ip = ipaddress.ip_address(address[4][0].split("%", 1)[0])
@@ -557,9 +560,13 @@ def _validate_public_addresses(host: str) -> None:
             raise SnapshotFailure("host_resolution_failed") from exc
         if not ip.is_global:
             raise SnapshotFailure("unsafe_download_address")
+        validated.add(str(ip))
+    return tuple(sorted(validated))
 
 
-def validate_download_url(url: str, allowed_hosts: frozenset[str] | None) -> urllib.parse.SplitResult:
+def _validate_download_target(
+    url: str, allowed_hosts: frozenset[str] | None
+) -> tuple[urllib.parse.SplitResult, tuple[str, ...]]:
     try:
         parsed = urllib.parse.urlsplit(url)
         port = parsed.port
@@ -576,13 +583,70 @@ def validate_download_url(url: str, allowed_hosts: frozenset[str] | None) -> url
         raise SnapshotFailure("invalid_download_url")
     if allowed_hosts is not None and host not in allowed_hosts:
         raise PublicHostReviewRequired(host)
-    _validate_public_addresses(host)
-    return parsed
+    return parsed, _validate_public_addresses(host)
+
+
+def validate_download_url(url: str, allowed_hosts: frozenset[str] | None) -> urllib.parse.SplitResult:
+    return _validate_download_target(url, allowed_hosts)[0]
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> None:
         return None
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, host: str, *, pinned_address: str, **kwargs: Any):
+        self._pinned_address = pinned_address
+        super().__init__(host, **kwargs)
+
+    def connect(self) -> None:
+        self.sock = self._create_connection(
+            (self._pinned_address, self.port), self.timeout, self.source_address
+        )
+        if self._tunnel_host:
+            self._tunnel()
+        server_hostname = self._tunnel_host or self.host
+        self.sock = self._context.wrap_socket(
+            self.sock, server_hostname=server_hostname
+        )
+
+
+class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self, pinned_address: str):
+        super().__init__()
+        self._pinned_address = pinned_address
+
+    def https_open(self, request: Any) -> Any:
+        return self.do_open(
+            lambda host, **kwargs: _PinnedHTTPSConnection(
+                host, pinned_address=self._pinned_address, **kwargs
+            ),
+            request,
+        )
+
+
+def _open_pinned_request(
+    request: urllib.request.Request,
+    addresses: tuple[str, ...],
+    timeout_seconds: float,
+) -> Any:
+    last_error: BaseException | None = None
+    for address in addresses:
+        pinned_opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}),
+            _NoRedirect(),
+            _PinnedHTTPSHandler(address),
+        )
+        try:
+            return pinned_opener.open(request, timeout=timeout_seconds)
+        except urllib.error.HTTPError:
+            raise
+        except (OSError, urllib.error.URLError, TimeoutError) as exc:
+            last_error = exc
+    if last_error is None:
+        raise SnapshotFailure("host_resolution_failed")
+    raise last_error
 
 
 def download_to_store(
@@ -597,14 +661,22 @@ def download_to_store(
 ) -> DownloadResult:
     if max_bytes < 1 or timeout_seconds <= 0:
         raise SnapshotFailure("invalid_download_limits")
-    opener = opener or urllib.request.build_opener(_NoRedirect())
+    injected_opener = opener
     current = url
     response: Any = None
     for redirect_count in range(MAX_REDIRECTS + 1):
-        url_validator(current, allowed_hosts)
+        if injected_opener is None:
+            _, validated_addresses = _validate_download_target(current, allowed_hosts)
+        else:
+            url_validator(current, allowed_hosts)
+            validated_addresses = ()
         request = urllib.request.Request(current, method="GET", headers={"User-Agent": "AuditFlowSnapshot/1"})
         try:
-            response = opener.open(request, timeout=timeout_seconds)
+            response = (
+                _open_pinned_request(request, validated_addresses, timeout_seconds)
+                if injected_opener is None
+                else injected_opener.open(request, timeout=timeout_seconds)
+            )
         except urllib.error.HTTPError as exc:
             if 300 <= exc.code < 400 and exc.headers.get("Location"):
                 response = exc
@@ -928,6 +1000,7 @@ def _state_config(
     allowlist_count: int,
 ) -> dict[str, Any]:
     return {
+        "toolVersion": TOOL_VERSION,
         "entitySet": list(ENTITIES),
         "dataEnvironment": bridge.data_env,
         "appFingerprint": bridge.app_fingerprint,
@@ -1151,6 +1224,8 @@ def _initialize_or_resume(
         state = load_json(run_root / "state.json", "state_invalid")
         if not isinstance(state, dict) or state.get("schemaVersion") != SCHEMA_VERSION:
             raise SnapshotFailure("state_schema_mismatch")
+        if state.get("toolVersion") != TOOL_VERSION:
+            raise SnapshotFailure("tool_version_mismatch")
         stored_config = state.get("config")
         if not isinstance(stored_config, dict):
             raise SnapshotFailure("state_config_invalid")
@@ -1215,7 +1290,70 @@ def _persist_page(
     _save_state(run_root, state)
 
 
+@contextlib.contextmanager
+def _exclusive_export_lock(output_root: Path) -> Any:
+    lock_path = output_root / ".auditflow-export.lock"
+    try:
+        handle = lock_path.open("a+b")
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            handle.write(b"\0")
+            handle.flush()
+        _restrictive_mode(lock_path)
+        handle.seek(0)
+    except OSError as exc:
+        raise SnapshotFailure("export_lock_failed") from exc
+
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as exc:
+        handle.close()
+        raise SnapshotFailure("export_lock_held") from exc
+
+    try:
+        yield
+    finally:
+        try:
+            handle.seek(0)
+            if os.name == "nt":
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        finally:
+            handle.close()
+
+
 def export_snapshot(
+    bridge: Base44CliBridge,
+    output_root: Path,
+    *,
+    page_size: int = DEFAULT_PAGE_SIZE,
+    resume: bool = False,
+    public_host_allowlist: Path | None = None,
+    downloader: Callable[..., DownloadResult] = download_to_store,
+) -> tuple[Path, dict[str, Any]]:
+    root = require_absolute_outside_repository(output_root, must_exist=True)
+    if not root.is_dir():
+        raise SnapshotFailure("output_root_invalid")
+    with _exclusive_export_lock(root):
+        return _export_snapshot_locked(
+            bridge,
+            root,
+            page_size=page_size,
+            resume=resume,
+            public_host_allowlist=public_host_allowlist,
+            downloader=downloader,
+        )
+
+
+def _export_snapshot_locked(
     bridge: Base44CliBridge,
     output_root: Path,
     *,
@@ -1399,10 +1537,26 @@ def export_snapshot(
                     record_failure(fingerprint, reference, signing.failure or "sign_failed")
                     continue
                 try:
-                    result = download_with_retries(signing.signed_url, allowed=None)
+                    result = downloader(signing.signed_url, run_root, allowed_hosts=None)
                 except SnapshotFailure as exc:
-                    record_failure(fingerprint, reference, exc.category)
-                    continue
+                    if exc.category != "download_failed":
+                        record_failure(fingerprint, reference, exc.category)
+                        continue
+                    try:
+                        refreshed_url = bridge.sign_file(reference["sourceReference"])
+                    except SnapshotFailure as signing_exc:
+                        refresh_failure = (
+                            signing_exc.category
+                            if signing_exc.category == "source_file_missing"
+                            else "sign_failed"
+                        )
+                        record_failure(fingerprint, reference, refresh_failure)
+                        continue
+                    try:
+                        result = download_with_retries(refreshed_url, allowed=None)
+                    except SnapshotFailure as refreshed_exc:
+                        record_failure(fingerprint, reference, refreshed_exc.category)
+                        continue
             record_result(fingerprint, reference, result)
 
     for file_item in files.values():

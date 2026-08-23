@@ -31,6 +31,9 @@ not a repository artifact.
   reads. The tool never links, deploys, uploads, creates, updates, deletes, or synchronizes Base44 resources.
 - Select an owner-approved encrypted, non-cloud-synced absolute output root outside this Git worktree. Confirm
   sufficient free space and restrict access to the migration operators. The tool rejects in-worktree output.
+- Use only one export or resume process per output root. The exporter holds an operating-system lock from run
+  selection through final status publication and fails closed with `export_lock_held` when another process owns it.
+  The small `.auditflow-export.lock` file may remain after a process exits; the lock itself is released automatically.
 
 ## Safe sequence
 
@@ -84,7 +87,10 @@ entity/record/JSON-Pointer referrer; source references and signed URLs never app
 are streamed, bounded, revalidated across redirects, hashed, and atomically published into content-addressed
 storage. Signed URLs exist only in process memory. The static bridge receives canonical requests through its child
 environment so Deno's generated-source cache cannot retain private request literals. Private signing is performed
-in bounded batches inside the same fixed `sign_file` operation, with ordered per-item outcomes.
+in bounded batches inside the same fixed `sign_file` operation, with ordered per-item outcomes. If a batched URL
+has expired by the time its download starts, the exporter requests a fresh single-file signature before retrying.
+Every hostname is resolved and checked once per request or redirect; the HTTPS socket is pinned to a validated
+global address while TLS certificate verification and SNI continue to use the original hostname.
 
 Resume verifies the schema, tool/CLI/bridge versions, entity set, app/environment fingerprints, page size,
 allowlist fingerprint, and all checkpointed artifacts before replaying inventory from offset zero. Successful
@@ -124,8 +130,9 @@ python tooling/export_base44_snapshot.py summarize `
 User-visible failures contain only a safe category. Private manifest findings use bounded categories such as
 `malformed_known_json`, `unsupported_reference`, `public_host_review_required`, `sign_failed`, `download_failed`,
 `source_file_missing`, `redirect_rejected`, `size_limit_exceeded`, and `content_length_mismatch`. A generic
-`download_failed` transport error is retried up to three attempts; HTTP 404/410 is classified as missing without
-retry. Do not paste raw CLI output, exception
+`download_failed` transport error is retried with a refreshed private signature when applicable, up to three
+attempts; HTTP 404/410 is classified as missing without retry. Lock contention fails immediately instead of
+waiting or changing state. Do not paste raw CLI output, exception
 details, records, URIs, hosts, filenames, paths, IDs, or response bodies into issues, chat, reports, or Git.
 
 A passing rehearsal requires stable inventories for all six entities, exactly two CPA/admin users, zero unresolved findings,
