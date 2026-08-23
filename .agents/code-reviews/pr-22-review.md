@@ -1,44 +1,47 @@
-# PR #22 Review — Base44 production snapshot exporter
+# PR #22 Re-review — Base44 production snapshot exporter
 
 **PR:** https://github.com/noamtz/cpa-platform/pull/22
 
 **Base ← head:** `main` ← `feature/inventory-export-base44-data-files`
 
-**Verdict:** REQUEST CHANGES
+**Reviewed head:** `2d5738b43e32a22c1fefb7a5dee0b5210f71745f`
 
-## Resolution
-
-All four findings were accepted as in-scope and fixed on the PR branch on 2026-08-23:
-
-- Resume compatibility now includes and explicitly verifies the exporter version.
-- One operating-system lock covers run selection, checkpoint mutation, manifest publication, and final status.
-- A failed private URL from a signing batch is re-signed individually before bounded retries.
-- HTTPS connections use the validated DNS address directly while preserving hostname-based TLS verification.
-
-Focused regression tests and the complete 74-test Python exporter/importer suite pass. The original verdict above
-is retained as the point-in-time review result; PR re-review is required after the fix commit is pushed.
+**Verdict:** APPROVE
 
 ## Summary
 
-The PR delivers the intended read-only Base44 migration snapshot boundary and is backed by strong synthetic,
-production-rehearsal, and manual reconciliation evidence. The fresh review nevertheless found two High-severity
-resume/integrity gaps that should be fixed before merge, plus two Medium download edge cases. The project validation
-matches its documented baseline and has no changed-file diagnostics.
+The PR delivers the intended deterministic, read-only Base44 migration snapshot boundary. Fresh review found no
+Critical, High, Medium, or Low issues. The four findings from the first PR review are correctly remediated, the
+complete validation suite passes or exactly matches the documented imported-source baseline, and the existing
+private production snapshot still verifies offline without exposing its location or contents.
 
 ## Issue counts
 
 - Critical: 0
-- High: 2
-- Medium: 2
+- High: 0
+- Medium: 0
 - Low: 0
+
+## Issues by severity
+
+No current findings.
+
+## Prior findings verification
+
+| Prior finding | Resolution verified |
+| --- | --- |
+| Exporter-version resume drift | `tooling/export_base44_snapshot.py:1003` includes `toolVersion` in immutable config, and `tooling/export_base44_snapshot.py:1227` rejects a mismatched top-level version. |
+| Concurrent resume state overwrite | `tooling/export_base44_snapshot.py:1294` holds an operating-system lock around run selection through final status publication. |
+| Batched signed-URL expiry | `tooling/export_base44_snapshot.py:1546` requests a fresh individual signature after a private download failure before bounded retries. |
+| DNS rebinding | `tooling/export_base44_snapshot.py:598` connects to the validated address while retaining the original hostname for TLS SNI and certificate verification. |
 
 ## Validation
 
 | Check | Result |
 | --- | --- |
 | Node/npm | PASS — Node 20.17.0, npm 10.8.2 |
-| `npm ci` | PASS — existing peer/engine warnings and 31 current audit advisories; dependency files are unchanged |
-| Python exporter/importer tests | PASS — 69 tests |
+| `npm ci` | PASS after retry — two transient Windows `EBUSY` attempts, then 1,020 packages installed; 31 existing audit advisories |
+| Python exporter/importer tests | PASS — 74 tests |
 | Frontend tests | PASS — 67 tests |
 | SST foundation tests | PASS — 45 tests |
 | Foundation typecheck/lint/contract | PASS |
@@ -46,85 +49,48 @@ matches its documented baseline and has no changed-file diagnostics.
 | Codex-layer validation | PASS — 31 skills, 6 custom agents |
 | Full application typecheck | BASELINE MATCH — 233 inherited diagnostics, 0 in changed files |
 | Full application lint | BASELINE MATCH — 23 inherited errors, 0 in changed files |
-| Artifact JSON, ignore rules, and `git diff --check` | PASS |
-| Manual aggregate reconciliation | PASS — owner confirmed all six dashboard counts match |
-
-## AGENT FIXES
-
-### High — Resume does not reject a different exporter version
-
-file: `tooling/export_base44_snapshot.py:924`
-
-The state records `toolVersion`, but `_state_config` omits it and `_initialize_or_resume` never compares the
-top-level version. An interrupted snapshot from older Python orchestration logic can therefore reuse checkpoints
-under a newer exporter when the bridge, CLI, page size, and other config values happen to match. This contradicts
-the documented resume-compatibility contract.
-
-Fix: add `TOOL_VERSION` to immutable resume compatibility (or compare `state["toolVersion"]` explicitly) and add an
-older-version resume rejection test.
-
-### Medium — Batched signed URLs can expire before later downloads begin
-
-file: `tooling/export_base44_snapshot.py:1375`
-
-The exporter obtains as many as 50 URLs with a 900-second expiry, then downloads them serially. A slow or large
-early file can leave later URLs expired before their first request; retry currently reuses the same expired URL.
-
-Fix: re-sign the individual reference after an authorization/download failure before the final retry, or otherwise
-make signing expiry-aware. Add a test in which a later URL from the original batch expires before download.
-
-## HUMAN DECIDES
-
-### High — Concurrent resume processes are not serialized
-
-file: `tooling/export_base44_snapshot.py:1136`
-
-Two `--resume` processes can select the same active run, load the same state, and repeatedly replace `state.json`
-from independent in-memory copies. Atomic writes prevent torn files but do not prevent lost checkpoint entries or a
-late process overwriting completed state; differing manifest completion timestamps can also produce immutable
-artifact drift after duplicated work.
-
-Required decision before merge: accept a per-run exclusive lock held from resume validation through final status
-publication, or explicitly narrow the operational contract and provide equivalent fail-closed serialization. Add a
-concurrent-resume regression test.
-
-### Medium — Address validation and connection perform separate DNS lookups
-
-file: `tooling/export_base44_snapshot.py:546`
-
-The exporter validates the addresses returned by `getaddrinfo`, then `urllib` resolves the hostname again while
-opening the connection at `tooling/export_base44_snapshot.py:607`. A rebinding host can change from a global address
-to a private address between those operations and bypass the intended SSRF boundary.
-
-Required decision: use a transport that pins the validated address for the connection while retaining TLS
-hostname/SNI and certificate checks, then add a DNS-rebinding regression test.
+| Python compilation, artifact JSON, ignore rules, and `git diff --check` | PASS |
+| Offline production snapshot verification | PASS — 366 objects verified |
+| Origin and external-source provenance | PASS — expected origin, pinned external source, clean external source |
+| Manual aggregate reconciliation | PASS — owner previously confirmed all six dashboard counts match |
 
 ## HUMAN READS
 
-- `tooling/base44_export_bridge.ts:1` — privileged Base44 read/sign boundary.
-- `tooling/export_base44_snapshot.py:1228` — production export, checkpoint, and reconciliation orchestration.
-- `docs/migration/base44-export-runbook.md:1` — private-data handling, retention, and operator procedure.
+- `tooling/base44_export_bridge.ts:1` — confirm the privileged boundary remains limited to entity reads and
+  private-file signing.
+- `tooling/export_base44_snapshot.py:1334` — inspect the locked export orchestration, checkpoint publication, and
+  final reconciliation boundary.
+- `tooling/export_base44_snapshot.py:598` — inspect address-pinned HTTPS and hostname-preserving TLS behavior.
+- `docs/migration/base44-export-runbook.md:1` — confirm private-data handling, operator locking, retention, and
+  handoff instructions.
+
+## HUMAN DECIDES
+
+None.
 
 ## HUMAN TESTS
 
-- `.agents/reports/inventory-export-base44-data-files-report.md:58` — manual six-entity dashboard reconciliation
-  is recorded as complete; no additional manual test is required for this review round.
+- `.agents/reports/inventory-export-base44-data-files-report.md:59` — the owner-completed six-entity dashboard
+  reconciliation remains the required manual evidence; no new manual test is needed for this re-review.
 
 ## FYI
 
-- `tooling/base44_snapshot_viewer.html:1` — the offline viewer blocks network connections and browser persistence
-  and inserts record data using `textContent`.
+- `tooling/tests/test_export_base44_snapshot.py:332` — lock contention is proved within one process on Windows. A
+  future separate-process Windows integration test could add portability confidence, but the implementation and
+  current regression coverage are sound and this is not a merge blocker.
 
 ## What is done well
 
-- The privileged bridge is narrow and validates its two allowed operations without exposing mutation or arbitrary
-  SDK dispatch.
-- Raw record preservation, recursive decoded-JSON discovery, immutable artifact publication, and independent
-  manifest reconciliation are thoughtfully implemented.
-- Signed URLs stay out of persisted artifacts and CLI output; aggregate evidence avoids record-level values.
-- The implementation report documents the live-rehearsal deviations instead of hiding them.
+- The read/sign bridge remains deliberately narrow and exposes no mutation or arbitrary SDK dispatch.
+- Resume compatibility is fail-closed across schema, exporter, CLI, bridge, app, environment, page-size, allowlist,
+  and artifact integrity boundaries.
+- Download handling keeps signed URLs ephemeral, validates each redirect, pins validated addresses, preserves TLS
+  hostname verification, bounds time/size, and publishes exact bytes by content hash.
+- Offline verification independently rebuilds record inventories, references, files, totals, gates, and completion
+  status instead of trusting the private manifest.
+- The plan and implementation report document production-discovered deviations and their validation evidence.
 
 ## Recommendation
 
-Request changes. Fix the two High findings before merge, address or explicitly resolve the two Medium findings, then
-rerun validation and this PR gate. After that, a human should review and approve the merge.
+Approve. The agentic gate is green at the reviewed head. A human should now inspect the load-bearing files above and
+merge when satisfied.
