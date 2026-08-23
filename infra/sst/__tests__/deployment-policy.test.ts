@@ -119,6 +119,9 @@ describe("test deployment IAM policy", () => {
     const assets = policy.Statement.find(
       ({ Sid }) => Sid === "UseSstAssetStorage",
     );
+    const assetCleanup = policy.Statement.find(
+      ({ Sid }) => Sid === "DeleteSupersededSstAssets",
+    );
 
     expect(state?.Resource).toEqual([
       "arn:aws:s3:::sst-state-kkkvushrzufd/*/auditflow/test.json",
@@ -133,6 +136,12 @@ describe("test deployment IAM policy", () => {
     });
     expect(actions(assets!)).not.toContain("s3:DeleteObject");
     expect(actions(assets!)).toContain("s3:PutObjectTagging");
+    expect(assetCleanup).toEqual({
+      Sid: "DeleteSupersededSstAssets",
+      Effect: "Allow",
+      Action: "s3:DeleteObject",
+      Resource: "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/*",
+    });
     expect(JSON.stringify(policy)).not.toContain("sst-state-kkkvushrzufd/*\"");
   });
 

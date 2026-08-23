@@ -288,6 +288,12 @@ export function buildTestDeploymentPolicy({
         Resource: [sstAssetBucketArn, `${sstAssetBucketArn}/*`],
       },
       {
+        Sid: "DeleteSupersededSstAssets",
+        Effect: "Allow",
+        Action: "s3:DeleteObject",
+        Resource: `${sstAssetBucketArn}/assets/*`,
+      },
+      {
         Sid: "UseSstAssetRepository",
         Effect: "Allow",
         Action: [
