@@ -60,3 +60,7 @@ base44/.app.jsonc
 # SST
 .sst/
 sst-env.d.ts
+
+# Emergency local-only Base44 migration output (the exporter normally requires
+# encrypted, non-synced storage outside this worktree).
+/migration-output/

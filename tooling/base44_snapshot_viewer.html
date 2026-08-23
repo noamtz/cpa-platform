@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>AuditFlow private snapshot viewer</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --ink: #18211d;
+        --muted: #657069;
+        --paper: #f5f3ed;
+        --surface: #fffefb;
+        --line: #d9ddd7;
+        --accent: #16634b;
+        --accent-soft: #e3f2eb;
+        --danger: #9d2d29;
+        --danger-soft: #fbe8e6;
+        --shadow: 0 18px 48px rgb(24 33 29 / 9%);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background:
+          radial-gradient(circle at 5% 0%, #dcece4 0, transparent 32rem),
+          var(--paper);
+        color: var(--ink);
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .shell {
+        width: min(1440px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0 48px;
+      }
+
+      header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+
+      h1,
+      h2,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        max-width: 760px;
+        margin-bottom: 8px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(2rem, 5vw, 4rem);
+        font-weight: 500;
+        line-height: 0.98;
+        letter-spacing: -0.045em;
+      }
+
+      .subtitle {
+        max-width: 720px;
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 1.05rem;
+        line-height: 1.6;
+      }
+
+      .privacy-chip {
+        flex: 0 0 auto;
+        padding: 9px 12px;
+        border: 1px solid #bdd7ca;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 0.78rem;
+        font-weight: 750;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgb(255 254 251 / 94%);
+        box-shadow: var(--shadow);
+      }
+
+      .loader {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 20px;
+        align-items: center;
+        padding: 22px;
+      }
+
+      .loader strong {
+        display: block;
+        margin-bottom: 5px;
+      }
+
+      .loader p {
+        margin-bottom: 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .folder-label,
+      .secondary {
+        min-height: 42px;
+        padding: 10px 15px;
+        border-radius: 10px;
+        font-weight: 700;
+      }
+
+      .folder-label {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid var(--accent);
+        background: var(--accent);
+        color: white;
+        cursor: pointer;
+      }
+
+      .folder-label:focus-within {
+        outline: 3px solid rgb(22 99 75 / 25%);
+        outline-offset: 2px;
+      }
+
+      .folder-label input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+      }
+
+      .secondary {
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--ink);
+      }
+
+      .secondary:hover {
+        border-color: #adb7b0;
+      }
+
+      .alert {
+        margin-top: 14px;
+        padding: 13px 15px;
+        border: 1px solid #e7b8b4;
+        border-radius: 10px;
+        background: var(--danger-soft);
+        color: var(--danger);
+        font-weight: 650;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .summary {
+        margin-top: 18px;
+        padding: 20px;
+      }
+
+      .summary-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        align-items: flex-start;
+        margin-bottom: 16px;
+      }
+
+      .summary h2 {
+        margin-bottom: 4px;
+        font-size: 1.1rem;
+      }
+
+      .meta {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      .gates {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 7px;
+        justify-content: flex-end;
+      }
+
+      .gate {
+        padding: 5px 8px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 0.75rem;
+        font-weight: 750;
+      }
+
+      .gate.failed {
+        background: var(--danger-soft);
+        color: var(--danger);
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .stat {
+        padding: 13px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #faf9f5;
+      }
+
+      .stat span {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--muted);
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      .stat strong {
+        font-size: 1.15rem;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: 220px minmax(260px, 360px) minmax(0, 1fr);
+        min-height: 620px;
+        margin-top: 18px;
+        overflow: hidden;
+      }
+
+      .entities,
+      .records {
+        border-right: 1px solid var(--line);
+      }
+
+      .column-heading {
+        padding: 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .column-heading h2 {
+        margin-bottom: 3px;
+        font-size: 0.95rem;
+      }
+
+      .column-heading p {
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      .entity-list,
+      .record-list {
+        margin: 0;
+        padding: 8px;
+        list-style: none;
+      }
+
+      .entity-button,
+      .record-button {
+        width: 100%;
+        border: 0;
+        border-radius: 9px;
+        background: transparent;
+        color: var(--ink);
+        text-align: left;
+      }
+
+      .entity-button {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px;
+        font-size: 0.87rem;
+        font-weight: 700;
+      }
+
+      .entity-button:hover,
+      .entity-button.active,
+      .record-button:hover,
+      .record-button.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      .count {
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+
+      .records {
+        min-width: 0;
+      }
+
+      .search-wrap {
+        padding: 12px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .search-wrap input {
+        width: 100%;
+        padding: 9px 11px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: white;
+        color: var(--ink);
+      }
+
+      .search-wrap input:focus {
+        border-color: var(--accent);
+        outline: 3px solid rgb(22 99 75 / 15%);
+      }
+
+      .record-scroll {
+        max-height: 550px;
+        overflow: auto;
+      }
+
+      .record-button {
+        padding: 10px;
+        overflow: hidden;
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 0.78rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .detail {
+        min-width: 0;
+        background: #fbfaf7;
+      }
+
+      .detail pre {
+        min-height: 550px;
+        max-height: 550px;
+        margin: 0;
+        padding: 18px;
+        overflow: auto;
+        color: #20362e;
+        direction: ltr;
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: 0.78rem;
+        line-height: 1.55;
+        tab-size: 2;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
+      .empty {
+        padding: 30px 18px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      footer {
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 0.78rem;
+        line-height: 1.5;
+      }
+
+      @media (max-width: 900px) {
+        header,
+        .summary-top {
+          flex-direction: column;
+        }
+
+        .gates {
+          justify-content: flex-start;
+        }
+
+        .stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .workspace {
+          grid-template-columns: 170px minmax(0, 1fr);
+        }
+
+        .detail {
+          grid-column: 1 / -1;
+          border-top: 1px solid var(--line);
+        }
+
+        .records {
+          border-right: 0;
+        }
+      }
+
+      @media (max-width: 620px) {
+        .shell {
+          width: min(100% - 20px, 1440px);
+          padding-top: 18px;
+        }
+
+        .loader {
+          grid-template-columns: 1fr;
+        }
+
+        .stats,
+        .workspace {
+          grid-template-columns: 1fr;
+        }
+
+        .entities,
+        .records {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .entity-list {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .record-scroll,
+        .detail pre {
+          max-height: 420px;
+          min-height: 320px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <div>
+          <h1>Private snapshot viewer</h1>
+          <p class="subtitle">
+            Browse the verified AuditFlow record snapshot without uploading it anywhere. Files stay in this browser
+            tab and disappear when you close or clear it.
+          </p>
+        </div>
+        <span class="privacy-chip">Offline · no network</span>
+      </header>
+
+      <section class="panel loader" aria-labelledby="load-heading">
+        <div>
+          <strong id="load-heading">Choose one snapshot run folder</strong>
+          <p>Select the folder that directly contains <code>manifest.json</code> and the <code>entities</code> folder.</p>
+        </div>
+        <div class="actions">
+          <label class="folder-label">
+            Choose snapshot folder
+            <input id="folder-input" type="file" webkitdirectory multiple />
+          </label>
+          <button id="clear-button" class="secondary" type="button">Clear data</button>
+        </div>
+      </section>
+
+      <div id="alert" class="alert hidden" role="alert"></div>
+
+      <section id="summary" class="panel summary hidden" aria-labelledby="summary-heading">
+        <div class="summary-top">
+          <div>
+            <h2 id="summary-heading">Snapshot summary</h2>
+            <p id="snapshot-meta" class="meta"></p>
+          </div>
+          <div id="gates" class="gates" aria-label="Snapshot gates"></div>
+        </div>
+        <div id="stats" class="stats"></div>
+      </section>
+
+      <section id="workspace" class="panel workspace hidden" aria-label="Snapshot records">
+        <nav class="entities" aria-labelledby="entities-heading">
+          <div class="column-heading">
+            <h2 id="entities-heading">Entities</h2>
+            <p>Choose a table</p>
+          </div>
+          <ul id="entity-list" class="entity-list"></ul>
+        </nav>
+
+        <section class="records" aria-labelledby="records-heading">
+          <div class="column-heading">
+            <h2 id="records-heading">Records</h2>
+            <p id="record-count">No entity selected</p>
+          </div>
+          <div class="search-wrap">
+            <label>
+              <span class="hidden">Search records</span>
+              <input
+                id="search-input"
+                type="search"
+                placeholder="Search this entity…"
+                aria-label="Search records in selected entity"
+                autocomplete="off"
+              />
+            </label>
+          </div>
+          <div class="record-scroll">
+            <ul id="record-list" class="record-list"></ul>
+          </div>
+        </section>
+
+        <section class="detail" aria-labelledby="detail-heading">
+          <div class="column-heading">
+            <h2 id="detail-heading">Record JSON</h2>
+            <p>Exact preserved fields and values</p>
+          </div>
+          <pre id="record-json" tabindex="0">Choose a record to view its JSON.</pre>
+        </section>
+      </section>
+
+      <footer>
+        This viewer does not verify hashes. Run the exporter’s offline <code>verify</code> command before relying on a
+        snapshot. Binary attachments are counted in the summary but are not opened by this page.
+      </footer>
+    </main>
+
+    <script>
+      "use strict";
+
+      const EXPECTED_ENTITIES = [
+        "Client",
+        "Submission",
+        "QuestionnaireTemplate",
+        "PdfTemplate",
+        "SyncedDriveFile",
+        "User",
+      ];
+
+      const elements = {
+        alert: document.querySelector("#alert"),
+        clearButton: document.querySelector("#clear-button"),
+        detail: document.querySelector("#record-json"),
+        entityList: document.querySelector("#entity-list"),
+        folderInput: document.querySelector("#folder-input"),
+        gates: document.querySelector("#gates"),
+        meta: document.querySelector("#snapshot-meta"),
+        recordCount: document.querySelector("#record-count"),
+        recordList: document.querySelector("#record-list"),
+        search: document.querySelector("#search-input"),
+        stats: document.querySelector("#stats"),
+        summary: document.querySelector("#summary"),
+        workspace: document.querySelector("#workspace"),
+      };
+
+      const state = {
+        activeEntity: null,
+        activeRecordIndex: null,
+        manifest: null,
+        records: new Map(),
+      };
+
+      function showError(message) {
+        elements.alert.textContent = message;
+        elements.alert.classList.remove("hidden");
+      }
+
+      function clearError() {
+        elements.alert.textContent = "";
+        elements.alert.classList.add("hidden");
+      }
+
+      function clearViewer() {
+        state.activeEntity = null;
+        state.activeRecordIndex = null;
+        state.manifest = null;
+        state.records.clear();
+        elements.folderInput.value = "";
+        elements.entityList.replaceChildren();
+        elements.recordList.replaceChildren();
+        elements.gates.replaceChildren();
+        elements.stats.replaceChildren();
+        elements.search.value = "";
+        elements.recordCount.textContent = "No entity selected";
+        elements.detail.textContent = "Choose a record to view its JSON.";
+        elements.summary.classList.add("hidden");
+        elements.workspace.classList.add("hidden");
+        clearError();
+      }
+
+      function normalizedPath(file) {
+        return String(file.webkitRelativePath || file.name).replaceAll("\\", "/");
+      }
+
+      function parseJson(text, label) {
+        try {
+          return JSON.parse(text);
+        } catch {
+          throw new Error(`${label} is not valid JSON.`);
+        }
+      }
+
+      function validateManifest(manifest) {
+        if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+          throw new Error("manifest.json does not contain an object.");
+        }
+        if (manifest.schemaVersion !== 1) {
+          throw new Error("This viewer supports snapshot schema version 1 only.");
+        }
+        if (!manifest.entities || typeof manifest.entities !== "object") {
+          throw new Error("The snapshot manifest has no entity inventory.");
+        }
+        const entityNames = Object.keys(manifest.entities).sort();
+        if (JSON.stringify(entityNames) !== JSON.stringify([...EXPECTED_ENTITIES].sort())) {
+          throw new Error("The snapshot does not contain the expected six entities.");
+        }
+        if (!manifest.totals || !manifest.gates) {
+          throw new Error("The snapshot manifest is missing totals or gates.");
+        }
+      }
+
+      async function loadFolder(fileList) {
+        const files = Array.from(fileList);
+        clearViewer();
+        const manifests = files.filter((file) => normalizedPath(file).endsWith("/manifest.json"));
+        if (manifests.length !== 1) {
+          throw new Error(
+            manifests.length === 0
+              ? "No manifest.json was found. Choose a completed snapshot run folder."
+              : "More than one manifest.json was found. Choose one run folder, not the parent output folder.",
+          );
+        }
+
+        const manifestFile = manifests[0];
+        const manifestPath = normalizedPath(manifestFile);
+        const rootPrefix = manifestPath.slice(0, -"manifest.json".length);
+        const snapshotFiles = new Map();
+        for (const file of files) {
+          const path = normalizedPath(file);
+          if (path.startsWith(rootPrefix)) {
+            snapshotFiles.set(path.slice(rootPrefix.length), file);
+          }
+        }
+
+        const manifest = parseJson(await manifestFile.text(), "manifest.json");
+        validateManifest(manifest);
+
+        for (const entity of EXPECTED_ENTITIES) {
+          const item = manifest.entities[entity];
+          const relativePath = item && item.ndjsonPath;
+          if (typeof relativePath !== "string" || !snapshotFiles.has(relativePath)) {
+            throw new Error(`The ${entity} NDJSON artifact is missing.`);
+          }
+          const text = await snapshotFiles.get(relativePath).text();
+          const records = [];
+          for (const [index, line] of text.split(/\r?\n/u).entries()) {
+            if (!line.trim()) continue;
+            const record = parseJson(line, `${entity} line ${index + 1}`);
+            if (!record || typeof record !== "object" || Array.isArray(record)) {
+              throw new Error(`${entity} line ${index + 1} does not contain a record object.`);
+            }
+            records.push(record);
+          }
+          if (records.length !== item.count) {
+            throw new Error(`${entity} contains ${records.length} records; the manifest expects ${item.count}.`);
+          }
+          state.records.set(entity, records);
+        }
+
+        state.manifest = manifest;
+        renderSummary();
+        renderEntities();
+        elements.summary.classList.remove("hidden");
+        elements.workspace.classList.remove("hidden");
+        selectEntity(EXPECTED_ENTITIES[0]);
+      }
+
+      function addStat(label, value) {
+        const item = document.createElement("div");
+        item.className = "stat";
+        const name = document.createElement("span");
+        name.textContent = label;
+        const number = document.createElement("strong");
+        number.textContent = value;
+        item.append(name, number);
+        elements.stats.append(item);
+      }
+
+      function formatNumber(value) {
+        return Number.isFinite(Number(value)) ? new Intl.NumberFormat().format(Number(value)) : "—";
+      }
+
+      function formatBytes(value) {
+        const bytes = Number(value);
+        if (!Number.isFinite(bytes) || bytes < 0) return "—";
+        const units = ["B", "KB", "MB", "GB"];
+        let amount = bytes;
+        let unit = 0;
+        while (amount >= 1024 && unit < units.length - 1) {
+          amount /= 1024;
+          unit += 1;
+        }
+        return `${amount.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+      }
+
+      function renderSummary() {
+        elements.stats.replaceChildren();
+        elements.gates.replaceChildren();
+        const totals = state.manifest.totals;
+        const status = Object.values(state.manifest.gates).every(Boolean) ? "All gates pass" : "One or more gates fail";
+        elements.meta.textContent = `${status} · completed ${state.manifest.completedAt || "unknown time"}`;
+        addStat("Objects", formatNumber(totals.objects));
+        addStat("References", formatNumber(totals.uniqueReferences));
+        addStat("Files", formatNumber(totals.uniqueFiles));
+        addStat("Bytes", formatBytes(totals.bytes));
+        addStat("Unresolved", formatNumber(totals.unresolved));
+
+        for (const [name, passed] of Object.entries(state.manifest.gates)) {
+          const gate = document.createElement("span");
+          gate.className = passed ? "gate" : "gate failed";
+          gate.textContent = `${passed ? "✓" : "×"} ${name}`;
+          elements.gates.append(gate);
+        }
+      }
+
+      function renderEntities() {
+        elements.entityList.replaceChildren();
+        for (const entity of EXPECTED_ENTITIES) {
+          const item = document.createElement("li");
+          const button = document.createElement("button");
+          button.className = "entity-button";
+          button.type = "button";
+          button.dataset.entity = entity;
+          const name = document.createElement("span");
+          name.textContent = entity;
+          const count = document.createElement("span");
+          count.className = "count";
+          count.textContent = formatNumber(state.records.get(entity).length);
+          button.append(name, count);
+          button.addEventListener("click", () => selectEntity(entity));
+          item.append(button);
+          elements.entityList.append(item);
+        }
+      }
+
+      function selectEntity(entity) {
+        state.activeEntity = entity;
+        state.activeRecordIndex = null;
+        elements.search.value = "";
+        for (const button of elements.entityList.querySelectorAll("button")) {
+          button.classList.toggle("active", button.dataset.entity === entity);
+        }
+        renderRecords();
+      }
+
+      function recordLabel(record, index) {
+        if (record && typeof record.id === "string" && record.id) return record.id;
+        return `Record ${index + 1}`;
+      }
+
+      function renderRecords() {
+        elements.recordList.replaceChildren();
+        elements.detail.textContent = "Choose a record to view its JSON.";
+        const records = state.records.get(state.activeEntity) || [];
+        const query = elements.search.value.trim().toLocaleLowerCase();
+        const visible = [];
+        records.forEach((record, index) => {
+          const searchable = JSON.stringify(record).toLocaleLowerCase();
+          if (!query || searchable.includes(query)) visible.push({ record, index });
+        });
+        elements.recordCount.textContent = `${formatNumber(visible.length)} of ${formatNumber(records.length)} records`;
+
+        if (!visible.length) {
+          const empty = document.createElement("li");
+          empty.className = "empty";
+          empty.textContent = "No matching records.";
+          elements.recordList.append(empty);
+          return;
+        }
+
+        for (const { record, index } of visible) {
+          const item = document.createElement("li");
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "record-button";
+          button.dataset.index = String(index);
+          button.textContent = recordLabel(record, index);
+          button.title = recordLabel(record, index);
+          button.addEventListener("click", () => selectRecord(index));
+          item.append(button);
+          elements.recordList.append(item);
+        }
+      }
+
+      function selectRecord(index) {
+        state.activeRecordIndex = index;
+        const record = state.records.get(state.activeEntity)[index];
+        elements.detail.textContent = JSON.stringify(record, null, 2);
+        for (const button of elements.recordList.querySelectorAll("button")) {
+          button.classList.toggle("active", Number(button.dataset.index) === index);
+        }
+      }
+
+      elements.folderInput.addEventListener("change", async (event) => {
+        clearError();
+        try {
+          await loadFolder(event.target.files);
+        } catch (error) {
+          clearViewer();
+          showError(error instanceof Error ? error.message : "The snapshot could not be opened.");
+        }
+      });
+
+      elements.search.addEventListener("input", renderRecords);
+      elements.clearButton.addEventListener("click", clearViewer);
+    </script>
+  </body>
+</html>
