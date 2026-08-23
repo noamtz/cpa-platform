@@ -11,6 +11,7 @@ import Settings from "./pages/Settings";
 import QuestionnaireSettings from "./pages/QuestionnaireSettings";
 import CpaFillQuestionnaire from "./pages/CpaFillQuestionnaire";
 import ClientsPage from "./pages/ClientsPage";
+import AuthCallback from "./pages/AuthCallback";
 
 // Lazy-loaded — pdfme is ~2MB, only load when needed
 const PdfTemplateEditor = React.lazy(() => import("./pages/PdfTemplateEditor"));
@@ -75,6 +76,7 @@ function App() {
     <QueryClientProvider client={queryClientInstance}>
       <Router>
         <Routes>
+          <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/" element={<CpaDashboard />} />
           <Route path="/users" element={<UserManagement />} />
           <Route path="/settings" element={<Settings />} />

@@ -86,6 +86,32 @@ describe("test deployment IAM policy", () => {
     }
   });
 
+  it("manages only the existing tagged pool and its required OAuth children", () => {
+    const cognito = policy.Statement.find(
+      ({ Sid }) => Sid === "ManageTaggedStageUserPool",
+    );
+
+    expect(actions(cognito!)).toEqual(
+      expect.arrayContaining([
+        "cognito-idp:CreateResourceServer",
+        "cognito-idp:CreateUserPoolDomain",
+        "cognito-idp:DescribeResourceServer",
+        "cognito-idp:DescribeUserPoolDomain",
+        "cognito-idp:UpdateResourceServer",
+        "cognito-idp:UpdateUserPoolClient",
+      ]),
+    );
+    expect(cognito).toMatchObject({
+      Resource: "arn:aws:cognito-idp:il-central-1:123456789012:userpool/*",
+      Condition: {
+        StringEquals: {
+          "aws:ResourceTag/sst:app": "auditflow",
+          "aws:ResourceTag/sst:stage": "test",
+        },
+      },
+    });
+  });
+
   it("restricts mutable SST state to the AuditFlow test stage", () => {
     const state = policy.Statement.find(
       ({ Sid }) => Sid === "UseSstStageState",

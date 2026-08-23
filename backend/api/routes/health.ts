@@ -1,19 +1,8 @@
 import type { APIGatewayProxyStructuredResultV2 } from "aws-lambda";
 
-const JSON_HEADERS = {
-  "content-type": "application/json; charset=utf-8",
-} as const;
+import { jsonResponse } from "../core/http";
 
-export function jsonResponse(
-  statusCode: number,
-  body: Readonly<Record<string, unknown>>,
-): APIGatewayProxyStructuredResultV2 {
-  return {
-    statusCode,
-    headers: JSON_HEADERS,
-    body: JSON.stringify(body),
-  };
-}
+export { jsonResponse } from "../core/http";
 
 export function healthResponse(
   stage: string,

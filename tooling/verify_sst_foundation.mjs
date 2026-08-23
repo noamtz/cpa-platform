@@ -38,7 +38,7 @@ function parseArguments(argv) {
 }
 
 function verifyContract(contract, stage) {
-  assert(contract.schemaVersion === 1, "Unsupported contract schema version.");
+  assert(contract.schemaVersion === 2, "Unsupported contract schema version.");
   assert(contract.app === "auditflow", "Unexpected SST application name.");
   assert(contract.sstVersion === "3.19.3", "SST version must be 3.19.3.");
   assert(contract.region === "il-central-1", "Unexpected AWS region.");
@@ -85,6 +85,37 @@ function verifyContract(contract, stage) {
         route === "GET /auth/health" && authorization === "cognito-jwt",
     ),
     "Protected health route contract is missing.",
+  );
+  const cpaRoutes = contract.routes.filter(({ route }) =>
+    route.includes(" /cpa/"),
+  );
+  assert(cpaRoutes.length === 14, "The exact CPA route inventory is incomplete.");
+  assert(
+    cpaRoutes.every(
+      ({ authorization, authorizationScopes }) =>
+        authorization === "cognito-jwt" &&
+        JSON.stringify(authorizationScopes) ===
+          JSON.stringify(["auditflow-api/cpa"]),
+    ),
+    "Every CPA route must require the exact custom access-token scope.",
+  );
+  assert(
+    new Set(contract.routes.map(({ route }) => route)).size ===
+      contract.routes.length,
+    "API routes must be unique.",
+  );
+  assert(
+    contract.auth.resourceServerIdentifier === "auditflow-api" &&
+      contract.auth.scopeName === "cpa" &&
+      contract.auth.authorityType === "regional-user-pool-issuer" &&
+      contract.auth.apiScope === "auditflow-api/cpa" &&
+      JSON.stringify(contract.auth.allowedOAuthFlows) ===
+        JSON.stringify(["code"]) &&
+      JSON.stringify(contract.auth.allowedOAuthScopes) ===
+        JSON.stringify(["openid", "auditflow-api/cpa"]) &&
+      contract.auth.clientSecret === false &&
+      contract.auth.refreshTokenRotation.feature === "ENABLED",
+    "Managed-login and CPA scope contracts have drifted.",
   );
   assert(
     contract.router.apiPrefix === "/api" &&
@@ -216,6 +247,25 @@ async function verifyLive(contract, stage, outputsPath) {
     "API URL",
     ".execute-api.il-central-1.amazonaws.com",
   );
+  const authAuthority = assertHttpsUrl(
+    outputs.authAuthority,
+    "Cognito authority",
+    "cognito-idp.il-central-1.amazonaws.com",
+    `/${outputs.userPoolId}`,
+  );
+  assert(
+    outputs.authCallbackUrl ===
+      `${outputs.routerUrl}${contract.auth.callbackPath}`,
+    "Primary callback URL does not use the Router origin.",
+  );
+  assert(
+    outputs.authLogoutUrl === `${outputs.routerUrl}${contract.auth.logoutPath}`,
+    "Primary logout URL does not use the Router origin.",
+  );
+  assert(
+    outputs.authScope === contract.auth.allowedOAuthScopes.join(" "),
+    "Browser scopes have drifted.",
+  );
   assertHttpsUrl(outputs.healthUrl, "Health URL", routerUrl.hostname, "/api/health");
   assertHttpsUrl(
     outputs.protectedHealthUrl,
@@ -261,6 +311,20 @@ async function verifyLive(contract, stage, outputsPath) {
         "ENABLED",
       `${logicalName} does not have PITR enabled.`,
     );
+    if (logicalName === "UserTable") {
+      const createdDateIndex = description.GlobalSecondaryIndexes?.find(
+        ({ IndexName }) => IndexName === "byCreatedDate",
+      );
+      assert(
+        createdDateIndex?.IndexStatus === "ACTIVE" &&
+          JSON.stringify(createdDateIndex.KeySchema) ===
+            JSON.stringify([
+              { AttributeName: "record_type", KeyType: "HASH" },
+              { AttributeName: "created_date", KeyType: "RANGE" },
+            ]),
+        "UserTable byCreatedDate index is missing or invalid.",
+      );
+    }
   }
 
   for (const logicalName of expectedBucketNames) {
@@ -323,9 +387,114 @@ async function verifyLive(contract, stage, outputsPath) {
     outputs.userPoolClientId,
   ]).value.UserPoolClient;
   assert(!userPoolClient.ClientSecret, "Browser client must not have a secret.");
+  assert(
+    JSON.stringify(userPoolClient.AllowedOAuthFlows) ===
+      JSON.stringify(contract.auth.allowedOAuthFlows),
+    "Browser client must allow authorization code only.",
+  );
+  assert(
+    JSON.stringify([...(userPoolClient.AllowedOAuthScopes ?? [])].sort()) ===
+      JSON.stringify([...contract.auth.allowedOAuthScopes].sort()),
+    "Browser client OAuth scopes have drifted.",
+  );
+  const expectedCallbackUrls = [
+    outputs.authCallbackUrl,
+    `${contract.auth.localOrigin}${contract.auth.callbackPath}`,
+  ];
+  const expectedLogoutUrls = [
+    outputs.authLogoutUrl,
+    `${contract.auth.localOrigin}${contract.auth.logoutPath}`,
+  ];
+  assert(
+    JSON.stringify([...(userPoolClient.CallbackURLs ?? [])].sort()) ===
+      JSON.stringify(expectedCallbackUrls.sort()),
+    "Browser client callback URLs have drifted.",
+  );
+  assert(
+    JSON.stringify([...(userPoolClient.LogoutURLs ?? [])].sort()) ===
+      JSON.stringify(expectedLogoutUrls.sort()),
+    "Browser client logout URLs have drifted.",
+  );
+  assert(
+    userPoolClient.RefreshTokenValidity ===
+      contract.auth.refreshTokenValidityDays &&
+      userPoolClient.RefreshTokenRotation?.Feature === "ENABLED" &&
+      userPoolClient.RefreshTokenRotation?.RetryGracePeriodSeconds ===
+        contract.auth.refreshTokenRotation.retryGracePeriodSeconds,
+    "Refresh-token rotation is not configured exactly.",
+  );
+  const discovery = await fetchText(
+    `${authAuthority.href.replace(/\/$/, "")}/.well-known/openid-configuration`,
+    200,
+  );
+  let discoveryMetadata;
+  try {
+    discoveryMetadata = JSON.parse(discovery.text);
+  } catch {
+    fail("Cognito OIDC discovery did not return JSON.");
+  }
+  assert(
+    discoveryMetadata.issuer === outputs.authAuthority,
+    "Cognito discovery issuer differs from the browser authority.",
+  );
+  const authorizationEndpoint = assertHttpsUrl(
+    discoveryMetadata.authorization_endpoint,
+    "Cognito authorization endpoint",
+    ".amazoncognito.com",
+    "/oauth2/authorize",
+  );
+  const domainMarker = authorizationEndpoint.hostname.indexOf(".auth.");
+  assert(domainMarker > 0, "Cognito authorization endpoint is not on the managed-login domain.");
+  const domainPrefix = authorizationEndpoint.hostname.slice(0, domainMarker);
+  const domain = runAws([
+    "cognito-idp",
+    "describe-user-pool-domain",
+    "--domain",
+    domainPrefix,
+  ]).value.DomainDescription;
+  assert(
+    domain.UserPoolId === outputs.userPoolId && domain.Status === "ACTIVE",
+    "Managed-login domain is unavailable or linked to another pool.",
+  );
+  const resourceServers = runAws([
+    "cognito-idp",
+    "list-resource-servers",
+    "--user-pool-id",
+    outputs.userPoolId,
+    "--max-results",
+    "50",
+  ]).value.ResourceServers;
+  const resourceServer = resourceServers?.find(
+    ({ Identifier }) => Identifier === contract.auth.resourceServerIdentifier,
+  );
+  assert(
+    resourceServer?.Scopes?.some(
+      ({ ScopeName }) => ScopeName === contract.auth.scopeName,
+    ),
+    "CPA Cognito resource-server scope is missing.",
+  );
 
   const api = runAws(["apigatewayv2", "get-api", "--api-id", outputs.apiId]).value;
   assert(api.ProtocolType === "HTTP", "Expected an API Gateway HTTP API.");
+  const deployedRoutes = runAws([
+    "apigatewayv2",
+    "get-routes",
+    "--api-id",
+    outputs.apiId,
+  ]).value.Items;
+  for (const routeContract of contract.routes.filter(({ route }) =>
+    route.includes(" /cpa/"),
+  )) {
+    const deployedRoute = deployedRoutes?.find(
+      ({ RouteKey }) => RouteKey === routeContract.route,
+    );
+    assert(
+      deployedRoute?.AuthorizationType === "JWT" &&
+        JSON.stringify(deployedRoute.AuthorizationScopes) ===
+          JSON.stringify(routeContract.authorizationScopes),
+      `CPA route ${routeContract.route} is missing JWT scope authorization.`,
+    );
+  }
   const lambda = runAws([
     "lambda",
     "get-function-configuration",
@@ -605,6 +774,9 @@ async function verifyLive(contract, stage, outputsPath) {
       apiHttp: true,
       lambdaNode20Arm64: true,
       routerDeployed: true,
+      managedLoginConfigured: true,
+      refreshRotationEnabled: true,
+      cpaRoutesScoped: 14,
       exactOidcTrust: true,
       noAdministratorPolicy: true,
       noDeployRoleSelfMutation: true,

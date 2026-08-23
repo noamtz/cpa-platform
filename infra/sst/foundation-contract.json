@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "app": "auditflow",
   "sstVersion": "3.19.3",
   "region": "il-central-1",
@@ -10,7 +10,7 @@
     { "logicalName": "QuestionnaireTemplateTable", "primaryIndex": { "hashKey": "id" }, "globalIndexes": { "byVersion": { "hashKey": "record_type", "rangeKey": "version" } } },
     { "logicalName": "PdfTemplateTable", "primaryIndex": { "hashKey": "id" }, "globalIndexes": { "byCreatedDate": { "hashKey": "record_type", "rangeKey": "created_date" } } },
     { "logicalName": "SyncedDriveFileTable", "primaryIndex": { "hashKey": "id" }, "globalIndexes": { "bySubmission": { "hashKey": "submission_id", "rangeKey": "created_date" } } },
-    { "logicalName": "UserTable", "primaryIndex": { "hashKey": "id" }, "globalIndexes": { "byCognitoSubject": { "hashKey": "cognito_sub" } } },
+    { "logicalName": "UserTable", "primaryIndex": { "hashKey": "id" }, "globalIndexes": { "byCognitoSubject": { "hashKey": "cognito_sub" }, "byCreatedDate": { "hashKey": "record_type", "rangeKey": "created_date" } } },
     { "logicalName": "ChangeJournalTable", "primaryIndex": { "hashKey": "scope", "rangeKey": "sequence" }, "globalIndexes": { "byEntity": { "hashKey": "entity_key", "rangeKey": "sequence" } } }
   ],
   "buckets": [
@@ -19,8 +19,42 @@
   ],
   "routes": [
     { "route": "GET /health", "authorization": "none" },
-    { "route": "GET /auth/health", "authorization": "cognito-jwt" }
+    { "route": "GET /auth/health", "authorization": "cognito-jwt" },
+    { "route": "POST /cpa/clients/query", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/clients", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "PATCH /cpa/clients/{id}", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/clients/{id}/token-rotation", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/submissions/query", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "PATCH /cpa/submissions/{id}", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/users/query", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "GET /cpa/me", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "PATCH /cpa/me", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/users/invitations", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/integrations/google-drive/sync", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/integrations/google-drive/connect", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/integrations/google-drive/disconnect", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/integrations/telegram/notify", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] }
   ],
+  "auth": {
+    "domainLogicalName": "UserPoolDomain",
+    "resourceServerLogicalName": "CpaResourceServer",
+    "resourceServerIdentifier": "auditflow-api",
+    "scopeName": "cpa",
+    "authorityType": "regional-user-pool-issuer",
+    "apiScope": "auditflow-api/cpa",
+    "allowedOAuthFlows": ["code"],
+    "allowedOAuthScopes": ["openid", "auditflow-api/cpa"],
+    "callbackPath": "/auth/callback",
+    "logoutPath": "/",
+    "localOrigin": "http://localhost:5173",
+    "clientSecret": false,
+    "refreshTokenValidityDays": 30,
+    "refreshTokenRotation": {
+      "feature": "ENABLED",
+      "retryGracePeriodSeconds": 10,
+      "providerCompatibility": "post-deploy-sdk-update"
+    }
+  },
   "router": {
     "apiPrefix": "/api",
     "rewritePattern": "^/api/(.*)$",
@@ -41,6 +75,8 @@
     "apiFunctions": 1,
     "userPools": 1,
     "userPoolClients": 1,
+    "userPoolDomains": 1,
+    "resourceServers": 1,
     "jwtAuthorizers": 1
   },
   "outputKeys": [
@@ -57,6 +93,10 @@
     "bucketNames",
     "userPoolId",
     "userPoolClientId",
+    "authAuthority",
+    "authCallbackUrl",
+    "authLogoutUrl",
+    "authScope",
     "testDeployRoleArn"
   ]
 }

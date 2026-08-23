@@ -19,7 +19,7 @@ src/components/ui/                  # Generated shadcn/Radix primitives, isolate
 src/hooks/                          # Reusable React hooks.
 src/lib/                            # Shared state, compatibility, auth, query, routing, template, and PDF helpers.
 src/lib/__tests__/                  # Characterization tests for the behavior most important to preserve.
-src/api/base44Client.js             # Reference frontend data-client seam to replace with AWS-backed API modules.
+src/api/                            # Cognito auth, AWS HTTP compatibility modules, and the explicit temporary Base44 allowlist.
 base44/entities/                    # Source data contracts and migration inputs, not the target storage design.
 base44/functions/*/entry.ts         # Endpoint behavior and security evidence, not target runtime code.
 base44/agents/                      # Reference readiness-agent behavior, not a target Base44 dependency.
@@ -27,14 +27,14 @@ lambda/pdf-generator/               # Existing AWS PDF rendering and generation 
 poc-server/                         # Legacy development-only PDF signing POC; migration evidence, not target runtime.
 infra/{test,prod}/main.tf           # Existing test and production infrastructure for the PDF API.
 infra/sst/                          # Active SST v3 contracts and test/production foundation components.
-backend/api/                        # Modular non-PDF Lambda API handlers and route tests.
+backend/api/                        # Authenticated CPA routes, indexed repositories, services, and atomic ChangeJournal coordination.
 sst.config.ts                       # Strict-stage SST entry point for the serverless compatibility layer.
 .github/workflows/                  # Disabled imported PDF evidence plus the active SST test workflow.
 docs/PRD.md                         # Product inventory for parity discovery; code remains authoritative.
 docs/user-journeys/                 # Evidence-backed journey and permission inventory.
 docs/migration/                     # Imported-source manifest, baseline, and verification evidence.
 .agents/ and .codex/                # Codex rules, on-demand references, skills, agents, hooks, and configuration.
-tooling/                            # Source-import verification, GitHub/Project helpers, Codex validation, and local MCP tooling.
+tooling/                            # Source verification, Cognito compatibility checks, GitHub/Project helpers, and Codex tooling.
 ```
 
 ## Where new code goes
@@ -57,6 +57,11 @@ Evidence paths below are relative to this repository. The external production-so
   layer; do not introduce a different platform without updating that architecture decision. Evidence:
   `.agents/references/auditflow-rewrite-target.md` and the canonical `Architecture-AuditFlow-Platform-Migration`
   Wiki page.
+- **Migration status:** Core CPA authentication, Client/Submission/User compatibility, invitations, and journaled
+  mutations are deployed to the SST test stage and the live foundation plus managed-login redirect are verified.
+  The first synthetic admin and its linked User fixture are bootstrapped. The facade retains only the Wiki-approved
+  temporary PDF/template/readiness allowlist; authenticated acceptance, broader data seeding, and every production
+  action still require explicit authorization.
 - **Source integrity:** Make rewrite changes here; treat `C:\Users\ntzur\workspace-antigravity\auditflow` as read-only unless the user explicitly requests changes there. Reproduce and verify the imported baseline through `tooling/import_auditflow_source.py` and `docs/migration/auditflow-source-manifest.json`. Evidence: rewrite/input boundary in `.agents/references/auditflow-rewrite-target.md`.
 - **Parity:** Add evidence before replacing behavior, and keep the working Base44 path until its AWS replacement has verified parity and a rollback-safe cutover. Evidence: rewrite-workspace `.agents/references/auditflow-rewrite-target.md` and source `.agents/AGENTS.md`.
 - **Git:** Use feature branches for major work, reserve direct `main` changes for hotfixes, and prefix commits with `feat:`, `fix:`, `refactor:`, `infra:`, `test:`, or `docs:`. Evidence: source `.agents/AGENTS.md` and this repository's accepted documentation history.
