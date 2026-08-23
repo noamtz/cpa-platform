@@ -144,13 +144,17 @@ export const inviteUserSchema = z
 
 export const tokenRotationSchema = z.object({}).strict();
 
+const driveSubmissionReferenceSchema = z
+  .object({ submission_id: id, client_id: id })
+  .strict();
+
 export const googleDriveSyncSchema = z.union([
   z.object({ check_connection: z.literal(true) }).strict(),
-  z.object({ submission_id: id, client_id: id }).strict(),
+  driveSubmissionReferenceSchema,
   z
     .object({
       sync_all: z.literal(true),
-      submission_ids: z.array(id).min(1).max(200),
+      submission_ids: z.array(driveSubmissionReferenceSchema).min(1).max(200),
     })
     .strict(),
 ]);

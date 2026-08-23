@@ -54,9 +54,9 @@ function setup() {
     functions: { invoke: vi.fn() },
     integrations: { Core: { CreateFileSignedUrl: vi.fn() } },
     agents: {
-      subscribe: vi.fn(),
-      get: vi.fn(),
-      add: vi.fn(),
+      subscribeToConversation: vi.fn(),
+      getConversation: vi.fn(),
+      addMessage: vi.fn(),
     },
   };
   return { aws, legacy, client: createCompatibilityClient({ aws, legacy }) };
@@ -88,5 +88,29 @@ describe("Base44 compatibility allowlist", () => {
     ).rejects.toThrow("not implemented");
     expect(aws.functions.invoke).toHaveBeenCalledOnce();
     expect(legacy.functions.invoke).not.toHaveBeenCalled();
+  });
+
+  it("preserves the readiness conversation agent method names", async () => {
+    const { client, legacy } = setup();
+    const listener = vi.fn();
+    const conversation = { id: "conversation-1" };
+    legacy.agents.getConversation.mockResolvedValue(conversation);
+
+    client.agents.subscribeToConversation("conversation-1", listener);
+    await client.agents.getConversation("conversation-1");
+    await client.agents.addMessage(conversation, {
+      role: "user",
+      content: "Is this submission ready?",
+    });
+
+    expect(legacy.agents.subscribeToConversation).toHaveBeenCalledWith(
+      "conversation-1",
+      listener,
+    );
+    expect(legacy.agents.getConversation).toHaveBeenCalledWith("conversation-1");
+    expect(legacy.agents.addMessage).toHaveBeenCalledWith(conversation, {
+      role: "user",
+      content: "Is this submission ready?",
+    });
   });
 });

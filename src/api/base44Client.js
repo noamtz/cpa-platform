@@ -48,9 +48,10 @@ export function createCompatibilityClient({ aws, legacy }) {
       },
     },
     agents: {
-      subscribe: (...args) => legacy.agents.subscribe(...args),
-      get: (...args) => legacy.agents.get(...args),
-      add: (...args) => legacy.agents.add(...args),
+      subscribeToConversation: (...args) =>
+        legacy.agents.subscribeToConversation(...args),
+      getConversation: (...args) => legacy.agents.getConversation(...args),
+      addMessage: (...args) => legacy.agents.addMessage(...args),
     },
   };
 }

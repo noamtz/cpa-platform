@@ -65,4 +65,30 @@ describe("deferred integration routes", () => {
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it("accepts the existing batch payload before returning the controlled 501", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const response = await createHandler(() => "test", () => dependencies)(
+      {
+        ...event,
+        body: JSON.stringify({
+          sync_all: true,
+          submission_ids: [
+            { submission_id: "submission-1", client_id: "client-1" },
+            { submission_id: "submission-2", client_id: "client-2" },
+          ],
+        }),
+      } as never,
+      {} as Context,
+      vi.fn(),
+    );
+
+    expect(response).toMatchObject({ statusCode: 501 });
+    expect(JSON.parse(String((response as { body: string }).body))).toEqual({
+      error: "Not implemented",
+      code: "FEATURE_NOT_IMPLEMENTED",
+      feature: "google-drive",
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
