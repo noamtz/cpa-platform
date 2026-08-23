@@ -1,0 +1,68 @@
+{
+  "Client": [
+    {
+      "id": "client-fixture-0001",
+      "created_date": "2026-01-01T00:00:00Z",
+      "full_name": "Invented Fixture",
+      "email": "fixture@example.test",
+      "token": "fixture-token-not-production",
+      "undocumented_system_field": {
+        "retained": true
+      }
+    }
+  ],
+  "Submission": [
+    {
+      "id": "submission-fixture-0001",
+      "client_id": "client-fixture-0001",
+      "form_106_files": [
+        "private/submission-fixture/form-106"
+      ],
+      "pension_files": [],
+      "form_867_files": [],
+      "insurance_files": [],
+      "donation_files": [],
+      "pdf_file_url": "private://submission-fixture/signed-pdf",
+      "responses": "{\"stale/step~one\":{\"answer\":false,\"files\":[\"private/submission-fixture/stale\"],\"file_names\":[\"fixture.pdf\"]}}",
+      "pdf_inputs": "{\"nested\":\"{\\\"file\\\":\\\"private/submission-fixture/repeated-json\\\"}\"}",
+      "signed_pdfs": "[{\"step_id\":\"pdf-step\",\"pdf_file_url\":\"private://submission-fixture/signed-pdf\",\"pdf_inputs\":{\"attachment\":\"private/submission-fixture/input\"}}]",
+      "cpa_audit_log": "[]"
+    }
+  ],
+  "QuestionnaireTemplate": [
+    {
+      "id": "questionnaire-template-fixture-0001",
+      "steps": "[{\"id\":\"fixture-step\",\"unknown_nested\":{\"files\":[\"private/questionnaire-fixture/help\"]}}]",
+      "is_active": false
+    }
+  ],
+  "PdfTemplate": [
+    {
+      "id": "pdf-template-fixture-0001",
+      "name": "Fixture PDF",
+      "template_json": "{\"basePdf\":{\"__type\":\"file_uri\",\"value\":\"private/pdf-template-fixture/base\"},\"schemas\":[],\"embedded\":\"data:application/pdf;base64,ZmFrZQ==\"}"
+    }
+  ],
+  "SyncedDriveFile": [
+    {
+      "id": "synced-drive-file-fixture-0001",
+      "submission_id": "submission-fixture-0001",
+      "original_file_url": "https://files.example.test/synthetic/document",
+      "drive_file_id": "drive-fixture-id-not-a-url"
+    }
+  ],
+  "User": [
+    {
+      "id": "user-fixture-0001",
+      "email": "cpa-one@example.test",
+      "role": "admin",
+      "drive_base_path": "Fixture One"
+    },
+    {
+      "id": "user-fixture-0002",
+      "email": "cpa-two@example.test",
+      "role": "admin",
+      "drive_base_path": "Fixture Two"
+    }
+  ]
+}

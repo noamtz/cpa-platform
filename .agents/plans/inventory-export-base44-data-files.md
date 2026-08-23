@@ -71,7 +71,8 @@ incompatible run.
 operator storage
 
 **Dependencies**: Python 3.11+ standard library; Base44 CLI `0.1.10`; a separate Node `>=20.19.0` CLI shell;
-Base44 owner/editor login; `BASE44_APP_ID` in the operator environment; adequate encrypted local disk space
+Deno `2.9.5` on that CLI shell's `PATH`; Base44 owner/editor login; `BASE44_APP_ID` in the operator environment;
+adequate encrypted local disk space
 
 ## Related Work
 
@@ -160,6 +161,8 @@ Base44 owner/editor login; `BASE44_APP_ID` in the operator environment; adequate
 - External production-source `HEAD` is the pinned, clean `5920c779cc49d6502bdbb2aad56e40845778fc9c`.
 - `origin` is exactly `git@github.com:noamtz/cpa-platform.git`.
 - Base44 CLI npm package `base44` latest/tested version on 2026-08-23 is `0.1.10`, with Node `>=20.19.0`.
+- Base44 CLI `0.1.10` implements `exec` by spawning `deno`; the rehearsal pins Deno `2.9.5` in a disposable
+  operator-only runtime directory rather than adding it to product dependencies.
 - `base44 exec --privileged` is documented and present in CLI help; it requires app owner/editor permission and
   bypasses row-level security. The production data environment name is `prod`.
 - No linked `base44/.app.jsonc` is committed or currently present here. Live commands use `BASE44_APP_ID` from the
@@ -172,7 +175,7 @@ baseline has drifted, stop and amend this plan before a production read.
 
 - `tooling/export_base44_snapshot.py` - stdlib Python CLI and reusable canonicalization, discovery, checkpoint,
   download, verification, and summary functions.
-- `tooling/base44_export_bridge.ts` - fixed-source Base44 CLI bridge template with one request-literal marker; only
+- `tooling/base44_export_bridge.ts` - fixed-source Base44 CLI bridge with one request-environment marker; only
   `list_page` and `sign_file`.
 - `tooling/tests/test_export_base44_snapshot.py` - synthetic unit/integration fixtures for every acceptance path.
 - `tooling/tests/fixtures/base44-export/records.json` - invented non-production entity/page/file-reference variants.
@@ -325,8 +328,9 @@ interruption at every publication boundary, tamper/drift detection, redirect/hos
 
 During an owner-supervised quiet read window, run the complete snapshot and offline verifier, render sanitized JSON
 and Markdown summaries, independently spot-check aggregate table counts, recheck source integrity, and run the full
-repository validation suite. A rehearsal passes only when all six inventories are stable, `User` count is exactly
-two, every discovered downloadable file closes with bytes/size/hash, unresolved count is zero, and all private
+repository validation suite. A rehearsal passes only when all six inventories are stable, the `User` inventory has
+exactly two records with `role === "admin"` while every regular user is preserved, every discovered downloadable file
+closes with bytes/size/hash, unresolved count is zero, and all private
 artifacts rehash.
 
 ---
@@ -340,10 +344,13 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 - **IMPLEMENT**: Re-read issue #5, epic #1, canonical Wiki PRD/architecture, issue #3 completion, and current entity
   contracts. Confirm destination origin/HEAD/status and external source HEAD/status without writing there.
 - **IMPLEMENT**: In a separate Node >=20.19 shell, assert the actual `node --version`, then verify
-  `npx --yes base44@0.1.10`, operator-managed login, owner/editor privilege, `BASE44_APP_ID`, and `prod` access.
+  `npx --yes base44@0.1.10`, pinned Deno `2.9.5`, operator-managed login, owner/editor privilege,
+  `BASE44_APP_ID`, and `prod` access.
   Capture only booleans/versions/record counts.
 - **GOTCHA**: Do not inspect/copy `~/.base44/auth/auth.json`, run `base44 link`, print the app ID, or reuse the app's
-  Node 20.17 shell for the CLI.
+  Node 20.17 shell for the CLI. Keep the pinned Deno runtime outside product dependencies and expose it only through
+  the operator shell's `PATH`. Set `DENO_NO_PACKAGE_JSON=1` and an isolated disposable `DENO_DIR` on every bridge
+  subprocess so Deno cannot discover unrelated ancestor package manifests from its temporary wrapper path.
 - **VALIDATE**: `git remote get-url origin; git status --short --branch; git -C C:\Users\ntzur\workspace-antigravity\auditflow rev-parse HEAD; git -C C:\Users\ntzur\workspace-antigravity\auditflow status --short; $base44NodeVersion = [version]((node --version).TrimStart('v')); if ($base44NodeVersion -lt [version]'20.19.0') { throw 'Base44 CLI requires Node >=20.19.0' }; npx --yes base44@0.1.10 --version`
 - **SATISFIES**: AC #1, #7, #8.
 
@@ -461,7 +468,8 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 
 - **IMPLEMENT**: After the operator completes Base44 device login and sets `BASE44_APP_ID` in the separate CLI shell,
   run `doctor` against `prod` with privilege. Confirm all six entities are readable, ascending `id` is accepted and
-  strictly increasing, page-size-one and normal-page ID sets match, exactly two `User` records are visible, and at
+  strictly increasing, page-size-one and normal-page ID sets match, exactly two `User` records have the dashboard's
+  CPA `admin` role while every user record remains in scope, and at
   least one discovered private reference can be signed when production contains one.
 - **IMPLEMENT**: If privilege, entity visibility, production environment, or signing is unavailable, stop and amend
   the plan. The only allowed fallback is an owner-approved supported/manual Base44 export path; never deploy a helper.
@@ -478,7 +486,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 - **IMPLEMENT**: If export pauses at `awaiting_public_host_review`, inspect the private candidate file locally, create
   an absolute private allowlist JSON outside the worktree, and resume with `--public-host-allowlist`; its canonical
   hash becomes immutable run configuration. Any source drift, allowlist drift, unresolved reference, malformed
-  required JSON, file failure, or non-two User count produces a failed rehearsal.
+  required JSON, file failure, or non-two CPA/admin User count produces a failed rehearsal.
 - **GOTCHA**: Do not transmit, attach, inspect in chat, or commit the output. Keep the private run for issue #11 under
   owner-controlled retention.
 - **VALIDATE**: `python tooling/export_base44_snapshot.py export --data-env prod --output-root <absolute-outside-repo-path> --resume --public-host-allowlist <absolute-private-json> --confirm-production-read-only; python tooling/export_base44_snapshot.py verify --snapshot <absolute-run-path>`
@@ -488,7 +496,7 @@ IMPORTANT: Execute every task in order, top to bottom. Each task is atomic and i
 
 - **IMPLEMENT**: Render `docs/migration/base44-rehearsal-summary.{json,md}` only from an offline-verified private
   manifest. Include versions/timestamps, six per-entity counts and aggregate hashes, total object/reference/file/
-  byte/duplicate counts, unresolved counts by safe reason, parse findings, two-User gate, and overall pass/fail.
+  byte/duplicate counts, unresolved counts by safe reason, parse findings, two-CPA/admin-User gate, and overall pass/fail.
 - **IMPLEMENT**: Independently compare Base44 dashboard per-entity aggregate counts where supported. Recheck external
   source HEAD/status, scan Git changes for raw artifacts/sensitive values, and prove actual output is outside Git.
 - **GOTCHA**: A dashboard count is corroboration only. Do not commit exported CSV. Do not weaken a failed automated
@@ -560,12 +568,15 @@ git -C C:\Users\ntzur\workspace-antigravity\auditflow rev-parse HEAD
 git -C C:\Users\ntzur\workspace-antigravity\auditflow status --short
 $base44NodeVersion = [version]((node --version).TrimStart('v'))
 if ($base44NodeVersion -lt [version]'20.19.0') { throw 'Base44 CLI requires Node >=20.19.0' }
+$auditflowDenoVersion = (deno --version | Select-Object -First 1)
+if ($auditflowDenoVersion -ne 'deno 2.9.5') { throw 'Base44 CLI rehearsal requires Deno 2.9.5' }
 npx --yes base44@0.1.10 --version
 python tooling/export_base44_snapshot.py doctor --data-env prod --confirm-production-read-only
 ```
 
 Expected: correct origin, safe feature branch, clean pinned external source, CLI 0.1.10, six privileged entity reads,
-two visible User records, and signing capability when a private reference exists. No raw output is created.
+two visible CPA/admin User records without excluding other users, and signing capability when a private reference
+exists. No raw output is created.
 
 ### Level 1: Syntax, focused tests, and artifact format
 
@@ -619,7 +630,8 @@ python tooling/export_base44_snapshot.py summarize `
   --markdown docs/migration/base44-rehearsal-summary.md
 ```
 
-Expected: stable two-pass inventories, exact two User records, all references resolved/downloaded, private artifact
+Expected: stable two-pass inventories, exact two CPA/admin User records with all users preserved, all references
+resolved/downloaded, private artifact
 hashes valid, sanitized summary pass, and no raw values in stdout/stderr/Git.
 
 ### Level 5: Manual review
@@ -636,47 +648,49 @@ hashes valid, sanitized summary pass, and no raw values in stdout/stderr/Git.
 
 ## ACCEPTANCE CRITERIA
 
-- [ ] **AC #1 - Complete records:** all six entities paginate to a stable two-pass close; every SDK-returned object
+- [x] **AC #1 - Complete records:** all six entities paginate to a stable two-pass close; every SDK-returned object
   retains its ID, timestamps, token/access fields, undocumented system fields, field names, raw values, and exact
   stringified JSON values in private artifacts.
-- [ ] **AC #2 - Complete discovery:** recursive fixtures and production discovery cover legacy arrays, dynamic/stale
+- [x] **AC #2 - Complete discovery:** recursive fixtures and production discovery cover legacy arrays, dynamic/stale
   responses, signed PDFs, templates, typed/legacy private refs, public candidates, unknown nested values, malformed
   known JSON, and every referrer JSON Pointer without a hand-maintained URL list.
-- [ ] **AC #3 - Checksummed manifest:** every record has a canonical SHA-256; every downloaded file has exact bytes,
+- [x] **AC #3 - Checksummed manifest:** every record has a canonical SHA-256; every downloaded file has exact bytes,
   byte length, and SHA-256; entity/page/manifest aggregates are deterministic; duplicate refs/content remain
   reconcilable.
-- [ ] **AC #4 - Safe resume:** interruption at any tested boundary resumes without duplicate/corrupt output, verifies
+- [x] **AC #4 - Safe resume:** interruption at any tested boundary resumes without duplicate/corrupt output, verifies
   all prior artifacts/config, and fails closed on source drift, tamper, or incompatible state.
-- [ ] **AC #5 - Privacy/security:** raw output stays outside Git on owner-approved storage; no production auth
+- [x] **AC #5 - Privacy/security:** raw output stays outside Git on owner-approved storage; no production auth
   material, PII, URI, signed URL, filename, raw ID, tax data, or record value appears in logs, committed fixtures,
   commands, summaries, reports, or source control.
-- [ ] **AC #6 - File closure:** every discovered accessible private/approved-public reference resolves to one verified
+- [x] **AC #6 - File closure:** every discovered accessible private/approved-public reference resolves to one verified
   content object; failures are typed findings rather than silent skips; successful rehearsal unresolved count is zero.
-- [ ] **AC #7 - Rehearsal evidence:** the two CPA `User` records are accounted for; sanitized JSON/Markdown reports
+- [x] **AC #7 - Rehearsal evidence:** the two CPA/admin `User` records are accounted for while every regular user is
+  preserved; sanitized JSON/Markdown reports
   contain six entity counts/aggregate hashes, object/reference/file/byte totals, duplicates, parse findings,
   unresolved reasons, and pass/fail; independent dashboard aggregate spot-check agrees.
-- [ ] **AC #8 - Read-only proof:** bridge surface contains only privileged entity list and signed-file operations;
+- [x] **AC #8 - Read-only proof:** bridge surface contains only privileged entity list and signed-file operations;
   no source repository, Base44 record/file/app, AWS resource, Google Drive object, or product runtime is changed.
-- [ ] All focused/full validation commands pass or match the documented inherited typecheck/lint baseline with zero
+- [x] All focused/full validation commands pass or match the documented inherited typecheck/lint baseline with zero
   new diagnostics.
 
 ---
 
 ## COMPLETION CHECKLIST
 
-- [ ] Issue #3, epic architecture, origin, branch, external source, and CLI version/runtime are revalidated.
-- [ ] Base44 owner/editor login and privileged `prod` reads pass without exposing identity/auth material.
-- [ ] Raw output is outside Git on encrypted/non-synced storage; emergency in-repo output is ignored and unused.
-- [ ] Pure snapshot/discovery/download/resume/redaction tests pass before a live read.
-- [ ] Bridge read-only surface and captured subprocess protocol tests pass.
-- [ ] Live `doctor` reads six entities, sees two User records, and proves signing without writing output.
-- [ ] Rehearsal is interrupted once and resumes successfully.
-- [ ] Two consecutive record inventories match; every object/file/page/manifest hash verifies offline.
-- [ ] Every file ref occurrence is accounted for and unresolved count is zero.
-- [ ] Sanitized JSON/Markdown summary passes the sensitive-value scan and aggregate dashboard spot-check.
-- [ ] Python, frontend, foundation, type, lint, build, contract, Codex-layer, and diff checks complete.
-- [ ] External source and Base44 app/data remain unchanged; no deploy/write call occurred.
-- [ ] Private snapshot retention and issue #11 handoff are recorded without committing its location or contents.
+- [x] Issue #3, epic architecture, origin, branch, external source, and CLI version/runtime are revalidated.
+- [x] Base44 owner/editor login and privileged `prod` reads pass without exposing identity/auth material.
+- [x] Raw output is outside Git on encrypted/non-synced storage; emergency in-repo output is ignored and unused.
+- [x] Pure snapshot/discovery/download/resume/redaction tests pass before a live read.
+- [x] Bridge read-only surface and captured subprocess protocol tests pass.
+- [x] Live `doctor` reads six entities, sees two CPA/admin User records while preserving all users, and proves
+  signing without writing output.
+- [x] Rehearsal is interrupted once and resumes successfully.
+- [x] Two consecutive record inventories match; every object/file/page/manifest hash verifies offline.
+- [x] Every file ref occurrence is accounted for and unresolved count is zero.
+- [x] Sanitized JSON/Markdown summary passes the sensitive-value scan and aggregate dashboard spot-check.
+- [x] Python, frontend, foundation, type, lint, build, contract, Codex-layer, and diff checks complete.
+- [x] External source and Base44 app/data remain unchanged; no deploy/write call occurred.
+- [x] Private snapshot retention and issue #11 handoff are recorded without committing its location or contents.
 
 ---
 
@@ -691,8 +705,9 @@ hashes valid, sanitized summary pass, and no raw values in stdout/stderr/Git.
   but support for legacy `private://`, `private/`, and `mp/` references must be proven by live capability checks.
 - **Assumption:** Two complete equal reads during a quiet window are sufficient rehearsal evidence. Base44 documents
   offset pagination but not an atomic point-in-time snapshot; a final cutover snapshot/delta still belongs to #15.
-- **Assumption:** The six entity count includes exactly two `User` records, matching the architecture's two CPA
-  profiles. Any extra/missing record is a reconciliation finding, not silently filtered.
+- **Assumption:** The complete `User` inventory includes exactly two records with `role === "admin"`, matching the
+  dashboard's CPA-team filter and the architecture's two CPA profiles. Regular users remain in the complete export;
+  an extra/missing admin record is a reconciliation finding, not silently filtered.
 - **Assumption:** Production volume fits local encrypted storage and the configured safe download cap. `doctor`
   estimates record/reference counts, while actual byte total is a rehearsal fact. Never truncate to meet a cap.
 - **Assumption:** Public file candidates can be closed with an owner-reviewed, absolute private JSON host allowlist
@@ -772,7 +787,44 @@ remaining uncertainties are live owner/editor privileged visibility and legacy p
 
 ## AMENDMENTS
 
-_None at creation._
+- **2026-08-23 — Deno runtime prerequisite:** The first live `doctor` attempt stopped before reading entity data.
+  Inspection of the pinned Base44 CLI `0.1.10` package showed that `exec` spawns an external `deno` executable,
+  although the original plan listed only the CLI's documented Node engine. Pin Deno `2.9.5` in a disposable
+  operator-only runtime directory, validate it explicitly, and keep it out of product dependencies. The same live
+  probe then exposed Deno ancestor `package.json` discovery from Base44's temporary wrapper path; force
+  `DENO_NO_PACKAGE_JSON=1` with an isolated disposable `DENO_DIR` on bridge subprocesses instead of modifying the
+  unrelated user-level manifest. This does not change the read-only bridge, snapshot format, acceptance criteria,
+  or source/target boundaries.
+- **2026-08-23 — Page-size-one probe batching:** The first successful live doctor transport revealed that launching
+  a complete Base44 CLI/Deno process for every `list("id", 1, skip)` page made the required complete-ID-set proof
+  scale with per-record process startup. Keep the existing `list_page` operation and exact SDK calls, but allow its
+  doctor-only `exhaust` mode to execute the page-size-one offset loop inside one captured bridge process per entity.
+  The bridge itself rejects missing/non-increasing IDs and oversized pages, and Python revalidates/hashes the returned
+  complete ordered sequence. This changes performance only, not query semantics or the two-operation read/sign
+  surface.
+- **2026-08-23 — CPA user reconciliation semantics:** The optimized live doctor proved complete privileged access
+  to eight `User` records: two schema-valid `admin` records and six schema-valid regular `user` records. Executable
+  dashboard behavior in `src/components/dashboard/TeamSection.jsx` defines CPA team members as
+  `users.filter((u) => u.role === "admin")`. Replace the incorrect total-User-count gate with an exact-two-admin gate
+  while preserving and hashing all User records. No identity or record-level value is committed or reported.
+- **2026-08-23 — Static bridge request transport and Windows Deno resolution:** Live cache inspection showed that
+  injecting a private reference as a TypeScript source literal allowed Deno's disposable transpilation cache to
+  retain that request. Keep the bridge program static and pass canonical requests only through the child-process
+  environment; remove the affected exporter-owned cache after validating its exact temp-directory containment.
+  On Windows, put the package's directory containing `deno.exe` on `PATH` rather than its npm shim directory,
+  because Base44 CLI launches the executable directly. This preserves the two-operation protocol and prevents
+  private request material from entering generated source artifacts.
+- **2026-08-23 — Iterative redirect review and reference checkpoints:** The first approved public host redirected to
+  a second host. Treat any unapproved redirect as a durable `awaiting_public_host_review` pause, publish an expanded
+  private candidate artifact, and accept resume only when its canonical hash/count matches run state. Persist each
+  successful reference-to-content resolution so review pauses and interruptions do not redownload verified files.
+  The owner approved both private candidates; neither hostname is committed or logged.
+- **2026-08-23 — Batched signing and bounded transport retry:** Production volume made one Base44 CLI/Deno startup
+  per private reference operationally excessive and exposed transient process/download failures. Allow up to 50
+  references inside the existing `sign_file` operation, returning only ordered per-item outcomes and keeping signed
+  URLs in memory. Retry only the static `download_failed` transport category up to three attempts, while classifying
+  HTTP 404/410 as `source_file_missing` without retry. The passing rehearsal retained identical record/reference
+  semantics and closed 687 unique references with zero unresolved findings.
 
 ---
 
