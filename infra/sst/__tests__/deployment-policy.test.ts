@@ -87,19 +87,28 @@ describe("test deployment IAM policy", () => {
   });
 
   it("manages only the existing tagged pool and its required OAuth children", () => {
+    const discovery = policy.Statement.find(
+      ({ Sid }) => Sid === "GlobalDiscoveryOnly",
+    );
     const cognito = policy.Statement.find(
       ({ Sid }) => Sid === "ManageTaggedStageUserPool",
     );
 
+    expect(actions(discovery!)).toContain(
+      "cognito-idp:DescribeUserPoolDomain",
+    );
+    expect(discovery?.Resource).toBe("*");
     expect(actions(cognito!)).toEqual(
       expect.arrayContaining([
         "cognito-idp:CreateResourceServer",
         "cognito-idp:CreateUserPoolDomain",
         "cognito-idp:DescribeResourceServer",
-        "cognito-idp:DescribeUserPoolDomain",
         "cognito-idp:UpdateResourceServer",
         "cognito-idp:UpdateUserPoolClient",
       ]),
+    );
+    expect(actions(cognito!)).not.toContain(
+      "cognito-idp:DescribeUserPoolDomain",
     );
     expect(cognito).toMatchObject({
       Resource: "arn:aws:cognito-idp:il-central-1:123456789012:userpool/*",
