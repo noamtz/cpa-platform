@@ -7,6 +7,26 @@ import {
 } from "../function-client";
 
 describe("public function client", () => {
+  it("uses a stable AWS compatibility path without build-time app configuration", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ template: { id: "template-1" } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    await postPublicFunction(
+      "getActiveTemplate",
+      { client_id: "client-1", token: "opaque-link-value" },
+      { fetchImpl },
+    );
+
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "/api/apps/auditflow/functions/getActiveTemplate",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
   it("posts JSON to the exact legacy compatibility path without Authorization", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ client: { id: "client-1" } }), {

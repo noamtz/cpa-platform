@@ -5,6 +5,8 @@ const MIGRATED_PUBLIC_FUNCTIONS = new Set([
   "updateClientSubmission",
 ]);
 
+const AWS_COMPATIBILITY_APP_ID = "auditflow";
+
 function fallbackError(name, status) {
   return { error: `${name} failed with ${status}` };
 }
@@ -22,7 +24,7 @@ export async function postPublicFunction(
   name,
   payload,
   {
-    appId = import.meta.env.VITE_BASE44_APP_ID,
+    appId = AWS_COMPATIBILITY_APP_ID,
     fetchImpl = globalThis.fetch,
   } = {},
 ) {
