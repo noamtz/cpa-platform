@@ -8,7 +8,9 @@ import StepSelector from "@/components/questionnaire/StepSelector";
 import { DEFAULT_STEPS, resolveYearPlaceholders, getActiveSteps, filterStepsByClientConditions } from "@/lib/questionnaire-template";
 import { getResponses } from "@/lib/submission-compat";
 import { buildSteps, parseSignedPdfs, getResumeStepIndex, deriveStepStatuses } from "@/lib/questionnaire-steps";
+import { createRecoverableSaveQueue } from "@/lib/questionnaire-save-queue";
 import { postPublicFunction } from "@/api/function-client";
+import { useToast } from "@/components/ui/use-toast";
 
 // Lazy-load PDF signing wrapper (pdfme is ~2MB)
 const PdfSignStepWrapper = lazy(() => import("@/components/questionnaire/PdfSignStepWrapper"));
@@ -25,6 +27,7 @@ export default function ClientQuestionnaire() {
   const token = urlParams.get("token");
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
 
   // Prevent SDK from auto-authenticating on the public questionnaire page
   // Wrapped in try-catch: WhatsApp's WKWebView blocks localStorage (SecurityError)
@@ -56,7 +59,7 @@ export default function ClientQuestionnaire() {
   const [activeSteps, setActiveSteps] = useState([]); // resolved steps from template
   const [pdfViewLoading, setPdfViewLoading] = useState({}); // { stepId: true/false }
   const [isSaving, setIsSaving] = useState(false);
-  const saveQueue = useRef(Promise.resolve());
+  const saveQueue = useRef(createRecoverableSaveQueue());
 
   const STEPS = buildSteps(activeSteps);
 
@@ -219,7 +222,7 @@ export default function ClientQuestionnaire() {
   const updateSubmission = (data, completed = false) => {
     setIsSaving(true);
     // Chain onto the queue and return a promise that resolves when THIS save completes
-    const thisSave = saveQueue.current.then(async () => {
+    const thisSave = saveQueue.current.enqueue(async () => {
       const result = await callFunction('updateClientSubmission', {
         client_id: clientId,
         token,
@@ -249,11 +252,19 @@ export default function ClientQuestionnaire() {
         return result.submission;
       }
       return false;
-    }).finally(() => {
-      setIsSaving(false);
     });
-    saveQueue.current = thisSave;
-    return thisSave;
+    return thisSave
+      .catch(() => {
+        toast({
+          title: "השמירה נכשלה",
+          description: "לא הצלחנו לשמור את התשובה. אפשר לנסות שוב.",
+          variant: "destructive",
+        });
+        return false;
+      })
+      .finally(() => {
+        setIsSaving(false);
+      });
   };
 
   const handleNext = async (stepData) => {

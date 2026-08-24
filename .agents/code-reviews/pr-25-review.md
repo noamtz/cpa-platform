@@ -1,12 +1,11 @@
-# Code review — PR #25
+# Code review — PR #25 (rerun)
 
 ## Summary
 
-PR #25 implements the intended four public questionnaire compatibility routes with strong token checks, optimistic
-revisions, journaled DynamoDB transactions, and acknowledged frontend saves. The implementation is well tested and
-the application/foundation validation reproduces the documented baseline. One public projection currently exposes
-CPA-only audit data, however, and the committed PR diff also fails whitespace validation. Changes are requested
-before human approval.
+PR #25 implements the intended public questionnaire compatibility boundary with strict token authorization,
+optimistic revisions, atomic journaled mutations, explicit fail-closed routes, and acknowledged frontend saves. The
+previous public projection disclosure and committed whitespace failures are resolved. A fresh review found one
+remaining save-queue recovery defect that can prevent all subsequent saves after a transient transport failure.
 
 ## Findings by severity
 
@@ -20,29 +19,28 @@ None.
 
 ### Medium
 
-1. **The public Submission projection exposes CPA-only audit entries** —
-   `backend/api/contracts/public-questionnaire.ts:172`.
+1. **A transient transport failure permanently disables subsequent questionnaire saves** —
+   `src/pages/ClientQuestionnaire.jsx:222` and `src/pages/ClientQuestionnaire.jsx:255`.
 
-   `PUBLIC_SUBMISSION_FIELDS` includes `cpa_audit_log`, so every successful public `getClientByToken` response can
-   disclose internal CPA audit entries, including staff email/name, actions, and timestamps, to a questionnaire-link
-   holder. Neither public questionnaire nor signing code reads this field, and the intended boundary is a minimal,
-   UI-required token-scoped projection.
+   `thisSave` rejects when `postPublicFunction` fails at the transport layer, and that rejected promise is assigned
+   back to `saveQueue.current`. Every later `saveQueue.current.then(...)` then short-circuits without issuing a new
+   request. The current click also receives an unhandled rejection instead of a recoverable UI error, so the user
+   cannot retry or persist later answers without reloading the page.
 
-   **Fix:** remove `cpa_audit_log` from the public allowlist, add a regression assertion proving it is absent, and
-   audit the remaining allowlisted fields for other CPA-only metadata.
+   **Fix:** keep `thisSave` as the promise returned to the individual caller, but make the queue tail recover from
+   rejection (for example, assign a handled derivative to `saveQueue.current`) and surface the failed save through
+   the existing error state. Add a regression test proving that after the first transport rejects, a second save is
+   dispatched and navigation occurs only after that second request succeeds.
 
 ### Low
 
-1. **The committed PR diff fails whitespace validation** —
-   `.agents/plans/preserve-public-questionnaire-persistence-resume.md:81` and
-   `.agents/reports/preserve-public-questionnaire-persistence-resume-report.md:3` (representative locations).
+None.
 
-   `git diff --check origin/main...HEAD` reports six committed whitespace errors: five trailing-whitespace lines and
-   one extra blank line at EOF. The PR description states that diff hygiene passed, but the command previously
-   checked only the clean working tree rather than the committed PR range.
+## Resolved findings from the prior review
 
-   **Fix:** remove the reported trailing spaces/EOF blank line and validate the committed range with
-   `git diff --check origin/main...HEAD`.
+- `cpa_audit_log` and the internal `alert_sent` notification flag are absent from the public Submission projection,
+  with explicit regression assertions.
+- `git diff --check origin/main...HEAD` is clean; the previously reported Markdown whitespace errors are gone.
 
 ## Validation
 
@@ -54,29 +52,27 @@ None.
 | Foundation/backend/tooling tests | Pass | 22 files / 150 tests |
 | Foundation typecheck | Pass | Clean |
 | Foundation lint | Pass | Clean |
-| Touched frontend lint | Pass | Clean |
+| Changed-file lint | Pass | 27 changed code files clean |
 | Production build | Pass | Vite build completed |
 | SST contract verifier | Pass | Test-stage contract verified |
-| Full application typecheck | Baseline fail | 178 inherited diagnostics; zero in touched paths |
-| Full application lint | Baseline fail | 21 inherited errors; touched-path lint is clean |
+| Full application typecheck | Baseline fail | 178 inherited diagnostics; zero in changed files |
+| Full application lint | Baseline fail | 21 inherited errors; changed-file lint is clean |
 | Codex-layer validation | Pass | 31 skills / 6 custom agents |
-| `git diff --check origin/main...HEAD` | Fail | Six committed Markdown whitespace errors |
+| `git diff --check origin/main...HEAD` | Pass | Clean committed PR range |
 | AWS deployment/live verification | Not run | Review performed no deployment or AWS mutation; PR records an earlier read-only diff |
 
 ## What is good
 
-- The four public routes are explicitly enumerated and fail closed; all CPA routes remain JWT scoped.
-- Archived/tokenless clients are rejected, tokens are compared through fixed-length digests, and projections omit
-  the client token itself.
-- Conditional active guards, acknowledged revisions, and journaled transactions prevent first-save duplication and
-  stale whole-object overwrites without retrying semantic conflicts.
-- The browser transport preserves structured non-2xx bodies, and questionnaire/signing navigation now uses only
-  acknowledged Submission state.
-- Focused tests cover authorization, cross-client/year isolation, transaction conflicts, template seeding races,
-  revisions, signing persistence, completion transitions, and route inventory.
+- Public routing is explicit and fail-closed, while CPA routes remain Cognito/JWT scoped.
+- Token validation, cross-client/year isolation, active-submission guards, revision checks, and journaled atomic
+  transactions provide a strong persistence boundary.
+- Public projections now exclude both CPA audit entries and internal notification state.
+- Frontend navigation uses acknowledged Submission state, and the focused tests cover authorization, conflicts,
+  template races, completion, signing persistence, and exact route inventory.
+- The updated committed range is clean and the implementation remains within the plan's stated migration slice.
 
 ## Recommendation
 
-**Request changes.** Remove the CPA audit-log disclosure and committed whitespace errors, add the projection
-regression assertion, then rerun focused/foundation validation and the committed-range diff check. After fixes, run
-`piv-review-pr 25` again before human approval.
+**Request changes.** Recover the save-queue tail after transport rejection, surface the individual failure, and add
+the retry regression test. Then run `piv-fix-review-findings .agents/code-reviews/pr-25-review.md` and rerun this PR
+review before human approval.
