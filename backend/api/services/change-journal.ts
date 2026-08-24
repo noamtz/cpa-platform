@@ -8,14 +8,17 @@ import {
 
 import {
   formatJournalSequence,
+  FILE_RECEIPT_SCOPE,
   JOURNAL_CURSOR_SEQUENCE,
   JOURNAL_MAX_ACTIONS,
   JOURNAL_MAX_ITEM_BYTES,
   JOURNAL_SCOPE,
   journalEntrySchema,
+  fileOperationReceiptSchema,
+  type FileOperationReceipt,
   type MutationChange,
 } from "../contracts/change-journal";
-import { conflict, internalError } from "../core/errors";
+import { ApiError, conflict, internalError } from "../core/errors";
 import type { DynamoDocumentClient } from "../repositories/dynamo";
 
 type TransactionItem = NonNullable<
@@ -45,6 +48,15 @@ export interface ChangeJournalOptions {
   readonly clock?: () => Date;
   readonly sleep?: (milliseconds: number) => Promise<void>;
   readonly maxCursorAttempts?: number;
+}
+
+export interface FileOperationCommitInput {
+  readonly actorId: string;
+  readonly requestId: string;
+  readonly operationId: string;
+  readonly receiptKey: string;
+  readonly fileUri: string;
+  readonly change: MutationChange;
 }
 
 function canonicalize(value: unknown): unknown {
@@ -147,6 +159,61 @@ export class ChangeJournalService {
       ((milliseconds) =>
         new Promise((resolve) => setTimeout(resolve, milliseconds)));
     this.maxCursorAttempts = options.maxCursorAttempts ?? 4;
+  }
+
+  async getFileOperationReceipt(receiptKey: string): Promise<FileOperationReceipt | undefined> {
+    const result = (await this.options.client.send(
+      new GetCommand({
+        TableName: this.options.tableName,
+        Key: { scope: FILE_RECEIPT_SCOPE, sequence: receiptKey },
+        ConsistentRead: true,
+      }),
+    )) as { readonly Item?: Record<string, unknown> };
+    if (!result.Item) return undefined;
+    const parsed = fileOperationReceiptSchema.safeParse(result.Item);
+    if (!parsed.success) throw internalError();
+    return parsed.data;
+  }
+
+  async commitFileOperation(input: FileOperationCommitInput) {
+    const existing = await this.getFileOperationReceipt(input.receiptKey);
+    if (existing) return { fileUri: existing.file_uri, replayed: true } as const;
+
+    const receipt = fileOperationReceiptSchema.parse({
+      scope: FILE_RECEIPT_SCOPE,
+      sequence: input.receiptKey,
+      item_type: "FILE_RECEIPT",
+      file_uri: input.fileUri,
+      operation_id: input.operationId,
+      occurred_at: this.clock().toISOString(),
+    });
+    try {
+      await this.commit({
+        actorId: input.actorId,
+        requestId: input.requestId,
+        operationId: input.operationId,
+        businessActions: [
+          {
+            Put: {
+              TableName: this.options.tableName,
+              Item: receipt,
+              ConditionExpression:
+                "attribute_not_exists(#scope) AND attribute_not_exists(#sequence)",
+              ExpressionAttributeNames: { "#scope": "scope", "#sequence": "sequence" },
+            },
+          },
+        ],
+        changes: [input.change],
+      });
+      return { fileUri: input.fileUri, replayed: false } as const;
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.statusCode !== 409) {
+        throw error;
+      }
+      const winner = await this.getFileOperationReceipt(input.receiptKey);
+      if (!winner) throw error;
+      return { fileUri: winner.file_uri, replayed: true } as const;
+    }
   }
 
   async commit(input: JournalCommitInput) {

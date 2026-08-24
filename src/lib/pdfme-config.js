@@ -3,6 +3,8 @@
  * Used by PdfTemplateEditor (CPA) and PdfFormStep (Client).
  */
 
+import { fileClient } from "@/api/file-client";
+
 // ========== LAZY-LOADED MODULES ==========
 let Designer, Form, Viewer, text, image, signature, check, generate;
 let pdfmeLoadPromise = null;
@@ -158,11 +160,11 @@ const resolvedPdfCache = new Map();
  * 
  * @param basePdf - The basePdf value from the template
  * @param appId - The app ID from env
- * @param authContext - Optional { client_id, token, template_id } for secure client access.
- *                      If provided, uses getTemplateFileUrl (validates ownership).
- *                      If omitted, uses createSignedUrl (CPA dashboard, authenticated).
+ * @param authContext - Required public { client_id, token, template_id } or CPA
+ *                      { cpa: true, template_id } locator context.
  */
 export async function resolveBasePdf(basePdf, appId, authContext) {
+  void appId;
   if (!basePdf || typeof basePdf !== "object" || basePdf.__type !== "file_uri") {
     return basePdf;
   }
@@ -174,27 +176,17 @@ export async function resolveBasePdf(basePdf, appId, authContext) {
   let signed_url;
 
   if (authContext?.client_id && authContext?.token && authContext?.template_id) {
-    // Secure path: validate client_id + token + template_id server-side
-    const signRes = await fetch(`/api/apps/${appId}/functions/getTemplateFileUrl`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        client_id: authContext.client_id,
-        token: authContext.token,
-        template_id: authContext.template_id,
-      }),
-    });
-    if (!signRes.ok) throw new Error("Failed to get signed URL for PDF template");
-    ({ signed_url } = await signRes.json());
+    ({ signed_url } = await fileClient.getPublicTemplateFileUrl({
+      client_id: authContext.client_id,
+      token: authContext.token,
+      template_id: authContext.template_id,
+    }));
+  } else if (authContext?.cpa && authContext?.template_id) {
+    ({ signed_url } = await fileClient.getCpaTemplateFileUrl(
+      authContext.template_id,
+    ));
   } else {
-    // CPA dashboard path: authenticated via SDK, uses general createSignedUrl
-    const signRes = await fetch(`/api/apps/${appId}/functions/createSignedUrl`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file_uri: cacheKey }),
-    });
-    if (!signRes.ok) throw new Error("Failed to get signed URL for PDF");
-    ({ signed_url } = await signRes.json());
+    throw new Error("Missing authorized PDF template context");
   }
 
   const pdfRes = await fetch(signed_url);
@@ -390,7 +382,7 @@ export async function getSignerIp() {
  *
  * @param {Blob} pdfBlob - The generated PDF blob
  * @param {object} signerInfo - { name, email, phone } of the signer
- * @returns {object} Audit trail record
+ * @returns {Promise<object>} Audit trail record
  */
 export async function buildAuditTrail(pdfBlob, signerInfo = {}) {
   const [pdfHash, signerIp] = await Promise.all([

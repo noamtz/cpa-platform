@@ -19,7 +19,15 @@ export interface BucketContract {
   readonly logicalName: string;
   readonly publicAccess: false;
   readonly enforceHttps: true;
-  readonly cors: false;
+  readonly cors:
+    | false
+    | {
+        readonly originPolicy: "router-plus-local-test";
+        readonly allowHeaders: readonly string[];
+        readonly allowMethods: readonly ("HEAD" | "PUT")[];
+        readonly exposeHeaders: readonly string[];
+        readonly maxAge: "1 hour";
+      };
   readonly versioning: boolean;
   readonly expirationDays?: number;
 }
@@ -115,7 +123,19 @@ export const bucketContracts = [
     logicalName: "FilesBucket",
     publicAccess: false,
     enforceHttps: true,
-    cors: false,
+    cors: {
+      originPolicy: "router-plus-local-test",
+      allowHeaders: [
+        "content-type",
+        "if-none-match",
+        "x-amz-meta-owner-hash",
+        "x-amz-meta-purpose",
+        "x-amz-meta-declared-size",
+      ],
+      allowMethods: ["PUT", "HEAD"],
+      exposeHeaders: ["etag", "x-amz-version-id"],
+      maxAge: "1 hour",
+    },
     versioning: true,
   },
   {
@@ -159,6 +179,21 @@ export const apiRoutes = {
     path: "/apps/{appId}/functions/updateClientSubmission",
     authorization: "none",
   },
+  publicUploadFile: {
+    route: "POST /apps/{appId}/functions/uploadFile",
+    path: "/apps/{appId}/functions/uploadFile",
+    authorization: "none",
+  },
+  publicGetSignedPdfUrl: {
+    route: "POST /apps/{appId}/functions/getSignedPdfUrl",
+    path: "/apps/{appId}/functions/getSignedPdfUrl",
+    authorization: "none",
+  },
+  publicGetTemplateFileUrl: {
+    route: "POST /apps/{appId}/functions/getTemplateFileUrl",
+    path: "/apps/{appId}/functions/getTemplateFileUrl",
+    authorization: "none",
+  },
   clientQuery: {
     route: "POST /cpa/clients/query",
     path: "/cpa/clients/query",
@@ -192,6 +227,42 @@ export const apiRoutes = {
   submissionUpdate: {
     route: "PATCH /cpa/submissions/{id}",
     path: "/cpa/submissions/{id}",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  fileUploadInitiate: {
+    route: "POST /cpa/files/uploads/initiate",
+    path: "/cpa/files/uploads/initiate",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  fileUploadComplete: {
+    route: "POST /cpa/files/uploads/complete",
+    path: "/cpa/files/uploads/complete",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  submissionFileUrl: {
+    route: "POST /cpa/files/submission-url",
+    path: "/cpa/files/submission-url",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  templateFileUrl: {
+    route: "POST /cpa/files/template-url",
+    path: "/cpa/files/template-url",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  submissionZipRequest: {
+    route: "POST /cpa/submissions/{id}/zip-downloads",
+    path: "/cpa/submissions/{id}/zip-downloads",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  submissionZipStatus: {
+    route: "GET /cpa/submissions/{id}/zip-downloads/{jobId}",
+    path: "/cpa/submissions/{id}/zip-downloads/{jobId}",
     authorization: "cognito-jwt",
     authorizationScopes: ["auditflow-api/cpa"],
   },
@@ -255,6 +326,34 @@ export const routerContract = {
   spaFallback: "index.html",
 } as const;
 
+export const zipWorkerContract = {
+  logicalName: "ZipDownloadWorker",
+  handler: "backend/api/workers/zip-download.handler",
+  runtime: "nodejs20.x",
+  architecture: "arm64",
+  memoryMb: 1024,
+  timeoutSeconds: 900,
+  storageMb: 2048,
+  permissions: {
+    filesActions: ["s3:GetObject"] as const,
+    temporaryActions: [
+      "s3:AbortMultipartUpload",
+      "s3:DeleteObject",
+      "s3:GetObject",
+      "s3:ListMultipartUploadParts",
+      "s3:PutObject",
+    ] as const,
+    temporaryPrefix: "zip-jobs/*",
+  },
+  notification: {
+    name: "ZipDownloadRequests",
+    bucketLogicalName: "TemporaryOutputsBucket",
+    events: ["s3:ObjectCreated:*"] as const,
+    filterPrefix: "zip-jobs/requests/",
+    filterSuffix: ".json",
+  },
+} as const;
+
 export const authContract = {
   userPoolLogicalName: "UserPool",
   userPoolClientLogicalName: "UserPoolClient",
@@ -310,6 +409,7 @@ export const expectedInventory = {
   staticSites: 1,
   apis: 1,
   apiFunctions: 1,
+  workerFunctions: 1,
   userPools: 1,
   userPoolClients: 1,
   userPoolDomains: 1,
@@ -324,6 +424,7 @@ export const expectedOutputKeys = [
   "apiUrl",
   "apiId",
   "apiFunctionName",
+  "zipWorkerFunctionName",
   "routerDistributionId",
   "healthUrl",
   "protectedHealthUrl",

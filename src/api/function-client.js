@@ -3,6 +3,9 @@ const MIGRATED_PUBLIC_FUNCTIONS = new Set([
   "getActiveTemplate",
   "getTemplateById",
   "updateClientSubmission",
+  "uploadFile",
+  "getSignedPdfUrl",
+  "getTemplateFileUrl",
 ]);
 
 const AWS_COMPATIBILITY_APP_ID = "auditflow";

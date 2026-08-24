@@ -58,8 +58,8 @@ function verifyContract(contract, stage) {
     "Every table requires a primary hash key.",
   );
   assert(
-    contract.buckets.every((bucket) => bucket.private && bucket.cors === false),
-    "Every foundation bucket must be private with browser CORS disabled.",
+    contract.buckets.every((bucket) => bucket.private),
+    "Every foundation bucket must be private.",
   );
   const filesBucket = contract.buckets.find(
     ({ logicalName }) => logicalName === "FilesBucket",
@@ -68,6 +68,17 @@ function verifyContract(contract, stage) {
     ({ logicalName }) => logicalName === "TemporaryOutputsBucket",
   );
   assert(filesBucket?.versioning === true, "FilesBucket must be versioned.");
+  assert(
+    filesBucket?.cors?.originPolicy === "router-plus-local-test" &&
+      JSON.stringify(filesBucket.cors.allowMethods) ===
+        JSON.stringify(["PUT", "HEAD"]) &&
+      !filesBucket.cors.allowOrigins,
+    "FilesBucket must use the exact stage-aware direct-upload CORS policy.",
+  );
+  assert(
+    temporaryBucket?.cors === false,
+    "TemporaryOutputsBucket must not expose browser CORS.",
+  );
   assert(
     temporaryBucket?.expirationDays === 1,
     "Temporary outputs must expire after one day.",
@@ -108,13 +119,25 @@ function verifyContract(contract, stage) {
           route: "POST /apps/{appId}/functions/updateClientSubmission",
           authorization: "none",
         },
+        {
+          route: "POST /apps/{appId}/functions/uploadFile",
+          authorization: "none",
+        },
+        {
+          route: "POST /apps/{appId}/functions/getSignedPdfUrl",
+          authorization: "none",
+        },
+        {
+          route: "POST /apps/{appId}/functions/getTemplateFileUrl",
+          authorization: "none",
+        },
       ]),
     "The exact public questionnaire route inventory is incomplete.",
   );
   const cpaRoutes = contract.routes.filter(({ route }) =>
     route.includes(" /cpa/"),
   );
-  assert(cpaRoutes.length === 14, "The exact CPA route inventory is incomplete.");
+  assert(cpaRoutes.length === 20, "The exact CPA route inventory is incomplete.");
   assert(
     cpaRoutes.every(
       ({ authorization, authorizationScopes }) =>
@@ -147,6 +170,32 @@ function verifyContract(contract, stage) {
       contract.router.rewritePattern === "^/api/(.*)$" &&
       contract.router.rewriteReplacement === "/$1",
     "Same-origin Router rewrite contract has drifted.",
+  );
+  const { notification: zipNotificationContract } = contract.zipWorker;
+  assert(
+    contract.zipWorker.logicalName === "ZipDownloadWorker" &&
+      contract.zipWorker.runtime === "nodejs20.x" &&
+      contract.zipWorker.architecture === "arm64" &&
+      contract.zipWorker.memoryMb === 1024 &&
+      contract.zipWorker.timeoutSeconds === 900 &&
+      contract.zipWorker.storageMb === 2048 &&
+      JSON.stringify(contract.zipWorker.permissions.filesActions) ===
+        JSON.stringify(["s3:GetObject"]) &&
+      JSON.stringify(contract.zipWorker.permissions.temporaryActions) ===
+        JSON.stringify([
+          "s3:AbortMultipartUpload",
+          "s3:DeleteObject",
+          "s3:GetObject",
+          "s3:ListMultipartUploadParts",
+          "s3:PutObject",
+        ]) &&
+      contract.zipWorker.permissions.temporaryPrefix === "zip-jobs/*" &&
+      zipNotificationContract.bucketLogicalName === "TemporaryOutputsBucket" &&
+      JSON.stringify(zipNotificationContract.events) ===
+        JSON.stringify(["s3:ObjectCreated:*"]) &&
+      zipNotificationContract.filterPrefix === "zip-jobs/requests/" &&
+      zipNotificationContract.filterSuffix === ".json",
+    "ZIP worker and notification contracts have drifted.",
   );
   assert(
     contract.oidc.audience === "sts.amazonaws.com" &&
@@ -259,6 +308,33 @@ export function assertBrowserCorsAbsent(result, logicalName) {
   assert(
     errorCode === "NoSuchCORSConfiguration",
     `${logicalName} CORS verification failed with ${errorCode ?? "an unknown AWS error"}.`,
+  );
+}
+
+export function assertBrowserCorsExact(
+  result,
+  logicalName,
+  expectedOrigins,
+  corsContract,
+) {
+  assert(result.ok, `${logicalName} browser CORS configuration is missing.`);
+  const [rule] = result.value.CORSRules ?? [];
+  assert(
+    result.value.CORSRules?.length === 1,
+    `${logicalName} must have exactly one browser CORS rule.`,
+  );
+  const sorted = (values = []) => [...values].sort();
+  assert(
+    JSON.stringify(sorted(rule.AllowedOrigins)) ===
+      JSON.stringify(sorted(expectedOrigins)) &&
+      JSON.stringify(sorted(rule.AllowedHeaders)) ===
+        JSON.stringify(sorted(corsContract.allowHeaders)) &&
+      JSON.stringify(sorted(rule.AllowedMethods)) ===
+        JSON.stringify(sorted(corsContract.allowMethods)) &&
+      JSON.stringify(sorted(rule.ExposeHeaders)) ===
+        JSON.stringify(sorted(corsContract.exposeHeaders)) &&
+      rule.MaxAgeSeconds === 3600,
+    `${logicalName} browser CORS configuration has drifted.`,
   );
 }
 
@@ -428,7 +504,19 @@ async function verifyLive(contract, stage, outputsPath) {
       ["s3api", "get-bucket-cors", "--bucket", bucketName],
       { allowFailure: true },
     );
-    assertBrowserCorsAbsent(cors, logicalName);
+    if (logicalName === "FilesBucket") {
+      const corsContract = contract.buckets.find(
+        (bucket) => bucket.logicalName === logicalName,
+      ).cors;
+      assertBrowserCorsExact(
+        cors,
+        logicalName,
+        [outputs.routerUrl, contract.auth.localOrigin],
+        corsContract,
+      );
+    } else {
+      assertBrowserCorsAbsent(cors, logicalName);
+    }
   }
 
   const fileVersioning = runAws([
@@ -449,6 +537,48 @@ async function verifyLive(contract, stage, outputsPath) {
       (rule) => rule.Status === "Enabled" && rule.Expiration?.Days === 1,
     ),
     "Temporary output one-day expiration is missing.",
+  );
+
+  const zipWorker = runAws([
+    "lambda",
+    "get-function-configuration",
+    "--function-name",
+    outputs.zipWorkerFunctionName,
+  ]).value;
+  assert(
+    zipWorker.Runtime === contract.zipWorker.runtime &&
+      zipWorker.MemorySize === contract.zipWorker.memoryMb &&
+      zipWorker.Timeout === contract.zipWorker.timeoutSeconds &&
+      zipWorker.EphemeralStorage?.Size === contract.zipWorker.storageMb &&
+      JSON.stringify(zipWorker.Architectures) === JSON.stringify(["arm64"]),
+    "ZIP worker runtime limits have drifted.",
+  );
+  const notification = runAws([
+    "s3api",
+    "get-bucket-notification-configuration",
+    "--bucket",
+    outputs.bucketNames.TemporaryOutputsBucket,
+  ]).value;
+  const lambdaNotifications = notification.LambdaFunctionConfigurations ?? [];
+  const [zipNotification] = lambdaNotifications;
+  const { Key: notificationFilterKey } = zipNotification?.Filter ?? {};
+  const { FilterRules: notificationFilterRules = [] } =
+    notificationFilterKey ?? {};
+  const filterRules = Object.fromEntries(
+    notificationFilterRules.map(({ Name, Value }) => [Name, Value]),
+  );
+  const { notification: zipNotificationContract } = contract.zipWorker;
+  assert(
+    lambdaNotifications.length === 1 &&
+      zipNotification.Id?.includes(zipNotificationContract.name) &&
+      zipNotification.LambdaFunctionArn?.endsWith(
+        `:function:${outputs.zipWorkerFunctionName}`,
+      ) &&
+      JSON.stringify(zipNotification.Events) ===
+        JSON.stringify(zipNotificationContract.events) &&
+      filterRules.prefix === zipNotificationContract.filterPrefix &&
+      filterRules.suffix === zipNotificationContract.filterSuffix,
+    "TemporaryOutputsBucket ZIP notification has drifted.",
   );
 
   const userPool = runAws([

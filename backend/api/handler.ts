@@ -1,6 +1,8 @@
 import { CognitoIdentityProviderClient } from "@aws-sdk/client-cognito-identity-provider";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import { S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type {
   APIGatewayProxyEventV2,
   APIGatewayProxyHandlerV2,
@@ -8,6 +10,7 @@ import type {
 } from "aws-lambda";
 
 import { resolveCpaActor } from "./auth/cpa-context";
+import { PublicClientAuthorizer } from "./auth/public-client";
 import {
   getRuntimeAccessTokenVerifier,
   type AccessTokenVerifier,
@@ -19,16 +22,19 @@ import { ApiRouter } from "./core/router";
 import { ClientRepository } from "./repositories/client";
 import type { DynamoDocumentClient } from "./repositories/dynamo";
 import { QuestionnaireTemplateRepository } from "./repositories/questionnaire-template";
+import { PdfTemplateRepository } from "./repositories/pdf-template";
 import { SubmissionRepository } from "./repositories/submission";
 import { UserRepository } from "./repositories/user";
 import { registerDeferredIntegrationRoutes } from "./routes/deferred-integrations";
 import { registerEntityRoutes } from "./routes/entities";
+import { registerFileRoutes } from "./routes/files";
 import { healthResponse } from "./routes/health";
 import { registerMeRoutes } from "./routes/me";
 import { registerPublicQuestionnaireRoutes } from "./routes/public-questionnaire";
 import { registerUserRoutes } from "./routes/users";
 import { ChangeJournalService } from "./services/change-journal";
 import { EntityService } from "./services/entities";
+import { FileService } from "./services/files";
 import { PublicQuestionnaireService } from "./services/public-questionnaire";
 import { UserService, type CognitoAdminClient } from "./services/users";
 
@@ -39,6 +45,7 @@ export interface ApiDependencies {
   readonly users: UserRepository;
   readonly entities: EntityService;
   readonly publicQuestionnaire: PublicQuestionnaireService;
+  readonly files: FileService;
   readonly userService: UserService;
 }
 
@@ -59,6 +66,12 @@ const CPA_ROUTE_KEYS = new Set([
   "POST /cpa/integrations/google-drive/connect",
   "POST /cpa/integrations/google-drive/disconnect",
   "POST /cpa/integrations/telegram/notify",
+  "POST /cpa/files/uploads/initiate",
+  "POST /cpa/files/uploads/complete",
+  "POST /cpa/files/submission-url",
+  "POST /cpa/files/template-url",
+  "POST /cpa/submissions/{id}/zip-downloads",
+  "GET /cpa/submissions/{id}/zip-downloads/{jobId}",
 ]);
 
 const PUBLIC_FUNCTION_ROUTE_KEYS = new Set([
@@ -66,6 +79,9 @@ const PUBLIC_FUNCTION_ROUTE_KEYS = new Set([
   "POST /apps/{appId}/functions/getActiveTemplate",
   "POST /apps/{appId}/functions/getTemplateById",
   "POST /apps/{appId}/functions/updateClientSubmission",
+  "POST /apps/{appId}/functions/uploadFile",
+  "POST /apps/{appId}/functions/getSignedPdfUrl",
+  "POST /apps/{appId}/functions/getTemplateFileUrl",
 ]);
 
 function requiredEnvironment(name: string) {
@@ -85,6 +101,7 @@ export function createRuntimeDependencies(): ApiDependencies {
     },
   };
   const sdkCognitoClient = new CognitoIdentityProviderClient({});
+  const sdkS3Client = new S3Client({});
   const cognitoClient: CognitoAdminClient = {
     send(command) {
       return sdkCognitoClient.send(command as never);
@@ -102,6 +119,10 @@ export function createRuntimeDependencies(): ApiDependencies {
     documentClient,
     requiredEnvironment("QUESTIONNAIRE_TEMPLATE_TABLE_NAME"),
   );
+  const pdfTemplates = new PdfTemplateRepository(
+    documentClient,
+    requiredEnvironment("PDF_TEMPLATE_TABLE_NAME"),
+  );
   const users = new UserRepository(
     documentClient,
     requiredEnvironment("USER_TABLE_NAME"),
@@ -109,6 +130,25 @@ export function createRuntimeDependencies(): ApiDependencies {
   const journal = new ChangeJournalService({
     client: documentClient,
     tableName: requiredEnvironment("CHANGE_JOURNAL_TABLE_NAME"),
+  });
+  const publicAuthorizer = new PublicClientAuthorizer({ clients, submissions });
+  const files = new FileService({
+    s3: {
+      send(command) {
+        return sdkS3Client.send(command as never);
+      },
+    },
+    presign(command, expiresIn) {
+      return getSignedUrl(sdkS3Client, command as never, { expiresIn });
+    },
+    filesBucketName: requiredEnvironment("FILES_BUCKET_NAME"),
+    temporaryOutputsBucketName: requiredEnvironment("TEMPORARY_OUTPUTS_BUCKET_NAME"),
+    clients,
+    submissions,
+    questionnaireTemplates: templates,
+    pdfTemplates,
+    publicAuthorizer,
+    journal,
   });
   runtimeDependencies = {
     verifier: getRuntimeAccessTokenVerifier(),
@@ -119,7 +159,9 @@ export function createRuntimeDependencies(): ApiDependencies {
       submissions,
       templates,
       journal,
+      authorizer: publicAuthorizer,
     }),
+    files,
     userService: new UserService({
       users,
       journal,
@@ -159,6 +201,7 @@ function createApiRouter(dependencies: ApiDependencies) {
   registerUserRoutes(router, dependencies.userService, authenticated);
   registerDeferredIntegrationRoutes(router, authenticated);
   registerPublicQuestionnaireRoutes(router, dependencies.publicQuestionnaire);
+  registerFileRoutes(router, dependencies.files, authenticated);
   return router;
 }
 

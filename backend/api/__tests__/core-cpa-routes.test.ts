@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createHandler, type ApiDependencies } from "../handler";
 import type { UserRepository } from "../repositories/user";
 import type { EntityService } from "../services/entities";
+import type { FileService } from "../services/files";
 import type { PublicQuestionnaireService } from "../services/public-questionnaire";
 import type { UserService } from "../services/users";
 
@@ -103,6 +104,7 @@ function setup() {
     } as unknown as UserRepository,
     entities,
     publicQuestionnaire: {} as PublicQuestionnaireService,
+    files: {} as FileService,
     userService,
   };
   return {

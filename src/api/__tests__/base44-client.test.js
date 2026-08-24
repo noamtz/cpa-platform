@@ -70,14 +70,13 @@ describe("Base44 compatibility allowlist", () => {
     expect(legacy.entities.PdfTemplate.list).not.toHaveBeenCalled();
   });
 
-  it("delegates only the named legacy template and file surfaces", async () => {
+  it("delegates only the named legacy template surfaces", async () => {
     const { client, legacy } = setup();
     await client.entities.PdfTemplate.list("-created_date");
     await client.functions.invoke("getActiveTemplate", { year: 2026 });
-    await client.integrations.Core.CreateFileSignedUrl({ file_uri: "legacy://file" });
     expect(legacy.entities.PdfTemplate.list).toHaveBeenCalledWith("-created_date");
     expect(legacy.functions.invoke).toHaveBeenCalledWith("getActiveTemplate", { year: 2026 });
-    expect(legacy.integrations.Core.CreateFileSignedUrl).toHaveBeenCalledOnce();
+    expect(client.integrations).toBeUndefined();
   });
 
   it("routes Drive and every other function name to AWS without catch fallback", async () => {

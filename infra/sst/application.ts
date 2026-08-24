@@ -2,6 +2,7 @@ import {
   apiRoutes,
   authContract,
   routerContract,
+  zipWorkerContract,
 } from "./contracts";
 import type { FoundationAuthentication } from "./auth";
 import type { StageSettings } from "./stage";
@@ -43,8 +44,12 @@ export function createApplication(
       SUBMISSION_TABLE_NAME: storage.tables.SubmissionTable.name,
       QUESTIONNAIRE_TEMPLATE_TABLE_NAME:
         storage.tables.QuestionnaireTemplateTable.name,
+      PDF_TEMPLATE_TABLE_NAME: storage.tables.PdfTemplateTable.name,
       USER_TABLE_NAME: storage.tables.UserTable.name,
       CHANGE_JOURNAL_TABLE_NAME: storage.tables.ChangeJournalTable.name,
+      FILES_BUCKET_NAME: storage.buckets.FilesBucket.name,
+      TEMPORARY_OUTPUTS_BUCKET_NAME:
+        storage.buckets.TemporaryOutputsBucket.name,
     },
     link: [
       ...storage.tableList,
@@ -56,6 +61,53 @@ export function createApplication(
         args.permissionsBoundary = workloadBoundaryArn;
       },
     },
+  });
+
+  const zipWorker = new sst.aws.Function(zipWorkerContract.logicalName, {
+    handler: zipWorkerContract.handler,
+    runtime: zipWorkerContract.runtime,
+    architecture: zipWorkerContract.architecture,
+    memory: `${zipWorkerContract.memoryMb} MB`,
+    timeout: `${zipWorkerContract.timeoutSeconds / 60} minutes`,
+    storage: `${zipWorkerContract.storageMb / 1024} GB`,
+    logging: {
+      format: "json",
+      retention: stage.isProduction ? "1 month" : "2 weeks",
+    },
+    environment: {
+      FILES_BUCKET_NAME: storage.buckets.FilesBucket.name,
+      TEMPORARY_OUTPUTS_BUCKET_NAME:
+        storage.buckets.TemporaryOutputsBucket.name,
+    },
+    permissions: [
+      {
+        actions: [...zipWorkerContract.permissions.filesActions],
+        resources: [$interpolate`${storage.buckets.FilesBucket.arn}/*`],
+      },
+      {
+        actions: [...zipWorkerContract.permissions.temporaryActions],
+        resources: [
+          $interpolate`${storage.buckets.TemporaryOutputsBucket.arn}/${zipWorkerContract.permissions.temporaryPrefix}`,
+        ],
+      },
+    ],
+    transform: {
+      role(args) {
+        args.permissionsBoundary = workloadBoundaryArn;
+      },
+    },
+  });
+
+  storage.buckets.TemporaryOutputsBucket.notify({
+    notifications: [
+      {
+        name: zipWorkerContract.notification.name,
+        function: zipWorker.arn,
+        events: [...zipWorkerContract.notification.events],
+        filterPrefix: zipWorkerContract.notification.filterPrefix,
+        filterSuffix: zipWorkerContract.notification.filterSuffix,
+      },
+    ],
   });
 
   const authorizer = api.addAuthorizer({
@@ -114,5 +166,5 @@ export function createApplication(
     },
   });
 
-  return { router, api, apiFunction, authorizer, site };
+  return { router, api, apiFunction, zipWorker, authorizer, site };
 }

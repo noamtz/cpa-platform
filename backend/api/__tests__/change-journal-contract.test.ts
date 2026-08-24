@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatJournalSequence,
+  fileOperationReceiptSchema,
   journalCursorSchema,
   journalEntrySchema,
 } from "../contracts/change-journal";
@@ -42,5 +43,38 @@ describe("ChangeJournal contract", () => {
       }),
     ).toBeTruthy();
     expect(() => formatJournalSequence(0)).toThrow();
+  });
+
+  it("accepts bounded File evidence and a distinct operation receipt", () => {
+    const entry = journalEntrySchema.parse({
+      scope: "GLOBAL",
+      sequence: formatJournalSequence(2),
+      item_type: "ENTRY",
+      entity_type: "File",
+      entity_key: `File#${"a".repeat(64)}`,
+      operation_type: "create",
+      operation_id: "operation-file",
+      operation_index: 0,
+      operation_count: 1,
+      actor_id: "public-client:test",
+      request_id: "request-test",
+      occurred_at: "2026-01-01T00:00:00.000Z",
+      before: null,
+      after: { file_uri: "private://files/legacy/" + "b".repeat(64) },
+      before_hash: null,
+      after_hash: "c".repeat(64),
+      file_references: [],
+    });
+    expect(entry.entity_type).toBe("File");
+    expect(
+      fileOperationReceiptSchema.parse({
+        scope: "FILE_OPERATION",
+        sequence: "d".repeat(64),
+        item_type: "FILE_RECEIPT",
+        file_uri: "private://files/legacy/" + "b".repeat(64),
+        operation_id: "operation-file",
+        occurred_at: "2026-01-01T00:00:00.000Z",
+      }),
+    ).toBeTruthy();
   });
 });

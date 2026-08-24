@@ -36,9 +36,15 @@ choose a new password at managed login before using the application.
 
 `src/api/base44Client.js` is a temporary hybrid compatibility facade. CPA auth, Client, Submission, User,
 invitation, Drive, and Telegram methods are AWS-only and never fall back when AWS rejects a request. Only the
-explicit PDF-template, signed-file, and readiness-agent allowlist remains on Base44 while its downstream migration
+explicit PDF-template and readiness-agent allowlist remains on Base44 while its downstream migration
 tickets are incomplete. Direct legacy `/api/apps/...` calls do not pass through this facade and are not provided by
 the SST API.
+
+Document, signed-PDF, and template-file bytes use private S3 references. Browser uploads exchange metadata for a
+short-lived signed PUT, upload directly to `FilesBucket`, and complete through the API before the opaque reference is
+saved. Reads use resource-derived signed URLs; the CPA ZIP control creates a private asynchronous job and downloads
+only a complete server-derived archive. Imported legacy references resolve to deterministic mirror keys whose bytes
+are populated by the separately authorized snapshot migration.
 
 Drive and Telegram endpoints deliberately return HTTP 501 with `FEATURE_NOT_IMPLEMENTED`; they do not construct
 external clients or mutate sync/notification state. The UI keeps the controls visible and displays this controlled

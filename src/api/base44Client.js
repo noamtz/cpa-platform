@@ -41,12 +41,6 @@ export function createCompatibilityClient({ aws, legacy }) {
       },
     },
     connectors: aws.connectors,
-    integrations: {
-      Core: {
-        CreateFileSignedUrl: (...args) =>
-          legacy.integrations.Core.CreateFileSignedUrl(...args),
-      },
-    },
     agents: {
       subscribeToConversation: (...args) =>
         legacy.agents.subscribeToConversation(...args),

@@ -27,7 +27,7 @@ lambda/pdf-generator/               # Existing AWS PDF rendering and generation 
 poc-server/                         # Legacy development-only PDF signing POC; migration evidence, not target runtime.
 infra/{test,prod}/main.tf           # Existing test and production infrastructure for the PDF API.
 infra/sst/                          # Active SST v3 contracts and test/production foundation components.
-backend/api/                        # Authenticated CPA routes, indexed repositories, services, and atomic ChangeJournal coordination.
+backend/api/                        # CPA/public compatibility routes, private-file/ZIP services, indexed repositories, and ChangeJournal coordination.
 sst.config.ts                       # Strict-stage SST entry point for the serverless compatibility layer.
 .github/workflows/                  # Disabled imported PDF evidence plus the active SST test workflow.
 docs/PRD.md                         # Product inventory for parity discovery; code remains authoritative.
@@ -59,9 +59,11 @@ Evidence paths below are relative to this repository. The external production-so
   Wiki page.
 - **Migration status:** Core CPA authentication, Client/Submission/User compatibility, invitations, and journaled
   mutations are deployed to the SST test stage and the live foundation plus managed-login redirect are verified.
-  The first synthetic admin and its linked User fixture are bootstrapped. The facade retains only the Wiki-approved
-  temporary PDF/template/readiness allowlist; authenticated acceptance, broader data seeding, and every production
-  action still require explicit authorization.
+  The first synthetic admin and its linked User fixture are bootstrapped. Private S3 upload/read, journaled file
+  evidence, and asynchronous complete-ZIP contracts are implemented and locally validated but are not yet deployed
+  or acceptance-tested. The facade retains only the Wiki-approved temporary PDF-template/readiness allowlist;
+  snapshot file mirroring, authenticated acceptance, broader data seeding, and every production action still require
+  explicit authorization.
 - **Source integrity:** Make rewrite changes here; treat `C:\Users\ntzur\workspace-antigravity\auditflow` as read-only unless the user explicitly requests changes there. Reproduce and verify the imported baseline through `tooling/import_auditflow_source.py` and `docs/migration/auditflow-source-manifest.json`. Evidence: rewrite/input boundary in `.agents/references/auditflow-rewrite-target.md`.
 - **Parity:** Add evidence before replacing behavior, and keep the working Base44 path until its AWS replacement has verified parity and a rollback-safe cutover. Evidence: rewrite-workspace `.agents/references/auditflow-rewrite-target.md` and source `.agents/AGENTS.md`.
 - **Git:** Use feature branches for major work, reserve direct `main` changes for hotfixes, and prefix commits with `feat:`, `fix:`, `refactor:`, `infra:`, `test:`, or `docs:`. Evidence: source `.agents/AGENTS.md` and this repository's accepted documentation history.

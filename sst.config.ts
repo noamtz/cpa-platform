@@ -42,8 +42,8 @@ export default $config({
     ]);
 
     const stage = getStageSettings($app.stage);
-    const storage = createStorage(stage);
     const router = createApplicationRouter();
+    const storage = createStorage(stage, router.url);
     const authentication = createAuthentication(stage, router.url);
     createCostControls(stage);
     const testDeployRole = await createTestDeploymentRole(stage);
@@ -62,6 +62,7 @@ export default $config({
       apiUrl: application.api.url,
       apiId: application.api.nodes.api.id,
       apiFunctionName: application.apiFunction.name,
+      zipWorkerFunctionName: application.zipWorker.name,
       routerDistributionId: application.router.distributionID,
       healthUrl: $interpolate`${application.router.url}/api/health`,
       protectedHealthUrl: $interpolate`${application.router.url}/api/auth/health`,

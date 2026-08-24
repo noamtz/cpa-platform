@@ -1,25 +1,24 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { getResponses, getStepProgress, getAllFiles, getStepSummary } from "@/lib/submission-compat";
+import { fileClient } from "@/api/file-client";
+import { getStepProgress, getAllFiles, getStepSummary } from "@/lib/submission-compat";
 import { DEFAULT_STEPS, getActiveSteps } from "@/lib/default-template";
 import { filterStepsByClientConditions } from "@/lib/questionnaire-template";
 
-async function getSignedUrl(fileUri) {
-  try {
-    const { signed_url } = await base44.integrations.Core.CreateFileSignedUrl({ file_uri: fileUri, expires_in: 3600 });
-    return signed_url;
-  } catch {
-    return null;
-  }
-}
 import { useToast } from "@/components/ui/use-toast";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Copy, Check, ChevronDown, ChevronUp, Phone, Mail, Trash2, FileText, Download, ExternalLink, RefreshCw, X, Pencil, ClipboardEdit, Archive, CloudUpload } from "lucide-react";
+import { Badge as UntypedBadge } from "@/components/ui/badge";
+import { Button as UntypedButton } from "@/components/ui/button";
+import { Copy, Check, ChevronDown, ChevronUp, Phone, Mail, FileText, Download, ExternalLink, RefreshCw, X, Pencil, ClipboardEdit, Archive, CloudUpload } from "lucide-react";
 import EditClientModal from "@/components/dashboard/EditClientModal";
 import CpaAuditBadge from "@/components/dashboard/CpaAuditBadge";
 import RestoreSubmissionDialog from "@/components/dashboard/RestoreSubmissionDialog";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent as UntypedDialogContent, DialogDescription as UntypedDialogDescription, DialogFooter, DialogHeader, DialogTitle as UntypedDialogTitle } from "@/components/ui/dialog";
+
+const Badge = /** @type {React.ComponentType<any>} */ (UntypedBadge);
+const Button = /** @type {React.ComponentType<any>} */ (UntypedButton);
+const DialogContent = /** @type {React.ComponentType<any>} */ (UntypedDialogContent);
+const DialogDescription = /** @type {React.ComponentType<any>} */ (UntypedDialogDescription);
+const DialogTitle = /** @type {React.ComponentType<any>} */ (UntypedDialogTitle);
 
 function getFileExt(url) {
   const clean = url?.split('?')[0] || '';
@@ -129,6 +128,23 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
 
   // The submission currently being displayed in the expanded panel
   const displayedSubmission = viewingSubmission ?? submission;
+  const getSignedUrl = async ({
+    stepId,
+    source = "response",
+    fileIndex = undefined,
+  }) => {
+    try {
+      const { signed_url } = await fileClient.getCpaSubmissionFileUrl({
+        submission_id: displayedSubmission.id,
+        source,
+        step_id: stepId,
+        ...(source === "response" ? { file_index: fileIndex } : {}),
+      });
+      return signed_url;
+    } catch {
+      return null;
+    }
+  };
   const progress = getStepProgress(submission, activeSteps);
   const displayedProgress = getStepProgress(displayedSubmission, activeSteps);
 
@@ -142,7 +158,7 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
       return;
     }
     const newYear = prompt(`שנת המס הנוכחית: ${client.tax_year || 2024}\nהזן שנת מס חדשה:`);
-    if (!newYear || isNaN(newYear)) return;
+    if (!newYear || Number.isNaN(Number(newYear))) return;
     setChangingYear(true);
     // Check if target year already has a submission with a cpa_status
     const targetSubmission = allSubmissions.find(s => s.tax_year === parseInt(newYear));
@@ -153,32 +169,11 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
     setChangingYear(false);
   };
 
-  const handleDownloadAll = async (fileGroups) => {
+  const handleDownloadAll = async () => {
     setDownloading(true);
     try {
-      const files = fileGroups.flatMap((group) =>
-        group.files.map((fileUri, index) => ({ url: fileUri, label: group.label, index }))
-      );
+      await fileClient.downloadSubmissionZip(displayedSubmission.id);
 
-      const appId = import.meta.env.VITE_BASE44_APP_ID;
-      const token = localStorage.getItem('base44_access_token') || '';
-      const res = await fetch(`/api/apps/${appId}/functions/downloadAllFiles`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ files, clientName: client.full_name }),
-      });
-
-      if (!res.ok) throw new Error('שגיאה בהורדה');
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${client.full_name}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
     } catch (err) {
       toast({ title: 'שגיאה', description: err.message, variant: 'destructive' });
     } finally {
@@ -384,7 +379,7 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                 }
               });
 
-            const allItems = [...summary, ...pdfStepItems];
+            const allItems = /** @type {any[]} */ ([...summary, ...pdfStepItems]);
             return (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {allItems.map((item) => (
@@ -418,7 +413,9 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
 
           {/* Files section */}
           {displayedSubmission && (() => {
-            const fileGroups = getAllFiles(displayedSubmission, activeSteps);
+            const fileGroups = getAllFiles(displayedSubmission, activeSteps).map(
+              (group) => ({ ...group, source: "response" }),
+            );
 
             // Add signed PDFs to fileGroups so they're included in the ZIP download
             if (displayedSubmission.signed_pdfs) {
@@ -430,6 +427,7 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                       label: record.step_title || record.template_name || "טופס חתום",
                       files: [record.pdf_file_url],
                       file_names: [`${record.step_title || "טופס חתום"}.pdf`],
+                      source: "signed_pdf",
                     });
                   }
                 });
@@ -443,7 +441,7 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold text-foreground">📎 קבצים שהועלו</p>
                   <button
-                    onClick={() => handleDownloadAll(fileGroups)}
+                    onClick={handleDownloadAll}
                     disabled={downloading}
                     className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium disabled:opacity-50"
                   >
@@ -463,7 +461,11 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                           key={idx}
                           className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 cursor-pointer hover:bg-primary/5 transition-colors"
                           onClick={async () => {
-                            const signedUrl = await getSignedUrl(fileUri);
+                            const signedUrl = await getSignedUrl({
+                              stepId: group.stepId,
+                              source: group.source,
+                              fileIndex: idx,
+                            });
                             if (signedUrl) setPreviewFile({ url: signedUrl, label: fileLabel });
                           }}
                         >
@@ -473,7 +475,11 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
-                              const signedUrl = await getSignedUrl(fileUri);
+                              const signedUrl = await getSignedUrl({
+                                stepId: group.stepId,
+                                source: group.source,
+                                fileIndex: idx,
+                              });
                               if (signedUrl) window.open(signedUrl, '_blank');
                             }}
                             className="text-primary hover:text-primary/80"
@@ -484,7 +490,11 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
-                              const signedUrl = await getSignedUrl(fileUri);
+                              const signedUrl = await getSignedUrl({
+                                stepId: group.stepId,
+                                source: group.source,
+                                fileIndex: idx,
+                              });
                               if (!signedUrl) return;
                               const res = await fetch(signedUrl);
                               if (!res.ok) return;
@@ -541,7 +551,10 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                         <div
                           className="flex items-center gap-2 bg-white/60 rounded-lg px-3 py-2 cursor-pointer hover:bg-white transition-colors"
                           onClick={async () => {
-                            const signedUrl = await getSignedUrl(record.pdf_file_url);
+                            const signedUrl = await getSignedUrl({
+                              stepId: record.step_id,
+                              source: "signed_pdf",
+                            });
                             if (signedUrl) setPreviewFile({ url: signedUrl, label: record.step_title || "טופס חתום" });
                           }}
                         >
@@ -551,7 +564,10 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
-                              const signedUrl = await getSignedUrl(record.pdf_file_url);
+                              const signedUrl = await getSignedUrl({
+                                stepId: record.step_id,
+                                source: "signed_pdf",
+                              });
                               if (signedUrl) window.open(signedUrl, '_blank');
                             }}
                             className="text-primary hover:text-primary/80"
@@ -562,7 +578,10 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
-                              const signedUrl = await getSignedUrl(record.pdf_file_url);
+                              const signedUrl = await getSignedUrl({
+                                stepId: record.step_id,
+                                source: "signed_pdf",
+                              });
                               if (!signedUrl) return;
                               const res = await fetch(signedUrl);
                               if (!res.ok) return;

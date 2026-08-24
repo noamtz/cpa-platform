@@ -10,6 +10,7 @@ import { getResponses } from "@/lib/submission-compat";
 import { buildSteps, parseSignedPdfs, getResumeStepIndex, deriveStepStatuses } from "@/lib/questionnaire-steps";
 import { createRecoverableSaveQueue } from "@/lib/questionnaire-save-queue";
 import { postPublicFunction } from "@/api/function-client";
+import { fileClient } from "@/api/file-client";
 import { useToast } from "@/components/ui/use-toast";
 
 // Lazy-load PDF signing wrapper (pdfme is ~2MB)
@@ -447,16 +448,13 @@ export default function ClientQuestionnaire() {
                       onClick={async () => {
                         setPdfViewLoading(prev => ({ ...prev, [step.id]: true }));
                         try {
-                          const appId = import.meta.env.VITE_BASE44_APP_ID;
-                          const res = await fetch(`/api/apps/${appId}/functions/getSignedPdfUrl`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ client_id: clientId, token, step_id: step.id }),
-                          });
-                          if (res.ok) {
-                            const { signed_url } = await res.json();
-                            if (signed_url) window.open(signed_url, "_blank");
-                          }
+                          const { signed_url } =
+                            await fileClient.getPublicSignedPdfUrl({
+                              client_id: clientId,
+                              token,
+                              step_id: step.id,
+                            });
+                          if (signed_url) window.open(signed_url, "_blank");
                         } catch (e) {
                           console.error("Failed to open signed PDF:", e);
                         } finally {
