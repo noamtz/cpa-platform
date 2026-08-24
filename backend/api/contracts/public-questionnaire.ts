@@ -169,8 +169,6 @@ const PUBLIC_SUBMISSION_FIELDS = [
   "pdf_file_url",
   "pdf_template_id",
   "signed_pdfs",
-  "cpa_audit_log",
-  "alert_sent",
   "created_date",
   "updated_date",
   "_version",

@@ -78,11 +78,11 @@ the public service's token/resource checks are the authorization boundary.
 
 ## Feature Metadata
 
-**Feature Type**: New Capability / migration compatibility slice  
-**Estimated Complexity**: High  
+**Feature Type**: New Capability / migration compatibility slice
+**Estimated Complexity**: High
 **Primary Systems Affected**: public React questionnaire/signing orchestration, direct function compatibility URLs,
 Lambda routing/contracts, Client/Submission/QuestionnaireTemplate repositories, atomic ChangeJournal service, SST
-route/runtime contracts, characterization and backend contract tests  
+route/runtime contracts, characterization and backend contract tests
 **Dependencies**: accepted issue #6 implementation; existing React 18/Vite/Vitest stack; SST 3.19.3; Node 20.17.0;
 AWS SDK v3 `@aws-sdk/lib-dynamodb` 3.1116.0; Zod 3.24.2. No new runtime dependency is required.
 
@@ -742,4 +742,3 @@ changing visible behavior. Each has an explicit contract and focused test in thi
 ## AMENDMENTS
 
 <!-- Append-only after initial approval/execution. -->
-

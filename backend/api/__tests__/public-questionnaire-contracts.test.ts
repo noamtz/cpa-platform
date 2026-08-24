@@ -154,6 +154,8 @@ describe("public questionnaire contracts", () => {
       created_date: "2026-01-01T00:00:00.000Z",
       updated_date: "2026-01-02T00:00:00.000Z",
       created_by: "hidden",
+      cpa_audit_log: '[{"actor":"cpa-user"}]',
+      alert_sent: true,
       future_internal_field: "hidden",
     });
     expect(projected).toMatchObject({
@@ -162,6 +164,8 @@ describe("public questionnaire contracts", () => {
       _version: 7,
     });
     expect(projected).not.toHaveProperty("created_by");
+    expect(projected).not.toHaveProperty("cpa_audit_log");
+    expect(projected).not.toHaveProperty("alert_sent");
     expect(projected).not.toHaveProperty("future_internal_field");
   });
 

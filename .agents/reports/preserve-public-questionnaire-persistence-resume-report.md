@@ -1,7 +1,7 @@
 # Implementation Report — Preserve public questionnaire persistence and resume behavior
 
-**Plan**: `.agents/plans/preserve-public-questionnaire-persistence-resume.md`  
-**Branch**: `feature/preserve-public-questionnaire-persistence-resume`  
+**Plan**: `.agents/plans/preserve-public-questionnaire-persistence-resume.md`
+**Branch**: `feature/preserve-public-questionnaire-persistence-resume`
 **Status**: COMPLETE — implementation, local validation, and the authorized read-only test-stage preview pass
 
 ## Summary
