@@ -174,6 +174,27 @@ describe("foundation resource contract", () => {
       authorization: "none",
     });
     expect(apiRoutes.protectedHealth.authorization).toBe("cognito-jwt");
+    const publicQuestionnaireRoutes = Object.values(apiRoutes).filter(({ path }) =>
+      path.startsWith("/apps/{appId}/functions/"),
+    );
+    expect(publicQuestionnaireRoutes).toEqual([
+      expect.objectContaining({
+        route: "POST /apps/{appId}/functions/getClientByToken",
+        authorization: "none",
+      }),
+      expect.objectContaining({
+        route: "POST /apps/{appId}/functions/getActiveTemplate",
+        authorization: "none",
+      }),
+      expect.objectContaining({
+        route: "POST /apps/{appId}/functions/getTemplateById",
+        authorization: "none",
+      }),
+      expect.objectContaining({
+        route: "POST /apps/{appId}/functions/updateClientSubmission",
+        authorization: "none",
+      }),
+    ]);
     const cpaRoutes = Object.values(apiRoutes).filter(({ path }) =>
       path.startsWith("/cpa/"),
     );

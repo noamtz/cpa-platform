@@ -82,6 +82,7 @@ describe("EntityService", () => {
     });
     expect(created).not.toHaveProperty("_version");
     expect(commit).toHaveBeenCalledOnce();
+    expect(commit.mock.calls[0][0].actorId).toBe("user-1");
     expect(commit.mock.calls[0][0].businessActions).toHaveLength(1);
     expect(commit.mock.calls[0][0].changes[0]).toMatchObject({
       operationType: "create",

@@ -99,7 +99,7 @@ export class EntityService {
       created_by: actor.userId,
     };
     await this.options.journal.commit({
-      actor,
+      actorId: actor.userId,
       requestId,
       operationId: this.operationIdGenerator(),
       businessActions: [
@@ -133,7 +133,7 @@ export class EntityService {
       _version: before._version + 1,
     };
     await this.options.journal.commit({
-      actor,
+      actorId: actor.userId,
       requestId,
       operationId: this.operationIdGenerator(),
       businessActions: [
@@ -217,7 +217,7 @@ export class EntityService {
           },
         };
     await this.options.journal.commit({
-      actor,
+      actorId: actor.userId,
       requestId,
       operationId: this.operationIdGenerator(),
       businessActions: [

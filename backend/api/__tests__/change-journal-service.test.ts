@@ -3,15 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ChangeJournalService, hashRecord } from "../services/change-journal";
 
-const actor = {
-  userId: "user-1",
-  cognitoSubject: "subject-1",
-  role: "admin" as const,
-};
-
 function input(largeValue?: string) {
   return {
-    actor,
+    actorId: "user-1",
     requestId: "request-1",
     operationId: "operation-1",
     businessActions: [
@@ -55,6 +49,7 @@ describe("ChangeJournalService", () => {
       before: null,
       after: { id: "client-1" },
       file_references: [{ path: "file_url", value: "opaque://file-1" }],
+      actor_id: "user-1",
     });
   });
 
@@ -109,6 +104,35 @@ describe("ChangeJournalService", () => {
       tableName: "ChangeJournalTable.test",
     });
     await expect(service.commit(input())).rejects.toMatchObject({ statusCode: 409 });
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not misclassify a later business-action conflict as a cursor retry", async () => {
+    const laterBusinessConflict = Object.assign(new Error("not exposed"), {
+      name: "TransactionCanceledException",
+      CancellationReasons: [
+        { Code: "None" },
+        { Code: "None" },
+        { Code: "ConditionalCheckFailed" },
+      ],
+    });
+    const send = vi
+      .fn()
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(laterBusinessConflict);
+    const service = new ChangeJournalService({
+      client: { send },
+      tableName: "ChangeJournalTable.test",
+    });
+    const request = input();
+    request.businessActions.push({
+      Put: {
+        TableName: "ClientTable.test",
+        Item: { id: "client-2" },
+        ConditionExpression: "attribute_not_exists(id)",
+      },
+    });
+    await expect(service.commit(request)).rejects.toMatchObject({ statusCode: 409 });
     expect(send).toHaveBeenCalledTimes(2);
   });
 

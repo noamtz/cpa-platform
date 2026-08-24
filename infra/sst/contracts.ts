@@ -139,6 +139,26 @@ export const apiRoutes = {
     path: "/auth/health",
     authorization: "cognito-jwt",
   },
+  publicGetClientByToken: {
+    route: "POST /apps/{appId}/functions/getClientByToken",
+    path: "/apps/{appId}/functions/getClientByToken",
+    authorization: "none",
+  },
+  publicGetActiveTemplate: {
+    route: "POST /apps/{appId}/functions/getActiveTemplate",
+    path: "/apps/{appId}/functions/getActiveTemplate",
+    authorization: "none",
+  },
+  publicGetTemplateById: {
+    route: "POST /apps/{appId}/functions/getTemplateById",
+    path: "/apps/{appId}/functions/getTemplateById",
+    authorization: "none",
+  },
+  publicUpdateClientSubmission: {
+    route: "POST /apps/{appId}/functions/updateClientSubmission",
+    path: "/apps/{appId}/functions/updateClientSubmission",
+    authorization: "none",
+  },
   clientQuery: {
     route: "POST /cpa/clients/query",
     path: "/cpa/clients/query",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from "react";
+import React, { useState, useEffect, useRef, lazy } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import WelcomeStep from "@/components/questionnaire/WelcomeStep";
 import QuestionStep from "@/components/questionnaire/QuestionStep";
@@ -8,6 +8,7 @@ import StepSelector from "@/components/questionnaire/StepSelector";
 import { DEFAULT_STEPS, resolveYearPlaceholders, getActiveSteps, filterStepsByClientConditions } from "@/lib/questionnaire-template";
 import { getResponses } from "@/lib/submission-compat";
 import { buildSteps, parseSignedPdfs, getResumeStepIndex, deriveStepStatuses } from "@/lib/questionnaire-steps";
+import { postPublicFunction } from "@/api/function-client";
 
 // Lazy-load PDF signing wrapper (pdfme is ~2MB)
 const PdfSignStepWrapper = lazy(() => import("@/components/questionnaire/PdfSignStepWrapper"));
@@ -69,18 +70,8 @@ export default function ClientQuestionnaire() {
   }, [clientId]);
 
   const callFunction = async (name, payload) => {
-    const appId = import.meta.env.VITE_BASE44_APP_ID;
-    const res = await fetch(`/api/apps/${appId}/functions/${name}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const body = await res.json();
-    if (!res.ok) {
-      // Pass through the full body (e.g. { error: 'submission_archived', reload: true })
-      return body;
-    }
-    return body;
+    const result = await postPublicFunction(name, payload);
+    return result.body;
   };
 
   const loadClientData = async () => {
@@ -89,7 +80,7 @@ export default function ClientQuestionnaire() {
     // Load client data and template in parallel
     const [clientData, templateData] = await Promise.all([
       callFunction('getClientByToken', { client_id: clientId, token }),
-      callFunction('getActiveTemplate', {}),
+      callFunction('getActiveTemplate', { client_id: clientId, token }),
     ]);
 
     if (clientData?.error) {
@@ -111,7 +102,11 @@ export default function ClientQuestionnaire() {
     // Otherwise, use the current active template
     if (sub?.completed_at && sub?.template_id) {
       tId = sub.template_id;
-      const historicalData = await callFunction('getTemplateById', { template_id: sub.template_id });
+      const historicalData = await callFunction('getTemplateById', {
+        client_id: clientId,
+        token,
+        template_id: sub.template_id,
+      });
       if (historicalData?.template?.steps) {
         version = historicalData.template.version;
         steps = getActiveSteps(historicalData.template.steps);
@@ -163,7 +158,7 @@ export default function ClientQuestionnaire() {
       // If returning from sign page, merge the updated signed_pdfs
       const returnedSub = location.state?.returnedSubmission;
       if (returnedSub?.signed_pdfs) {
-        sub = { ...sub, signed_pdfs: returnedSub.signed_pdfs };
+        sub = { ...sub, ...returnedSub };
       }
       setSubmission(sub);
       if (sub.completed_at) {
@@ -196,7 +191,7 @@ export default function ClientQuestionnaire() {
     // Merge updated signed_pdfs and compute resume index using the fresh merged data
     setSubmission((prev) => {
       if (!prev) return prev;
-      const merged = { ...prev, signed_pdfs: returnedSub.signed_pdfs };
+      const merged = { ...prev, ...returnedSub };
 
       const responses = getResponses(merged);
       const signedPdfsById = parseSignedPdfs(merged.signed_pdfs);
@@ -213,7 +208,11 @@ export default function ClientQuestionnaire() {
 
   // Capture latest submission id in a ref so queued saves always use the most recent id
   const submissionIdRef = useRef(null);
-  useEffect(() => { submissionIdRef.current = submission?.id || null; }, [submission]);
+  const submissionVersionRef = useRef(null);
+  useEffect(() => {
+    submissionIdRef.current = submission?.id || null;
+    submissionVersionRef.current = submission?._version || null;
+  }, [submission]);
 
   const [staleSubmission, setStaleSubmission] = useState(false);
 
@@ -225,6 +224,7 @@ export default function ClientQuestionnaire() {
         client_id: clientId,
         token,
         submission_id: submissionIdRef.current,
+        _version: submissionIdRef.current ? submissionVersionRef.current : undefined,
         data: {
           ...data,
           step_completed: currentStep,
@@ -236,12 +236,19 @@ export default function ClientQuestionnaire() {
       if (result?.reload) {
         // The submission we had was archived by the CPA — force a reload
         setStaleSubmission(true);
-        return;
+        return false;
+      }
+      if (result?.error) {
+        setError(result.error);
+        return false;
       }
       if (result?.submission) {
         submissionIdRef.current = result.submission.id;
+        submissionVersionRef.current = result.submission._version;
         setSubmission(result.submission);
+        return result.submission;
       }
+      return false;
     }).finally(() => {
       setIsSaving(false);
     });
@@ -251,11 +258,11 @@ export default function ClientQuestionnaire() {
 
   const handleNext = async (stepData) => {
     // Save first, then advance — prevents answer loss on fast clicks
-    await updateSubmission(stepData);
-    // If the submission was archived mid-flow, don't advance (stale screen will show)
-    if (staleSubmission) return;
+    const savedSubmission = await updateSubmission(stepData);
+    if (!savedSubmission) return false;
     setCurrentStep((prev) => prev + 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
+    return savedSubmission;
   };
 
   const handleComplete = async (stepData) => {
@@ -266,9 +273,11 @@ export default function ClientQuestionnaire() {
       template_version: templateVersion,
       template_id: templateId,
     };
-    await updateSubmission(finalData, true);
+    const savedSubmission = await updateSubmission(finalData, true);
+    if (!savedSubmission) return false;
     setCurrentStep(STEPS.length - 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
+    return savedSubmission;
   };
 
   if (staleSubmission) {

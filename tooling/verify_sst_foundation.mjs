@@ -86,6 +86,31 @@ function verifyContract(contract, stage) {
     ),
     "Protected health route contract is missing.",
   );
+  const publicQuestionnaireRoutes = contract.routes.filter(({ route }) =>
+    route.includes(" /apps/{appId}/functions/"),
+  );
+  assert(
+    JSON.stringify(publicQuestionnaireRoutes) ===
+      JSON.stringify([
+        {
+          route: "POST /apps/{appId}/functions/getClientByToken",
+          authorization: "none",
+        },
+        {
+          route: "POST /apps/{appId}/functions/getActiveTemplate",
+          authorization: "none",
+        },
+        {
+          route: "POST /apps/{appId}/functions/getTemplateById",
+          authorization: "none",
+        },
+        {
+          route: "POST /apps/{appId}/functions/updateClientSubmission",
+          authorization: "none",
+        },
+      ]),
+    "The exact public questionnaire route inventory is incomplete.",
+  );
   const cpaRoutes = contract.routes.filter(({ route }) =>
     route.includes(" /cpa/"),
   );
@@ -548,6 +573,17 @@ async function verifyLive(contract, stage, outputsPath) {
         JSON.stringify(deployedRoute.AuthorizationScopes) ===
           JSON.stringify(routeContract.authorizationScopes),
       `CPA route ${routeContract.route} is missing JWT scope authorization.`,
+    );
+  }
+  for (const routeContract of contract.routes.filter(({ route }) =>
+    route.includes(" /apps/{appId}/functions/"),
+  )) {
+    const deployedRoute = deployedRoutes?.find(
+      ({ RouteKey }) => RouteKey === routeContract.route,
+    );
+    assert(
+      deployedRoute?.AuthorizationType === "NONE",
+      `Public questionnaire route ${routeContract.route} must not use the Cognito authorizer.`,
     );
   }
   const lambda = runAws([

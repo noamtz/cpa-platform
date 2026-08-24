@@ -1,12 +1,15 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Button as UntypedButton } from "@/components/ui/button";
+import { Textarea as UntypedTextarea } from "@/components/ui/textarea";
 import { motion, AnimatePresence } from "framer-motion";
 import { Upload, X, FileText, Check, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { getResponses } from "@/lib/submission-compat";
 import { useNavigate } from "react-router-dom";
 
-export default function QuestionStep({ stepConfig, submission, onNext, onComplete, onBack, isFirst, isLast, onSkip, clientId, token, signedRecord, isCpaMode, onExemptPdf, onUnexemptPdf }) {
+const Button = /** @type {React.ComponentType<any>} */ (UntypedButton);
+const Textarea = /** @type {React.ComponentType<any>} */ (UntypedTextarea);
+
+export default function QuestionStep({ stepConfig, submission, onNext, onComplete, onBack, isFirst, isLast, onSkip, clientId, token, signedRecord, isCpaMode = false, onExemptPdf = undefined, onUnexemptPdf = undefined }) {
   const stepId = stepConfig.id;
   const navigate = useNavigate();
 
@@ -29,7 +32,7 @@ export default function QuestionStep({ stepConfig, submission, onNext, onComplet
   const [fileProgresses, setFileProgresses] = useState([]); // [{name, size, percent}]
   const [saving, setSaving] = useState(false);
   const [removedFiles, setRemovedFiles] = useState([]); // Track files to remove
-  const fileRef = useRef();
+  const fileRef = useRef(null);
 
   // Reset state when moving to a different step
   useEffect(() => {
@@ -475,10 +478,11 @@ export default function QuestionStep({ stepConfig, submission, onNext, onComplet
                     // Save answer=true before navigating to signing page
                     const currentResponses = getResponses(submission);
                     const updatedResponses = { ...currentResponses, [stepId]: { answer: true, title: stepConfig.title, emoji: stepConfig.emoji } };
-                    await onNext({ responses: JSON.stringify(updatedResponses) });
+                    const savedSubmission = await onNext({ responses: JSON.stringify(updatedResponses) });
+                    if (savedSubmission === false) return;
                     const cfg = stepConfig.pdf_sign_config || {};
                     navigate(`/questionnaire/sign?client=${encodeURIComponent(clientId)}&token=${encodeURIComponent(token)}&step_id=${encodeURIComponent(stepId)}&template_id=${encodeURIComponent(cfg.pdf_template_id || "")}&template_name=${encodeURIComponent(cfg.template_name || "")}&step_title=${encodeURIComponent(stepConfig.title || "")}`, {
-                      state: { submission, stepConfig }
+                      state: { submission: savedSubmission || submission, stepConfig }
                     });
                   }}
                   className="w-full bg-primary text-white rounded-xl py-3 font-semibold text-sm"

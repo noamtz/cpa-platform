@@ -20,6 +20,10 @@
   "routes": [
     { "route": "GET /health", "authorization": "none" },
     { "route": "GET /auth/health", "authorization": "cognito-jwt" },
+    { "route": "POST /apps/{appId}/functions/getClientByToken", "authorization": "none" },
+    { "route": "POST /apps/{appId}/functions/getActiveTemplate", "authorization": "none" },
+    { "route": "POST /apps/{appId}/functions/getTemplateById", "authorization": "none" },
+    { "route": "POST /apps/{appId}/functions/updateClientSubmission", "authorization": "none" },
     { "route": "POST /cpa/clients/query", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/clients", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "PATCH /cpa/clients/{id}", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },

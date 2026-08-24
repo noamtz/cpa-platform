@@ -96,7 +96,7 @@ export class UserService {
       _version: before._version + 1,
     };
     await this.options.journal.commit({
-      actor,
+      actorId: actor.userId,
       requestId,
       operationId: this.operationIdGenerator(),
       businessActions: [
@@ -181,7 +181,7 @@ export class UserService {
     };
     try {
       await this.options.journal.commit({
-        actor,
+        actorId: actor.userId,
         requestId,
         operationId: this.operationIdGenerator(),
         businessActions: [userPut(this.options.users.tableName, record)],

@@ -6,7 +6,6 @@ import {
   type TransactWriteCommandInput,
 } from "@aws-sdk/lib-dynamodb";
 
-import type { CpaActor } from "../auth/cpa-context";
 import {
   formatJournalSequence,
   JOURNAL_CURSOR_SEQUENCE,
@@ -33,7 +32,7 @@ interface TransactionFailure extends Error {
 }
 
 export interface JournalCommitInput {
-  readonly actor: CpaActor;
+  readonly actorId: string;
   readonly requestId: string;
   readonly operationId: string;
   readonly businessActions: readonly TransactionItem[];
@@ -181,7 +180,7 @@ export class ChangeJournalService {
           operation_id: input.operationId,
           operation_index: index,
           operation_count: input.changes.length,
-          actor_id: input.actor.userId,
+          actor_id: input.actorId,
           request_id: input.requestId,
           occurred_at: occurredAt,
           before: snapshots.before,

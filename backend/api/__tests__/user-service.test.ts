@@ -67,6 +67,7 @@ describe("UserService", () => {
     expect(updated.drive_base_path).toBe("New Root");
     expect(updated).not.toHaveProperty("cognito_sub");
     expect(commit).toHaveBeenCalledOnce();
+    expect(commit.mock.calls[0][0].actorId).toBe("user-1");
   });
 
   it("creates Cognito first, then atomically persists User plus journal", async () => {

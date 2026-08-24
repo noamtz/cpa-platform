@@ -41,9 +41,15 @@ export function parseJsonBody<T extends z.ZodTypeAny>(
   return parsed.data;
 }
 
-export function errorResponse(statusCode: number, error: string, code?: string) {
+export function errorResponse(
+  statusCode: number,
+  error: string,
+  code?: string,
+  reload?: true,
+) {
   return jsonResponse(statusCode, {
     error,
     ...(code ? { code } : {}),
+    ...(reload ? { reload: true } : {}),
   });
 }
