@@ -1,26 +1,30 @@
 import React, { useState, useEffect, useRef } from "react";
 import * as Sentry from "@sentry/react";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
-import { Loader2, ChevronRight, CheckCircle2, AlertCircle, Edit, Trash2, X, ClipboardEdit } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import LightweightSignaturePad from "@/components/questionnaire/LightweightSignaturePad";
+import { Loader2, ChevronRight, CheckCircle2, AlertCircle, X, ClipboardEdit } from "lucide-react";
+import { Button as UntypedButton } from "@/components/ui/button";
+import UntypedLightweightSignaturePad from "@/components/questionnaire/LightweightSignaturePad";
+import { invokePublicFunction } from "@/api/function-client";
 
 const PDF_API_PROD = "https://hickopn9f0.execute-api.il-central-1.amazonaws.com";
 const PDF_API_TEST = "https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com";
 const PDF_API = import.meta.env.VITE_PDF_API_URL
   || (window.location.hostname === "app.ddcpa.co.il" ? PDF_API_PROD : PDF_API_TEST);
 
-// ─── Base44 Helpers ─────────────────────────────────────────────────────────
-const callFunction = async (name, payload) => {
+const Button = /** @type {React.ComponentType<any>} */ (UntypedButton);
+const LightweightSignaturePad = /** @type {React.ComponentType<any>} */ (UntypedLightweightSignaturePad);
+
+// ─── Downstream PDF helper (owned by issue #9) ──────────────────────────────
+const getTemplateFileUrl = async (payload) => {
   const appId = import.meta.env.VITE_BASE44_APP_ID;
-  const res = await fetch(`/api/apps/${appId}/functions/${name}`, {
+  const res = await fetch(`/api/apps/${appId}/functions/getTemplateFileUrl`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `${name} failed with ${res.status}`);
+    throw new Error(err.error || `getTemplateFileUrl failed with ${res.status}`);
   }
   return res.json();
 };
@@ -128,6 +132,7 @@ function PdfPageImage({ imageUrl, pageIdx, pageSize, fields, fieldValues, handle
             const val = fieldValues[field.name];
 
             // Convert millimeter positions to percentages of the page
+            /** @type {React.CSSProperties} */
             const style = {
               position: "absolute",
               left: `${(field.position.x / pageSize.width) * 100}%`,
@@ -273,7 +278,7 @@ export default function PdfSignIframeOverlay() {
       let clientData = client;
       let submissionData = submission;
       if (!clientData) {
-        const clientRes = await callFunction("getClientByToken", { client_id: clientId, token });
+        const clientRes = await invokePublicFunction("getClientByToken", { client_id: clientId, token });
         if (clientRes?.error) throw new Error(clientRes.error);
         if (!clientRes?.client) throw new Error("Client not found");
         clientData = clientRes.client;
@@ -297,7 +302,7 @@ export default function PdfSignIframeOverlay() {
       let pdfSignedUrl = null;
 
       if (parsedTemplate.basePdf?.__type === "file_uri") {
-        const signRes = await callFunction("getTemplateFileUrl", {
+        const signRes = await getTemplateFileUrl({
           client_id: clientId,
           token,
           template_id: templateId,
@@ -542,19 +547,22 @@ export default function PdfSignIframeOverlay() {
       filtered.push(record);
       const updatedSignedPdfs = JSON.stringify(filtered);
 
-      await callFunction("updateClientSubmission", {
+      const saveResult = await invokePublicFunction("updateClientSubmission", {
         client_id: clientId,
         token,
         submission_id: submission?.id || null,
+        _version: submission?.id ? submission?._version : undefined,
         data: { signed_pdfs: updatedSignedPdfs },
       });
+      const acknowledgedSubmission = saveResult.submission;
+      setSubmission(acknowledgedSubmission);
 
       setDone(true);
 
       setTimeout(() => {
         navigate(
           `/questionnaire?client=${encodeURIComponent(clientId)}&token=${encodeURIComponent(token)}`,
-          { state: { returnedSubmission: { ...submission, signed_pdfs: updatedSignedPdfs } }, replace: true }
+          { state: { returnedSubmission: acknowledgedSubmission }, replace: true }
         );
       }, 2000);
     } catch (e) {

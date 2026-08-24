@@ -18,15 +18,18 @@ import { getRequestId } from "./core/request-context";
 import { ApiRouter } from "./core/router";
 import { ClientRepository } from "./repositories/client";
 import type { DynamoDocumentClient } from "./repositories/dynamo";
+import { QuestionnaireTemplateRepository } from "./repositories/questionnaire-template";
 import { SubmissionRepository } from "./repositories/submission";
 import { UserRepository } from "./repositories/user";
 import { registerDeferredIntegrationRoutes } from "./routes/deferred-integrations";
 import { registerEntityRoutes } from "./routes/entities";
 import { healthResponse } from "./routes/health";
 import { registerMeRoutes } from "./routes/me";
+import { registerPublicQuestionnaireRoutes } from "./routes/public-questionnaire";
 import { registerUserRoutes } from "./routes/users";
 import { ChangeJournalService } from "./services/change-journal";
 import { EntityService } from "./services/entities";
+import { PublicQuestionnaireService } from "./services/public-questionnaire";
 import { UserService, type CognitoAdminClient } from "./services/users";
 
 type StageProvider = () => string;
@@ -35,6 +38,7 @@ export interface ApiDependencies {
   readonly verifier: AccessTokenVerifier;
   readonly users: UserRepository;
   readonly entities: EntityService;
+  readonly publicQuestionnaire: PublicQuestionnaireService;
   readonly userService: UserService;
 }
 
@@ -55,6 +59,13 @@ const CPA_ROUTE_KEYS = new Set([
   "POST /cpa/integrations/google-drive/connect",
   "POST /cpa/integrations/google-drive/disconnect",
   "POST /cpa/integrations/telegram/notify",
+]);
+
+const PUBLIC_FUNCTION_ROUTE_KEYS = new Set([
+  "POST /apps/{appId}/functions/getClientByToken",
+  "POST /apps/{appId}/functions/getActiveTemplate",
+  "POST /apps/{appId}/functions/getTemplateById",
+  "POST /apps/{appId}/functions/updateClientSubmission",
 ]);
 
 function requiredEnvironment(name: string) {
@@ -87,6 +98,10 @@ export function createRuntimeDependencies(): ApiDependencies {
     documentClient,
     requiredEnvironment("SUBMISSION_TABLE_NAME"),
   );
+  const templates = new QuestionnaireTemplateRepository(
+    documentClient,
+    requiredEnvironment("QUESTIONNAIRE_TEMPLATE_TABLE_NAME"),
+  );
   const users = new UserRepository(
     documentClient,
     requiredEnvironment("USER_TABLE_NAME"),
@@ -99,6 +114,12 @@ export function createRuntimeDependencies(): ApiDependencies {
     verifier: getRuntimeAccessTokenVerifier(),
     users,
     entities: new EntityService({ clients, submissions, journal }),
+    publicQuestionnaire: new PublicQuestionnaireService({
+      clients,
+      submissions,
+      templates,
+      journal,
+    }),
     userService: new UserService({
       users,
       journal,
@@ -137,6 +158,7 @@ function createApiRouter(dependencies: ApiDependencies) {
   registerMeRoutes(router, dependencies.userService, authenticated);
   registerUserRoutes(router, dependencies.userService, authenticated);
   registerDeferredIntegrationRoutes(router, authenticated);
+  registerPublicQuestionnaireRoutes(router, dependencies.publicQuestionnaire);
   return router;
 }
 
@@ -152,7 +174,12 @@ export function createHandler(
       if (routeKey === "GET /health" || routeKey === "GET /auth/health") {
         return healthResponse(getStage());
       }
-      if (!CPA_ROUTE_KEYS.has(routeKey)) return errorResponse(404, "Not found");
+      if (
+        !CPA_ROUTE_KEYS.has(routeKey) &&
+        !PUBLIC_FUNCTION_ROUTE_KEYS.has(routeKey)
+      ) {
+        return errorResponse(404, "Not found");
+      }
       if (!router) router = createApiRouter(getDependencies());
       if (!router.has(routeKey)) return errorResponse(404, "Not found");
       return await router.dispatch(routeKey, event);
@@ -169,6 +196,7 @@ export function createHandler(
         normalized.statusCode,
         normalized.publicMessage,
         normalized.code,
+        normalized.details?.reload === true ? true : undefined,
       );
     }
   };

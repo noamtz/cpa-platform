@@ -41,6 +41,8 @@ export function createApplication(
       USER_POOL_CLIENT_ID: authentication.userPoolClient.id,
       CLIENT_TABLE_NAME: storage.tables.ClientTable.name,
       SUBMISSION_TABLE_NAME: storage.tables.SubmissionTable.name,
+      QUESTIONNAIRE_TEMPLATE_TABLE_NAME:
+        storage.tables.QuestionnaireTemplateTable.name,
       USER_TABLE_NAME: storage.tables.UserTable.name,
       CHANGE_JOURNAL_TABLE_NAME: storage.tables.ChangeJournalTable.name,
     },

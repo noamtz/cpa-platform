@@ -32,7 +32,7 @@ export const clientPersistedSchema = z
   .object({
     id,
     ...clientFields,
-    token: z.string().min(16).max(256),
+    token: z.string().max(256).optional(),
     record_type: z.literal("Client"),
     _version: z.number().int().positive(),
     created_date: timestamp,
