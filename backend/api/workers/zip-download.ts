@@ -17,7 +17,6 @@ import {
   ZIP_LEASE_HEARTBEAT_MS,
   ZIP_LOCK_PREFIX,
   ZIP_REQUEST_PREFIX,
-  ZIP_STATUS_PREFIX,
   zipManifestSchema,
   zipProcessingLeaseSchema,
   zipResultKey,
@@ -107,25 +106,16 @@ async function optionalStatus(options: ZipWorkerOptions, jobId: string) {
     const result = (await options.s3.send(
       new GetObjectCommand({
         Bucket: options.temporaryOutputsBucketName,
-        Key: `${ZIP_STATUS_PREFIX}${jobId}.json`,
+        Key: `${ZIP_LOCK_PREFIX}${jobId}.json`,
       }),
     )) as ObjectBody;
-    return zipStatusSchema.parse(JSON.parse(await textBody(result)));
+    return zipProcessingLeaseSchema.parse(
+      JSON.parse(await textBody(result)),
+    ).terminal_status;
   } catch (error) {
     if (isMissingObject(error)) return undefined;
     throw new ZipWorkerRetryError();
   }
-}
-
-async function writeStatus(options: ZipWorkerOptions, status: ZipStatus) {
-  await options.s3.send(
-    new PutObjectCommand({
-      Bucket: options.temporaryOutputsBucketName,
-      Key: `${ZIP_STATUS_PREFIX}${status.job_id}.json`,
-      Body: JSON.stringify(status),
-      ContentType: "application/json",
-    }),
-  );
 }
 
 function leaseRecord(jobId: string, ownerId: string, clock: () => Date) {
@@ -194,6 +184,7 @@ async function acquireProcessingLease(
   } catch {
     throw new ZipWorkerRetryError();
   }
+  if (existing.terminal_status) return undefined;
   if (new Date(existing.expires_at).getTime() > clock().getTime()) {
     return undefined;
   }
@@ -213,6 +204,7 @@ function createLeaseController(
 ) {
   let current = initial;
   let lost = false;
+  let terminal = false;
   let renewal = Promise.resolve();
   const renew = async () => {
     const next = leaseRecord(
@@ -235,7 +227,7 @@ function createLeaseController(
   const scheduled = schedule(() => {
     renewal = renewal
       .then(async () => {
-        if (!lost) await renew();
+        if (!lost && !terminal) await renew();
       })
       .catch(() => {
         lost = true;
@@ -246,24 +238,31 @@ function createLeaseController(
     assertOwned() {
       if (lost) throw new LeaseLostError();
     },
-    async renewNow() {
-      const immediate = renewal.then(async () => {
-        if (lost) throw new LeaseLostError();
-        await renew();
+    async complete(status: ZipStatus) {
+      const completion = renewal.then(async () => {
+        if (lost || terminal) throw new LeaseLostError();
+        const record = zipProcessingLeaseSchema.parse({
+          ...current.record,
+          terminal_status: status,
+        });
+        current = await putLease(options, record, { IfMatch: current.etag });
+        terminal = true;
       });
-      renewal = immediate.catch(() => {
-        lost = true;
-      });
+      renewal = completion.catch(() => undefined);
       try {
-        await immediate;
-      } catch {
-        throw new LeaseLostError();
+        await completion;
+      } catch (error) {
+        if (error instanceof LeaseLostError || isConditionalConflict(error)) {
+          lost = true;
+          throw new LeaseLostError();
+        }
+        throw new ZipWorkerRetryError();
       }
     },
     async release() {
       cancel(scheduled);
       await renewal;
-      if (lost) return;
+      if (lost || terminal) return;
       const expired = zipProcessingLeaseSchema.parse({
         ...current.record,
         expires_at: clock().toISOString(),
@@ -355,9 +354,7 @@ async function processJob(
     });
     upload = options.createUpload(resultKey, stream);
     await upload.done();
-    await lease.renewNow();
-    await writeStatus(
-      options,
+    await lease.complete(
       zipStatusSchema.parse({
         version: 1,
         job_id: jobId,
@@ -377,10 +374,8 @@ async function processJob(
       )
       .catch(() => undefined);
     if (error instanceof LeaseLostError) throw new ZipWorkerRetryError();
-    await lease.renewNow();
     const code = failureCode(error);
-    await writeStatus(
-      options,
+    await lease.complete(
       zipStatusSchema.parse({
         version: 1,
         job_id: jobId,

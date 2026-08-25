@@ -19,7 +19,7 @@ import {
   UPLOAD_URL_TTL_SECONDS,
   ZIP_REQUEST_PREFIX,
   ZIP_RESULT_TTL_SECONDS,
-  ZIP_STATUS_PREFIX,
+  ZIP_LOCK_PREFIX,
   allowedContentTypeSchema,
   extensionForContentType,
   ownerKeyPart,
@@ -31,7 +31,7 @@ import {
   stableReferenceHash,
   zipManifestSchema,
   isZipResultKeyForJob,
-  zipStatusSchema,
+  zipProcessingLeaseSchema,
   type CpaSubmissionFileUrlInput,
   type CpaTemplateFileMirrorInput,
   type CpaUploadCompleteInput,
@@ -41,12 +41,12 @@ import {
   type PublicUploadCompleteInput,
   type PublicUploadInitiateInput,
 } from "../contracts/files";
-import { badRequest, internalError, notFound } from "../core/errors";
+import { ApiError, badRequest, internalError, notFound } from "../core/errors";
 import type { ClientRepository } from "../repositories/client";
 import type { PdfTemplateRecord, PdfTemplateRepository } from "../repositories/pdf-template";
 import type { QuestionnaireTemplateRepository } from "../repositories/questionnaire-template";
 import type { SubmissionRepository } from "../repositories/submission";
-import type { ChangeJournalService } from "./change-journal";
+import type { ChangeJournalService, TransactionItem } from "./change-journal";
 
 export interface S3CommandClient {
   send(command: unknown): Promise<unknown>;
@@ -196,6 +196,26 @@ function questionnaireAllowsPdfTemplate(stepsJson: string, templateId: string) {
     return record.pdf_template_id === templateId || Object.values(record).some(visit);
   };
   return visit(root);
+}
+
+function templateMirrorConflict() {
+  return new ApiError(
+    409,
+    "PDF_TEMPLATE_CONFLICT",
+    "PDF_TEMPLATE_CONFLICT",
+    { reload: true },
+  );
+}
+
+function matchesTemplateMirror(
+  record: PdfTemplateRecord,
+  input: CpaTemplateFileMirrorInput,
+) {
+  return (
+    record.file_reference === input.file_reference &&
+    record.name === input.name &&
+    record.is_active === input.is_active
+  );
 }
 
 async function objectBodyText(result: GetResult) {
@@ -615,7 +635,11 @@ export class FileService {
     ]);
   }
 
-  async mirrorCpaTemplateFile(input: CpaTemplateFileMirrorInput, actor: CpaActor) {
+  async mirrorCpaTemplateFile(
+    input: CpaTemplateFileMirrorInput,
+    actor: CpaActor,
+    requestId: string,
+  ) {
     const { key, kind } = resolveStoredFileReference(input.file_reference);
     if (kind === "owned") {
       const receiptKey = createHash("sha256")
@@ -650,15 +674,109 @@ export class FileService {
         throw notFound("File not found");
       }
     }
-    await this.options.pdfTemplates.mirrorFile({
-      id: input.template_id,
-      name: input.name,
-      fileReference: input.file_reference,
-      isActive: input.is_active,
-      actorId: actor.userId,
-      occurredAt: this.clock().toISOString(),
-    });
-    return { template_id: input.template_id, mirrored: true } as const;
+    const before = await this.options.pdfTemplates.get(input.template_id);
+    const existingSourceVersion = before?.source_version ?? 0;
+    if (
+      before &&
+      (existingSourceVersion > input.source_version ||
+        (existingSourceVersion === input.source_version &&
+          !matchesTemplateMirror(before, input)))
+    ) {
+      throw templateMirrorConflict();
+    }
+    if (
+      before &&
+      existingSourceVersion === input.source_version &&
+      matchesTemplateMirror(before, input)
+    ) {
+      return {
+        template_id: input.template_id,
+        mirrored: true,
+        version: before._version,
+      } as const;
+    }
+
+    const occurredAt = this.clock().toISOString();
+    const after: PdfTemplateRecord = before
+      ? {
+          ...before,
+          name: input.name,
+          file_reference: input.file_reference,
+          is_active: input.is_active,
+          source_version: input.source_version,
+          _version: before._version + 1,
+          updated_date: occurredAt,
+        }
+      : {
+          id: input.template_id,
+          name: input.name,
+          file_reference: input.file_reference,
+          is_active: input.is_active,
+          source_version: input.source_version,
+          record_type: "PdfTemplate",
+          _version: 1,
+          created_date: occurredAt,
+          updated_date: occurredAt,
+          created_by: actor.userId,
+        };
+    const businessAction: TransactionItem = {
+      Put: {
+        TableName: this.options.pdfTemplates.tableName,
+        Item: after,
+        ConditionExpression: before
+          ? "#version = :expected_version"
+          : "attribute_not_exists(#id)",
+        ExpressionAttributeNames: before
+          ? { "#version": "_version" }
+          : { "#id": "id" },
+        ...(before
+          ? {
+              ExpressionAttributeValues: {
+                ":expected_version": before._version,
+              },
+            }
+          : {}),
+      },
+    };
+    try {
+      await this.options.journal.commit({
+        actorId: actor.userId,
+        requestId,
+        operationId: `pdf-template-mirror-${createHash("sha256")
+          .update(requestId)
+          .digest("hex")
+          .slice(0, 32)}`,
+        businessActions: [businessAction],
+        changes: [
+          {
+            entityType: "PdfTemplate",
+            entityKey: input.template_id,
+            operationType: before ? "update" : "create",
+            before: before ?? null,
+            after,
+          },
+        ],
+      });
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.statusCode !== 409) throw error;
+      const winner = await this.options.pdfTemplates.get(input.template_id);
+      if (
+        winner?.source_version === input.source_version &&
+        matchesTemplateMirror(winner, input)
+      ) {
+        return {
+          template_id: input.template_id,
+          mirrored: true,
+          version: winner._version,
+        } as const;
+      }
+      throw templateMirrorConflict();
+    }
+    return {
+      template_id: input.template_id,
+      mirrored: true,
+      version: after._version,
+    } as const;
   }
 
   async requestZipDownload(submissionId: string, actor: CpaActor) {
@@ -758,14 +876,17 @@ export class FileService {
       const result = (await this.options.s3.send(
         new GetObjectCommand({
           Bucket: this.options.temporaryOutputsBucketName,
-          Key: `${ZIP_STATUS_PREFIX}${jobId}.json`,
+          Key: `${ZIP_LOCK_PREFIX}${jobId}.json`,
         }),
       )) as GetResult;
-      status = zipStatusSchema.parse(JSON.parse(await objectBodyText(result)));
+      status = zipProcessingLeaseSchema.parse(
+        JSON.parse(await objectBodyText(result)),
+      ).terminal_status;
     } catch (error) {
       if (isMissingObject(error)) return { job_id: jobId, status: "pending" as const };
       throw internalError();
     }
+    if (!status) return { job_id: jobId, status: "pending" as const };
     if (status.state === "failed") {
       return { job_id: jobId, status: "failed" as const, error: "ZIP download failed" };
     }

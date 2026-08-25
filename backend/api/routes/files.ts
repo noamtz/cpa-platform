@@ -104,6 +104,7 @@ export function registerFileRoutes(
         await service.mirrorCpaTemplateFile(
           parseJsonBody(event, cpaTemplateFileMirrorSchema),
           actor,
+          event.requestContext.requestId,
         ),
       ),
     ),

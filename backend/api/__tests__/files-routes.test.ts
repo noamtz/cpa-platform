@@ -155,6 +155,7 @@ describe("assembled file routes", () => {
           file_reference: "private://synthetic/template.pdf",
           name: "Synthetic template",
           is_active: true,
+          source_version: 1,
         },
       ],
       ["POST /cpa/submissions/{id}/zip-downloads", {}],
@@ -172,6 +173,14 @@ describe("assembled file routes", () => {
     expect(files.requestZipDownload).toHaveBeenCalledWith(
       "submission-test",
       expect.objectContaining({ userId: "user-test" }),
+    );
+    expect(files.mirrorCpaTemplateFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        template_id: "template-test",
+        source_version: 1,
+      }),
+      expect.objectContaining({ userId: "user-test" }),
+      "request-test",
     );
   });
 

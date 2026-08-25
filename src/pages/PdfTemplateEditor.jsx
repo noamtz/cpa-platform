@@ -41,12 +41,20 @@ function storedTemplateFileReference(template) {
 
 async function mirrorTemplateFile(template) {
   const fileReference = storedTemplateFileReference(template);
-  if (!fileReference || !template?.id) return;
+  if (
+    !fileReference ||
+    !template?.id ||
+    !Number.isSafeInteger(template?._version) ||
+    template._version < 1
+  ) {
+    return;
+  }
   await fileClient.mirrorCpaTemplateFile({
     template_id: template.id,
     file_reference: fileReference,
     name: template.name || "PDF template",
     is_active: template.is_active !== false,
+    source_version: template._version,
   });
 }
 
@@ -576,19 +584,18 @@ export default function PdfTemplateEditor() {
         is_active: true,
       };
 
-      let savedTemplateId = editingId;
-      if (savedTemplateId) {
-        await base44.entities.PdfTemplate.update(savedTemplateId, payload);
+      let savedTemplate;
+      if (editingId) {
+        savedTemplate = await base44.entities.PdfTemplate.update(
+          editingId,
+          payload,
+        );
       } else {
-        const created = await base44.entities.PdfTemplate.create(payload);
-        savedTemplateId = created.id;
-        setEditingId(savedTemplateId);
+        savedTemplate = await base44.entities.PdfTemplate.create(payload);
+        setEditingId(savedTemplate.id);
       }
 
-      await mirrorTemplateFile({
-        id: savedTemplateId,
-        ...payload,
-      });
+      await mirrorTemplateFile(savedTemplate);
       toast({
         title: "נשמר ✅",
         description: editingId

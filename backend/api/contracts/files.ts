@@ -9,7 +9,6 @@ export const MAX_SINGLE_PUT_BYTES = 5 * 1024 * 1024 * 1024;
 export const CURRENT_FIRM_KEY = "ddcpa";
 export const ZIP_REQUEST_PREFIX = "zip-jobs/requests/";
 export const ZIP_RESULT_PREFIX = "zip-jobs/results/";
-export const ZIP_STATUS_PREFIX = "zip-jobs/status/";
 export const ZIP_LOCK_PREFIX = "zip-jobs/locks/";
 export const ZIP_LEASE_DURATION_MS = 60 * 1_000;
 export const ZIP_LEASE_HEARTBEAT_MS = 20 * 1_000;
@@ -108,15 +107,6 @@ export const cpaSubmissionFileUrlSchema = z
 export const cpaTemplateFileUrlSchema = z.object({ template_id: idSchema }).strict();
 export const zipDownloadRequestSchema = z.object({}).strict();
 export const zipJobIdSchema = z.string().uuid();
-export const zipProcessingLeaseSchema = z
-  .object({
-    version: z.literal(1),
-    job_id: zipJobIdSchema,
-    owner_id: z.string().uuid(),
-    expires_at: z.string().datetime({ offset: true }),
-  })
-  .strict();
-
 const fileReferencePrefix = "private://files/";
 const safeKeyPattern = /^(?:firms\/[a-z0-9-]+\/(?:clients\/[a-f0-9]{32}\/submissions\/[a-f0-9]{32}\/(?:questionnaire-document|signed-pdf)|templates\/[a-f0-9]{32}\/pdf-template)\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:pdf|jpg|png|heic)|legacy\/[a-f0-9]{64})$/;
 const encodedSeparatorPattern = /%(?:2f|5c)/i;
@@ -204,6 +194,7 @@ export const cpaTemplateFileMirrorSchema = z
       }, "Invalid private file reference"),
     name: z.string().min(1).max(512),
     is_active: z.boolean(),
+    source_version: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   })
   .strict();
 
@@ -311,6 +302,27 @@ export const zipStatusSchema = z.discriminatedUnion("state", [
     })
     .strict(),
 ]);
+export const zipProcessingLeaseSchema = z
+  .object({
+    version: z.literal(1),
+    job_id: zipJobIdSchema,
+    owner_id: z.string().uuid(),
+    expires_at: z.string().datetime({ offset: true }),
+    terminal_status: zipStatusSchema.optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      value.terminal_status &&
+      value.terminal_status.job_id !== value.job_id
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["terminal_status", "job_id"],
+        message: "Terminal status must belong to the lease job",
+      });
+    }
+  });
 export type ZipManifest = z.infer<typeof zipManifestSchema>;
 export type ZipStatus = z.infer<typeof zipStatusSchema>;
 export type ZipProcessingLease = z.infer<typeof zipProcessingLeaseSchema>;

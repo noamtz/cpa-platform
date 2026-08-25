@@ -79,6 +79,29 @@ describe("ChangeJournal contract", () => {
     ).toBeTruthy();
   });
 
+  it("accepts journaled PdfTemplate pointer mutations", () => {
+    const entry = journalEntrySchema.parse({
+      scope: "GLOBAL",
+      sequence: formatJournalSequence(3),
+      item_type: "ENTRY",
+      entity_type: "PdfTemplate",
+      entity_key: "PdfTemplate#template-test",
+      operation_type: "update",
+      operation_id: "pdf-template-mirror-test",
+      operation_index: 0,
+      operation_count: 1,
+      actor_id: "user-test",
+      request_id: "request-test",
+      occurred_at: "2026-01-01T00:00:00.000Z",
+      before: { file_reference: "private://synthetic/old.pdf" },
+      after: { file_reference: "private://synthetic/new.pdf" },
+      before_hash: "a".repeat(64),
+      after_hash: "b".repeat(64),
+      file_references: [],
+    });
+    expect(entry.entity_type).toBe("PdfTemplate");
+  });
+
   it("keeps delete-compensation reconciliation bounded and reference-free", () => {
     const record = fileReconciliationSchema.parse({
       scope: "FILE_RECONCILIATION",

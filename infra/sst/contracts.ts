@@ -347,6 +347,8 @@ export const zipWorkerContract = {
     conditionalWrite: true,
     recoverableTakeover: true,
     resultOwnership: "job-and-owner",
+    terminalStatusStorage: "lease-record",
+    terminalStatusFenced: true,
   },
   permissions: {
     filesActions: ["s3:GetObject"] as const,

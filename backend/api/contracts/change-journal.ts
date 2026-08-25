@@ -20,7 +20,14 @@ export const journalEntrySchema = z.object({
   scope: z.literal(JOURNAL_SCOPE),
   sequence: z.string().regex(/^\d{20}$/),
   item_type: z.literal("ENTRY"),
-  entity_type: z.enum(["Client", "Submission", "QuestionnaireTemplate", "User", "File"]),
+  entity_type: z.enum([
+    "Client",
+    "Submission",
+    "QuestionnaireTemplate",
+    "PdfTemplate",
+    "User",
+    "File",
+  ]),
   entity_key: z.string().min(1).max(512),
   operation_type: z.enum(["create", "update", "delete"]),
   operation_id: z.string().min(1).max(128),
@@ -44,7 +51,13 @@ export const journalEntrySchema = z.object({
 });
 
 export interface MutationChange {
-  readonly entityType: "Client" | "Submission" | "QuestionnaireTemplate" | "User" | "File";
+  readonly entityType:
+    | "Client"
+    | "Submission"
+    | "QuestionnaireTemplate"
+    | "PdfTemplate"
+    | "User"
+    | "File";
   readonly entityKey: string;
   readonly operationType: "create" | "update" | "delete";
   readonly before: Readonly<Record<string, unknown>> | null;

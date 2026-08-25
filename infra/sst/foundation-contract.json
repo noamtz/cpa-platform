@@ -89,7 +89,9 @@
       "heartbeatSeconds": 20,
       "conditionalWrite": true,
       "recoverableTakeover": true,
-      "resultOwnership": "job-and-owner"
+      "resultOwnership": "job-and-owner",
+      "terminalStatusStorage": "lease-record",
+      "terminalStatusFenced": true
     },
     "permissions": {
       "filesActions": ["s3:GetObject"],

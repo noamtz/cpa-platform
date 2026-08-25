@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { PublicClientAuthorizer } from "../auth/public-client";
 import { ownerKeyPart, privateFileReference } from "../contracts/files";
+import { conflict } from "../core/errors";
 import type { ClientRepository } from "../repositories/client";
 import type { PdfTemplateRepository } from "../repositories/pdf-template";
 import type { QuestionnaireTemplateRepository } from "../repositories/questionnaire-template";
@@ -72,7 +73,10 @@ function setup(overrides: Record<string, unknown> = {}) {
   const clients = { get: vi.fn().mockResolvedValue(client) };
   const submissions = { get: vi.fn().mockResolvedValue(submission) };
   const questionnaireTemplates = { get: vi.fn(), latestActive: vi.fn() };
-  const pdfTemplates = { get: vi.fn(), mirrorFile: vi.fn() };
+  const pdfTemplates = {
+    tableName: "PdfTemplateTable.test",
+    get: vi.fn(),
+  };
   const options = {
     s3: { send },
     presign,
@@ -372,18 +376,9 @@ describe("FileService scoped reads and deletion", () => {
       file_uri: fileReference,
     });
     let mirroredRecord: Record<string, unknown> | undefined;
-    pdfTemplates.mirrorFile.mockImplementation(async (input) => {
-      mirroredRecord = {
-        id: input.id,
-        name: input.name,
-        file_reference: input.fileReference,
-        is_active: input.isActive,
-        record_type: "PdfTemplate",
-        _version: 1,
-        created_date: input.occurredAt,
-        updated_date: input.occurredAt,
-      };
-      return mirroredRecord;
+    journal.commit.mockImplementation(async (input) => {
+      mirroredRecord = input.changes[0]?.after as Record<string, unknown>;
+      return [];
     });
     pdfTemplates.get.mockImplementation(async () => mirroredRecord);
     questionnaireTemplates.get.mockResolvedValue({
@@ -411,10 +406,16 @@ describe("FileService scoped reads and deletion", () => {
           file_reference: fileReference,
           name: "Synthetic template",
           is_active: true,
+          source_version: 7,
         },
         actor,
+        "request-template-mirror",
       ),
-    ).resolves.toEqual({ template_id: "template-test", mirrored: true });
+    ).resolves.toEqual({
+      template_id: "template-test",
+      mirrored: true,
+      version: 1,
+    });
     await expect(
       service.getCpaTemplateFileUrl("template-test", actor),
     ).resolves.toEqual({ signed_url: "https://signed.example.test/object" });
@@ -425,11 +426,29 @@ describe("FileService scoped reads and deletion", () => {
         template_id: "template-test",
       }),
     ).resolves.toEqual({ signed_url: "https://signed.example.test/object" });
-    expect(pdfTemplates.mirrorFile).toHaveBeenCalledWith(
+    expect(journal.commit).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: "template-test",
-        fileReference,
         actorId: actor.userId,
+        requestId: "request-template-mirror",
+        businessActions: [
+          expect.objectContaining({
+            Put: expect.objectContaining({
+              TableName: "PdfTemplateTable.test",
+              ConditionExpression: "attribute_not_exists(#id)",
+            }),
+          }),
+        ],
+        changes: [
+          expect.objectContaining({
+            entityType: "PdfTemplate",
+            operationType: "create",
+            before: null,
+            after: expect.objectContaining({
+              file_reference: fileReference,
+              source_version: 7,
+            }),
+          }),
+        ],
       }),
     );
     expect(presign).toHaveBeenCalledTimes(2);
@@ -446,14 +465,144 @@ describe("FileService scoped reads and deletion", () => {
           file_reference: fileReference,
           name: "Synthetic template",
           is_active: true,
+          source_version: 1,
         },
         actor,
+        "request-template-mirror",
       ),
     ).rejects.toMatchObject({ statusCode: 404 });
 
     expect(journal.getFileOperationReceipt).toHaveBeenCalledOnce();
     expect(send).not.toHaveBeenCalled();
-    expect(pdfTemplates.mirrorFile).not.toHaveBeenCalled();
+    expect(pdfTemplates.get).not.toHaveBeenCalled();
+    expect(journal.commit).not.toHaveBeenCalled();
+  });
+
+  it("journals one conditional mirror winner and rejects concurrent or stale payloads", async () => {
+    const { service, journal, pdfTemplates } = setup();
+    let mirroredRecord: Record<string, unknown> | undefined;
+    let initialReads = 0;
+    let releaseInitialReads: (() => void) | undefined;
+    const bothInitialReads = new Promise<void>((resolve) => {
+      releaseInitialReads = resolve;
+    });
+    pdfTemplates.get.mockImplementation(async () => {
+      if (mirroredRecord) return mirroredRecord;
+      initialReads += 1;
+      if (initialReads === 2) releaseInitialReads?.();
+      await bothInitialReads;
+      return undefined;
+    });
+    journal.commit.mockImplementation(async (input) => {
+      if (mirroredRecord) throw conflict();
+      mirroredRecord = input.changes[0]?.after as Record<string, unknown>;
+      return [];
+    });
+    const first = {
+      template_id: "template-test",
+      file_reference: "private://synthetic/first.pdf",
+      name: "Synthetic template",
+      is_active: true,
+      source_version: 3,
+    } as const;
+    const second = {
+      ...first,
+      file_reference: "private://synthetic/second.pdf",
+    };
+
+    const concurrent = await Promise.allSettled([
+      service.mirrorCpaTemplateFile(first, actor, "request-first"),
+      service.mirrorCpaTemplateFile(second, actor, "request-second"),
+    ]);
+
+    expect(concurrent.filter(({ status }) => status === "fulfilled")).toHaveLength(1);
+    const rejected = concurrent.find(({ status }) => status === "rejected");
+    expect(rejected).toMatchObject({
+      status: "rejected",
+      reason: { statusCode: 409, details: { reload: true } },
+    });
+    expect(journal.commit).toHaveBeenCalledTimes(2);
+    expect(journal.commit.mock.calls[0][0]).toMatchObject({
+      businessActions: [
+        {
+          Put: {
+            ConditionExpression: "attribute_not_exists(#id)",
+          },
+        },
+      ],
+      changes: [
+        {
+          entityType: "PdfTemplate",
+          operationType: "create",
+        },
+      ],
+    });
+
+    await expect(
+      service.mirrorCpaTemplateFile(
+        { ...first, source_version: 2 },
+        actor,
+        "request-stale",
+      ),
+    ).rejects.toMatchObject({ statusCode: 409, details: { reload: true } });
+    expect(journal.commit).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses the current AWS mirror version for a journaled pointer replacement", async () => {
+    const { service, journal, pdfTemplates } = setup();
+    const before = {
+      id: "template-test",
+      name: "Old template",
+      file_reference: "private://synthetic/old.pdf",
+      is_active: true,
+      source_version: 4,
+      record_type: "PdfTemplate",
+      _version: 6,
+      created_date: "2025-12-01T00:00:00.000Z",
+      updated_date: "2025-12-02T00:00:00.000Z",
+      created_by: actor.userId,
+    };
+    pdfTemplates.get.mockResolvedValue(before);
+
+    await expect(
+      service.mirrorCpaTemplateFile(
+        {
+          template_id: "template-test",
+          file_reference: "private://synthetic/new.pdf",
+          name: "Updated template",
+          is_active: false,
+          source_version: 5,
+        },
+        actor,
+        "request-update",
+      ),
+    ).resolves.toMatchObject({ mirrored: true, version: 7 });
+
+    expect(journal.commit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requestId: "request-update",
+        businessActions: [
+          {
+            Put: expect.objectContaining({
+              ConditionExpression: "#version = :expected_version",
+              ExpressionAttributeValues: { ":expected_version": 6 },
+            }),
+          },
+        ],
+        changes: [
+          expect.objectContaining({
+            entityType: "PdfTemplate",
+            operationType: "update",
+            before,
+            after: expect.objectContaining({
+              file_reference: "private://synthetic/new.pdf",
+              source_version: 5,
+              _version: 7,
+            }),
+          }),
+        ],
+      }),
+    );
   });
 
   it("removes the delete marker when journal evidence fails", async () => {
@@ -603,9 +752,15 @@ describe("FileService ZIP jobs", () => {
     const status = {
       version: 1,
       job_id: generatedId,
-      state: "ready",
-      result_key: `zip-jobs/results/${generatedId}/${generatedId}.zip`,
-      completed_at: "2026-01-01T00:01:00.000Z",
+      owner_id: generatedId,
+      expires_at: "2026-01-01T00:02:00.000Z",
+      terminal_status: {
+        version: 1,
+        job_id: generatedId,
+        state: "ready",
+        result_key: `zip-jobs/results/${generatedId}/${generatedId}.zip`,
+        completed_at: "2026-01-01T00:01:00.000Z",
+      },
     };
     send
       .mockResolvedValueOnce({ Body: { transformToString: async () => JSON.stringify(manifest) } })

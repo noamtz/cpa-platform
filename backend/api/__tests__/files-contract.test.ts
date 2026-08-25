@@ -95,6 +95,7 @@ describe("file contracts", () => {
       file_reference: "private://synthetic/imported.pdf",
       name: "Synthetic template",
       is_active: true,
+      source_version: 1,
     };
     expect(cpaTemplateFileMirrorSchema.parse(input)).toEqual(input);
     expect(
@@ -120,6 +121,21 @@ describe("file contracts", () => {
         expires_at: "2026-01-01T00:01:00.000Z",
       }),
     ).toMatchObject({ job_id: jobId, owner_id: ownerId });
+    expect(
+      zipProcessingLeaseSchema.parse({
+        version: 1,
+        job_id: jobId,
+        owner_id: ownerId,
+        expires_at: "2026-01-01T00:01:00.000Z",
+        terminal_status: {
+          version: 1,
+          job_id: jobId,
+          state: "ready",
+          result_key: zipResultKey(jobId, ownerId),
+          completed_at: "2026-01-01T00:00:30.000Z",
+        },
+      }),
+    ).toMatchObject({ terminal_status: { state: "ready" } });
     const key = zipResultKey(jobId, ownerId);
     expect(isZipResultKeyForJob(key, jobId)).toBe(true);
     expect(isZipResultKeyForJob(key, ownerId)).toBe(false);

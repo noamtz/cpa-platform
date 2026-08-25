@@ -146,6 +146,7 @@ describe("private file client", () => {
       file_reference: "private://synthetic/template.pdf",
       name: "Synthetic template",
       is_active: true,
+      source_version: 1,
     };
 
     await expect(client.mirrorCpaTemplateFile(payload)).resolves.toMatchObject({

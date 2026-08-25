@@ -50,7 +50,7 @@ Base44 file signing while retaining the explicitly deferred development-only PDF
   completion, ZIP polling, and ready-result download.
 - Extended journal, compatibility-facade, function-client, and SST foundation/verifier tests.
 
-Final automated results after review fixes: 96 frontend tests passed across 10 files; 196 foundation/backend tests
+Final automated results after review fixes: 96 frontend tests passed across 10 files; 199 foundation/backend tests
 passed across 28 files.
 
 ## Validation results
@@ -60,7 +60,7 @@ passed across 28 files.
 - `npm ls @aws-sdk/client-s3 @aws-sdk/s3-request-presigner @aws-sdk/lib-storage jszip --depth=0` — passed; all four
   direct dependencies resolve to the pinned versions.
 - `npm test` — passed: 10 files, 96 tests.
-- `npm run test:foundation` — passed: 28 files, 196 tests.
+- `npm run test:foundation` — passed: 28 files, 199 tests.
 - `npm run typecheck:foundation` — passed.
 - `npm run lint:foundation` — passed.
 - `node tooling/verify_sst_foundation.mjs --mode contract --stage test` — passed.
@@ -91,6 +91,9 @@ passed across 28 files.
 - Existing legacy objects cannot be served safely by every resource flow through the narrow Base44 functions. Rather
   than restore the arbitrary signer, the supported test deployment now fails closed until issue #11 publishes tested
   aggregate evidence that all referenced bytes were imported with zero unresolved objects.
+- The transitional PdfTemplate mirror carries the Base44 record version as a source concurrency token. AWS mirror
+  creation/update is conditionally versioned and journaled; this keeps issue #10's CRUD authority outside this slice
+  while preventing delayed Base44 records from replacing a newer private-file pointer.
 
 ## Issues encountered
 
@@ -121,6 +124,16 @@ delete path. A fresh review then found four more issues, all of which were accep
 - Required the exact completed-upload receipt before an owned template file can be mirrored for public access.
 
 The complete local validation suite was rerun with the updated totals above.
+
+A third fresh review found two Medium concurrency/audit-integrity gaps, both of which were accepted and fixed:
+
+- Moved terminal ZIP status into the lease record and fenced publication with the current lease ETag so a delayed
+  stale owner cannot overwrite a takeover winner.
+- Replaced the repository's unconditional template-mirror update with source-version checks, conditional AWS mirror
+  creation/update, and an ordered `PdfTemplate` ChangeJournal mutation using the route request ID.
+
+Regression tests cover a delayed terminal publisher after takeover, conditional template creation and update,
+concurrent mirror winners, stale source versions, and journal evidence.
 
 ## Ready for the next step
 

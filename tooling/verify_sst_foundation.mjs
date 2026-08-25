@@ -185,6 +185,9 @@ function verifyContract(contract, stage) {
       contract.zipWorker.processingLease.conditionalWrite === true &&
       contract.zipWorker.processingLease.recoverableTakeover === true &&
       contract.zipWorker.processingLease.resultOwnership === "job-and-owner" &&
+      contract.zipWorker.processingLease.terminalStatusStorage ===
+        "lease-record" &&
+      contract.zipWorker.processingLease.terminalStatusFenced === true &&
       JSON.stringify(contract.zipWorker.permissions.filesActions) ===
         JSON.stringify(["s3:GetObject"]) &&
       JSON.stringify(contract.zipWorker.permissions.temporaryActions) ===
