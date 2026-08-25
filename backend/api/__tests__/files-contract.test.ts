@@ -4,6 +4,7 @@ import {
   MAX_SINGLE_PUT_BYTES,
   cpaSubmissionFileUrlSchema,
   cpaTemplateFileMirrorSchema,
+  isZipResultKeyForJob,
   legacyReferenceKey,
   parsePrivateFileReference,
   privateFileReference,
@@ -11,6 +12,8 @@ import {
   resolveStoredFileReference,
   sanitizeZipName,
   zipManifestSchema,
+  zipProcessingLeaseSchema,
+  zipResultKey,
 } from "../contracts/files";
 
 const initiate = {
@@ -104,6 +107,22 @@ describe("file contracts", () => {
       cpaTemplateFileMirrorSchema.safeParse({ ...input, object_key: "foreign" })
         .success,
     ).toBe(false);
+  });
+
+  it("binds processing leases and result keys to UUID job owners", () => {
+    const jobId = "123e4567-e89b-12d3-a456-426614174000";
+    const ownerId = "223e4567-e89b-12d3-a456-426614174000";
+    expect(
+      zipProcessingLeaseSchema.parse({
+        version: 1,
+        job_id: jobId,
+        owner_id: ownerId,
+        expires_at: "2026-01-01T00:01:00.000Z",
+      }),
+    ).toMatchObject({ job_id: jobId, owner_id: ownerId });
+    const key = zipResultKey(jobId, ownerId);
+    expect(isZipResultKeyForJob(key, jobId)).toBe(true);
+    expect(isZipResultKeyForJob(key, ownerId)).toBe(false);
   });
 
   it("sanitizes ZIP path characters while preserving Unicode labels", () => {

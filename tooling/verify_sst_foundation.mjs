@@ -179,6 +179,12 @@ function verifyContract(contract, stage) {
       contract.zipWorker.memoryMb === 1024 &&
       contract.zipWorker.timeoutSeconds === 900 &&
       contract.zipWorker.storageMb === 2048 &&
+      contract.zipWorker.processingLease?.prefix === "zip-jobs/locks/" &&
+      contract.zipWorker.processingLease.durationSeconds === 60 &&
+      contract.zipWorker.processingLease.heartbeatSeconds === 20 &&
+      contract.zipWorker.processingLease.conditionalWrite === true &&
+      contract.zipWorker.processingLease.recoverableTakeover === true &&
+      contract.zipWorker.processingLease.resultOwnership === "job-and-owner" &&
       JSON.stringify(contract.zipWorker.permissions.filesActions) ===
         JSON.stringify(["s3:GetObject"]) &&
       JSON.stringify(contract.zipWorker.permissions.temporaryActions) ===
@@ -196,6 +202,18 @@ function verifyContract(contract, stage) {
       zipNotificationContract.filterPrefix === "zip-jobs/requests/" &&
       zipNotificationContract.filterSuffix === ".json",
     "ZIP worker and notification contracts have drifted.",
+  );
+  assert(
+    contract.deploymentGates?.privateFilesImport?.issue === 11 &&
+      contract.deploymentGates.privateFilesImport.evidencePath ===
+        "docs/migration/private-file-import-verification.json" &&
+      contract.deploymentGates.privateFilesImport.verifier ===
+        "tooling/verify_private_file_cutover.mjs" &&
+      contract.deploymentGates.privateFilesImport.requiredBefore ===
+        "sst-deploy" &&
+      contract.deploymentGates.privateFilesImport.resolverContract ===
+        "legacy-sha256-v1",
+    "Private-file deployment must remain gated on issue #11 import evidence.",
   );
   assert(
     contract.oidc.audience === "sts.amazonaws.com" &&

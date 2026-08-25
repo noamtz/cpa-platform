@@ -18,7 +18,6 @@ import {
   READ_URL_TTL_SECONDS,
   UPLOAD_URL_TTL_SECONDS,
   ZIP_REQUEST_PREFIX,
-  ZIP_RESULT_PREFIX,
   ZIP_RESULT_TTL_SECONDS,
   ZIP_STATUS_PREFIX,
   allowedContentTypeSchema,
@@ -31,6 +30,7 @@ import {
   sanitizeZipName,
   stableReferenceHash,
   zipManifestSchema,
+  isZipResultKeyForJob,
   zipStatusSchema,
   type CpaSubmissionFileUrlInput,
   type CpaTemplateFileMirrorInput,
@@ -618,6 +618,14 @@ export class FileService {
   async mirrorCpaTemplateFile(input: CpaTemplateFileMirrorInput, actor: CpaActor) {
     const { key, kind } = resolveStoredFileReference(input.file_reference);
     if (kind === "owned") {
+      const receiptKey = createHash("sha256")
+        .update(`create:${input.file_reference}`)
+        .digest("hex");
+      const receipt =
+        await this.options.journal.getFileOperationReceipt(receiptKey);
+      if (!receipt || receipt.file_uri !== input.file_reference) {
+        throw notFound("File not found");
+      }
       const templateOwned = key.startsWith(templatePrefix(input.template_id));
       const pendingOwned = key.startsWith(templatePrefix("pending"));
       if (!templateOwned && !pendingOwned) throw notFound("File not found");
@@ -761,12 +769,11 @@ export class FileService {
     if (status.state === "failed") {
       return { job_id: jobId, status: "failed" as const, error: "ZIP download failed" };
     }
-    const expectedResult = `${ZIP_RESULT_PREFIX}${jobId}.zip`;
-    if (status.result_key !== expectedResult) throw internalError();
+    if (!isZipResultKeyForJob(status.result_key, jobId)) throw internalError();
     const signedUrl = await this.options.presign(
       new GetObjectCommand({
         Bucket: this.options.temporaryOutputsBucketName,
-        Key: expectedResult,
+        Key: status.result_key,
       }),
       Math.min(
         ZIP_RESULT_TTL_SECONDS,

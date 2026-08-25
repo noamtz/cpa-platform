@@ -11,6 +11,8 @@ export const ZIP_REQUEST_PREFIX = "zip-jobs/requests/";
 export const ZIP_RESULT_PREFIX = "zip-jobs/results/";
 export const ZIP_STATUS_PREFIX = "zip-jobs/status/";
 export const ZIP_LOCK_PREFIX = "zip-jobs/locks/";
+export const ZIP_LEASE_DURATION_MS = 60 * 1_000;
+export const ZIP_LEASE_HEARTBEAT_MS = 20 * 1_000;
 
 const idSchema = z.string().min(1).max(256);
 const tokenSchema = z.string().min(1).max(512);
@@ -106,6 +108,14 @@ export const cpaSubmissionFileUrlSchema = z
 export const cpaTemplateFileUrlSchema = z.object({ template_id: idSchema }).strict();
 export const zipDownloadRequestSchema = z.object({}).strict();
 export const zipJobIdSchema = z.string().uuid();
+export const zipProcessingLeaseSchema = z
+  .object({
+    version: z.literal(1),
+    job_id: zipJobIdSchema,
+    owner_id: z.string().uuid(),
+    expires_at: z.string().datetime({ offset: true }),
+  })
+  .strict();
 
 const fileReferencePrefix = "private://files/";
 const safeKeyPattern = /^(?:firms\/[a-z0-9-]+\/(?:clients\/[a-f0-9]{32}\/submissions\/[a-f0-9]{32}\/(?:questionnaire-document|signed-pdf)|templates\/[a-f0-9]{32}\/pdf-template)\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:pdf|jpg|png|heic)|legacy\/[a-f0-9]{64})$/;
@@ -303,3 +313,16 @@ export const zipStatusSchema = z.discriminatedUnion("state", [
 ]);
 export type ZipManifest = z.infer<typeof zipManifestSchema>;
 export type ZipStatus = z.infer<typeof zipStatusSchema>;
+export type ZipProcessingLease = z.infer<typeof zipProcessingLeaseSchema>;
+
+export function zipResultKey(jobId: string, ownerId: string) {
+  return `${ZIP_RESULT_PREFIX}${zipJobIdSchema.parse(jobId)}/${zipJobIdSchema.parse(ownerId)}.zip`;
+}
+
+export function isZipResultKeyForJob(value: string, jobId: string) {
+  const escapedJobId = jobId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `^${ZIP_RESULT_PREFIX}${escapedJobId}/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.zip$`,
+    "i",
+  ).test(value);
+}

@@ -9,6 +9,8 @@ on:
       - "infra/sst/**"
       - "backend/api/**"
       - "tooling/verify_sst_foundation.mjs"
+      - "tooling/verify_private_file_cutover.mjs"
+      - "docs/migration/private-file-import-verification.json"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/deploy-sst-test.yml"
@@ -19,6 +21,8 @@ on:
       - "infra/sst/**"
       - "backend/api/**"
       - "tooling/verify_sst_foundation.mjs"
+      - "tooling/verify_private_file_cutover.mjs"
+      - "docs/migration/private-file-import-verification.json"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/deploy-sst-test.yml"
@@ -108,10 +112,23 @@ jobs:
       - name: Preview test deployment
         run: npx sst diff --stage test --print-logs
 
+      - name: Check private-file import cutover evidence
+        id: private-file-cutover
+        shell: bash
+        run: |
+          if npm run verify:file-cutover:test; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Deployment skipped until issue #11 publishes verified private-file import evidence."
+          fi
+
       - name: Deploy test stage
-        run: npx sst deploy --stage test --print-logs
+        if: steps.private-file-cutover.outputs.ready == 'true'
+        run: npm run sst:deploy:test
 
       - name: Verify live test foundation
+        if: steps.private-file-cutover.outputs.ready == 'true'
         run: >-
           node tooling/verify_sst_foundation.mjs
           --mode live

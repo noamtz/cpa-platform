@@ -44,7 +44,10 @@ Document, signed-PDF, and template-file bytes use private S3 references. Browser
 short-lived signed PUT, upload directly to `FilesBucket`, and complete through the API before the opaque reference is
 saved. Reads use resource-derived signed URLs; the CPA ZIP control creates a private asynchronous job and downloads
 only a complete server-derived archive. Imported legacy references resolve to deterministic mirror keys whose bytes
-are populated by the separately authorized snapshot migration.
+are populated by the separately authorized snapshot migration. Until issue #11 commits the bounded
+`docs/migration/private-file-import-verification.json` artifact with zero unresolved references,
+`npm run sst:deploy:test` fails closed and CI skips deployment after the read-only preview. This prevents the AWS
+readers from activating while existing Base44-backed bytes are absent, without restoring an arbitrary legacy signer.
 
 Drive and Telegram endpoints deliberately return HTTP 501 with `FEATURE_NOT_IMPLEMENTED`; they do not construct
 external clients or mutate sync/notification state. The UI keeps the controls visible and displays this controlled
@@ -80,9 +83,10 @@ existing Terraform/PDF stacks require separate authorization. SST 3.19.3 cannot 
 deployed; if it reports `Stage not found`, do not initialize production through a deployment merely to obtain a
 preview. Use the production contract tests until a separately authorized production deployment creates the stage.
 
-`npm run sst:diff:test` is a read-only review gate, not deployment approval. `npm run sst:deploy:test` performs the
-test deployment and then applies/verifies refresh-token rotation through the AWS SDK because the pinned SST provider
-does not expose that setting. Do not run the deploy command, create test users, seed DynamoDB, or perform the
+`npm run sst:diff:test` is a read-only review gate, not deployment approval. `npm run sst:deploy:test` first requires
+issue #11's verified private-file import artifact, then performs the test deployment and applies/verifies
+refresh-token rotation through the AWS SDK because the pinned SST provider does not expose that setting. Do not run
+the deploy command, create test users, seed DynamoDB, or perform the
 two-user acceptance exercise without explicit owner authorization for that exact scope.
 
 The active `Deploy SST test` workflow assumes the separate `auditflow-test-github-deploy` role through the GitHub

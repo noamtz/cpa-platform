@@ -340,6 +340,14 @@ export const zipWorkerContract = {
   memoryMb: 1024,
   timeoutSeconds: 900,
   storageMb: 2048,
+  processingLease: {
+    prefix: "zip-jobs/locks/",
+    durationSeconds: 60,
+    heartbeatSeconds: 20,
+    conditionalWrite: true,
+    recoverableTakeover: true,
+    resultOwnership: "job-and-owner",
+  },
   permissions: {
     filesActions: ["s3:GetObject"] as const,
     temporaryActions: [
@@ -396,6 +404,16 @@ export const deploymentContract = {
     "repo:noamtz@2631641/cpa-platform@1332935468:environment:test",
   repository: "noamtz/cpa-platform",
   environment: "test",
+} as const;
+
+export const deploymentGateContract = {
+  privateFilesImport: {
+    issue: 11,
+    evidencePath: "docs/migration/private-file-import-verification.json",
+    verifier: "tooling/verify_private_file_cutover.mjs",
+    requiredBefore: "sst-deploy",
+    resolverContract: "legacy-sha256-v1",
+  },
 } as const;
 
 export const costContract = {

@@ -83,6 +83,14 @@
     "memoryMb": 1024,
     "timeoutSeconds": 900,
     "storageMb": 2048,
+    "processingLease": {
+      "prefix": "zip-jobs/locks/",
+      "durationSeconds": 60,
+      "heartbeatSeconds": 20,
+      "conditionalWrite": true,
+      "recoverableTakeover": true,
+      "resultOwnership": "job-and-owner"
+    },
     "permissions": {
       "filesActions": ["s3:GetObject"],
       "temporaryActions": ["s3:AbortMultipartUpload", "s3:DeleteObject", "s3:GetObject", "s3:ListMultipartUploadParts", "s3:PutObject"],
@@ -94,6 +102,15 @@
       "events": ["s3:ObjectCreated:*"],
       "filterPrefix": "zip-jobs/requests/",
       "filterSuffix": ".json"
+    }
+  },
+  "deploymentGates": {
+    "privateFilesImport": {
+      "issue": 11,
+      "evidencePath": "docs/migration/private-file-import-verification.json",
+      "verifier": "tooling/verify_private_file_cutover.mjs",
+      "requiredBefore": "sst-deploy",
+      "resolverContract": "legacy-sha256-v1"
     }
   },
   "oidc": {

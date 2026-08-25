@@ -7,6 +7,7 @@ import {
   bucketContracts,
   costContract,
   deploymentContract,
+  deploymentGateContract,
   expectedInventory,
   expectedOutputKeys,
   routerContract,
@@ -73,6 +74,7 @@ describe("foundation resource contract", () => {
       spaFallback: routerContract.spaFallback,
     });
     expect(verifierContract.zipWorker).toEqual(zipWorkerContract);
+    expect(verifierContract.deploymentGates).toEqual(deploymentGateContract);
     expect(verifierContract.oidc).toEqual({
       providerUrl: deploymentContract.providerUrl,
       audience: deploymentContract.audience,

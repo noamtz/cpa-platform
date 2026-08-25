@@ -50,8 +50,8 @@ Base44 file signing while retaining the explicitly deferred development-only PDF
   completion, ZIP polling, and ready-result download.
 - Extended journal, compatibility-facade, function-client, and SST foundation/verifier tests.
 
-Final automated results after review fixes: 96 frontend tests passed across 10 files; 189 foundation/backend tests passed across 27
-files.
+Final automated results after review fixes: 96 frontend tests passed across 10 files; 196 foundation/backend tests
+passed across 28 files.
 
 ## Validation results
 
@@ -60,7 +60,7 @@ files.
 - `npm ls @aws-sdk/client-s3 @aws-sdk/s3-request-presigner @aws-sdk/lib-storage jszip --depth=0` — passed; all four
   direct dependencies resolve to the pinned versions.
 - `npm test` — passed: 10 files, 96 tests.
-- `npm run test:foundation` — passed: 27 files, 189 tests.
+- `npm run test:foundation` — passed: 28 files, 196 tests.
 - `npm run typecheck:foundation` — passed.
 - `npm run lint:foundation` — passed.
 - `node tooling/verify_sst_foundation.mjs --mode contract --stage test` — passed.
@@ -88,6 +88,9 @@ files.
   contracts, types, tests, and verifier assertions passed.
 - Development-only PDF POC routes continue using their legacy helpers, as explicitly deferred by the plan. Active
   production routes no longer use the arbitrary signer or browser-supplied ZIP list.
+- Existing legacy objects cannot be served safely by every resource flow through the narrow Base44 functions. Rather
+  than restore the arbitrary signer, the supported test deployment now fails closed until issue #11 publishes tested
+  aggregate evidence that all referenced bytes were imported with zero unresolved objects.
 
 ## Issues encountered
 
@@ -99,7 +102,7 @@ files.
 
 ## Review fixes
 
-PR #26's agentic review found and this branch fixed all three findings:
+PR #26's first agentic review found and this branch fixed all three findings:
 
 - Added a narrow authenticated PdfTemplate file-mirror record so Base44-backed template CRUD can seed AWS-owned file
   locators without reintroducing arbitrary signing or taking over issue #10's full CRUD scope.
@@ -107,10 +110,20 @@ PR #26's agentic review found and this branch fixed all three findings:
 - Added bounded durable `FILE_RECONCILIATION` evidence when both delete journaling and delete-marker restoration fail.
 
 Focused regression tests cover the mirror-to-CPA/public read flow, overlapping ZIP deliveries, and the double-failure
-delete path. The complete local validation suite was rerun with the updated totals above.
+delete path. A fresh review then found four more issues, all of which were accepted and fixed:
+
+- Added a tested, fail-closed deployment gate that requires issue #11's completed private-file import evidence before
+  the AWS readers can be activated.
+- Replaced the permanent ZIP lock with a renewable conditional lease, atomic expired-owner takeover, and
+  owner-specific result publication and cleanup.
+- Replaced unbounded ZIP error logging with normalized classes and fixed messages, with explicit private-marker
+  redaction coverage.
+- Required the exact completed-upload receipt before an owned template file can be mirrored for public access.
+
+The complete local validation suite was rerun with the updated totals above.
 
 ## Ready for the next step
 
-The code and local delivery record are complete on PR #26. Refresh the authorized test-stage AWS session, rerun
-`npm run sst:diff:test`, and re-review the updated PR. Deployment and live browser acceptance remain separately
-authorized actions.
+The code and local delivery record are complete on PR #26. Re-review the updated PR, publish issue #11's verified
+import evidence, then refresh the authorized test-stage AWS session and rerun `npm run sst:diff:test`. Deployment and
+live browser acceptance remain separately authorized actions.

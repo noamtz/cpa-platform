@@ -13,6 +13,8 @@ import { deriveSubmissionFileEntries } from "../services/files";
 import { createZipDownloadHandler } from "../workers/zip-download";
 
 const jobId = "123e4567-e89b-12d3-a456-426614174000";
+const firstOwnerId = "223e4567-e89b-12d3-a456-426614174000";
+const secondOwnerId = "323e4567-e89b-12d3-a456-426614174000";
 const now = "2026-01-01T00:00:00.000Z";
 const manifest = {
   version: 1,
@@ -43,11 +45,70 @@ function event(): S3Event {
   } as S3Event;
 }
 
-function textObject(value: unknown) {
+function textObject(value: unknown, etag?: string) {
   return {
+    ...(etag ? { ETag: etag } : {}),
     Body: {
       transformToString: async () => JSON.stringify(value),
     },
+  };
+}
+
+function conditionalConflict() {
+  return Object.assign(new Error("conditional conflict"), {
+    name: "PreconditionFailed",
+    $metadata: { httpStatusCode: 412 },
+  });
+}
+
+function createLeaseStore(initial?: { record: unknown; etag: string }) {
+  let record = initial?.record;
+  let etag = initial?.etag;
+  let revision = 0;
+  return {
+    async send(command: unknown) {
+      let key: string | undefined;
+      if (
+        command instanceof GetObjectCommand ||
+        command instanceof PutObjectCommand
+      ) {
+        ({ Key: key } = command.input);
+      }
+      if (key !== `zip-jobs/locks/${jobId}.json`) {
+        return { handled: false as const };
+      }
+      if (command instanceof GetObjectCommand) {
+        if (!record || !etag) {
+          throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
+        }
+        return { handled: true as const, value: textObject(record, etag) };
+      }
+      if (command instanceof PutObjectCommand) {
+        const {
+          IfNoneMatch: ifNoneMatch,
+          IfMatch: ifMatch,
+          Body: body,
+        } = command.input;
+        if (ifNoneMatch === "*" && record) throw conditionalConflict();
+        if (ifMatch && ifMatch !== etag) throw conditionalConflict();
+        record = JSON.parse(String(body));
+        revision += 1;
+        etag = `"lease-${revision}"`;
+        return { handled: true as const, value: { ETag: etag } };
+      }
+      return { handled: false as const };
+    },
+    current() {
+      return { record, etag };
+    },
+  };
+}
+
+function leaseOptions(ownerId = firstOwnerId) {
+  return {
+    ownerId: () => ownerId,
+    scheduleLeaseRenewal: vi.fn(() => Symbol("lease-renewal")),
+    cancelLeaseRenewal: vi.fn(),
   };
 }
 
@@ -122,7 +183,10 @@ describe("ZIP worker", () => {
 
   it("streams every source into a complete multipart-uploaded archive", async () => {
     const statusWrites: unknown[] = [];
+    const leases = createLeaseStore();
     const send = vi.fn(async (command: unknown) => {
+      const leaseResult = await leases.send(command);
+      if (leaseResult.handled) return leaseResult.value;
       if (command instanceof GetObjectCommand) {
         const { Key: objectKey } = command.input;
         if (objectKey === `zip-jobs/status/${jobId}.json`) {
@@ -160,6 +224,7 @@ describe("ZIP worker", () => {
       temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
       createUpload,
       clock: () => new Date(now),
+      ...leaseOptions(),
     });
     await handler(event());
     expect(createUpload).toHaveBeenCalledOnce();
@@ -171,7 +236,10 @@ describe("ZIP worker", () => {
 
   it("fails the whole job and cleans partial output when any source is missing", async () => {
     const writes: unknown[] = [];
+    const leases = createLeaseStore();
     const send = vi.fn(async (command: unknown) => {
+      const leaseResult = await leases.send(command);
+      if (leaseResult.handled) return leaseResult.value;
       if (command instanceof GetObjectCommand) {
         const { Key: objectKey } = command.input;
         if (objectKey === `zip-jobs/status/${jobId}.json`) {
@@ -179,7 +247,12 @@ describe("ZIP worker", () => {
         }
         if (objectKey === `zip-jobs/requests/${jobId}.json`) return textObject(manifest);
         if (objectKey === firstSourceKey) return { Body: Readable.from("first") };
-        throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
+        throw Object.assign(
+          new Error(
+            "private://synthetic/secret.pdf customer-file.pdf opaque-token-value",
+          ),
+          { name: "NoSuchKey" },
+        );
       }
       if (command instanceof PutObjectCommand) {
         const { Key: objectKey } = command.input;
@@ -197,6 +270,7 @@ describe("ZIP worker", () => {
       temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
       createUpload,
       clock: () => new Date(now),
+      ...leaseOptions(),
     });
     await handler(event());
     expect(createUpload).not.toHaveBeenCalled();
@@ -209,13 +283,20 @@ describe("ZIP worker", () => {
     });
     expect(error).toHaveBeenCalledWith(
       "AuditFlow ZIP job failed",
-      expect.objectContaining({ jobId, errorName: "NoSuchKey" }),
+      {
+        jobId,
+        failureClass: "source_unavailable",
+        message: "ZIP job reached a terminal failure",
+      },
     );
+    const logged = JSON.stringify(error.mock.calls);
+    expect(logged).not.toContain("private://synthetic/secret.pdf");
+    expect(logged).not.toContain("customer-file.pdf");
+    expect(logged).not.toContain("opaque-token-value");
     error.mockRestore();
   });
 
   it("allows only one overlapping delivery to own result and terminal writes", async () => {
-    let processingLocked = false;
     let releaseUpload: (() => void) | undefined;
     const uploadStarted = new Promise<void>((resolve) => {
       releaseUpload = resolve;
@@ -226,7 +307,14 @@ describe("ZIP worker", () => {
     });
     const statusWrites: unknown[] = [];
     const deletes: string[] = [];
+    const leases = createLeaseStore();
+    const nextOwner = vi
+      .fn()
+      .mockReturnValueOnce(firstOwnerId)
+      .mockReturnValueOnce(secondOwnerId);
     const send = vi.fn(async (command: unknown) => {
+      const leaseResult = await leases.send(command);
+      if (leaseResult.handled) return leaseResult.value;
       if (command instanceof GetObjectCommand) {
         const { Key: objectKey } = command.input;
         if (objectKey === `zip-jobs/status/${jobId}.json`) {
@@ -240,17 +328,6 @@ describe("ZIP worker", () => {
       }
       if (command instanceof PutObjectCommand) {
         const { Key: objectKey } = command.input;
-        if (objectKey === `zip-jobs/locks/${jobId}.json`) {
-          if (processingLocked) {
-            throw Object.assign(new Error("locked"), {
-              name: "PreconditionFailed",
-              $metadata: { httpStatusCode: 412 },
-            });
-          }
-          processingLocked = true;
-          expect(command.input.IfNoneMatch).toBe("*");
-          return {};
-        }
         if (objectKey === `zip-jobs/status/${jobId}.json`) {
           statusWrites.push(JSON.parse(String(command.input.Body)));
         }
@@ -274,6 +351,9 @@ describe("ZIP worker", () => {
       temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
       createUpload,
       clock: () => new Date(now),
+      ownerId: nextOwner,
+      scheduleLeaseRenewal: vi.fn(() => Symbol("lease-renewal")),
+      cancelLeaseRenewal: vi.fn(),
     });
 
     const owner = handler(event());
@@ -286,5 +366,141 @@ describe("ZIP worker", () => {
     expect(statusWrites).toHaveLength(1);
     expect(statusWrites[0]).toMatchObject({ state: "ready", job_id: jobId });
     expect(deletes).toEqual([]);
+    expect(nextOwner).toHaveBeenCalledTimes(2);
+  });
+
+  it("takes over an expired lease left by a crashed worker", async () => {
+    const leases = createLeaseStore({
+      record: {
+        version: 1,
+        job_id: jobId,
+        owner_id: firstOwnerId,
+        expires_at: "2026-01-01T00:01:00.000Z",
+      },
+      etag: '"crashed-owner"',
+    });
+    const statusWrites: unknown[] = [];
+    const send = vi.fn(async (command: unknown) => {
+      const leaseResult = await leases.send(command);
+      if (leaseResult.handled) return leaseResult.value;
+      if (command instanceof GetObjectCommand) {
+        const { Key: objectKey } = command.input;
+        if (objectKey === `zip-jobs/status/${jobId}.json`) {
+          throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
+        }
+        if (objectKey === `zip-jobs/requests/${jobId}.json`) {
+          return textObject(manifest);
+        }
+        if (objectKey === firstSourceKey) return { Body: Readable.from("first") };
+        if (objectKey === secondSourceKey) return { Body: Readable.from("second") };
+      }
+      if (command instanceof PutObjectCommand) {
+        const { Key: objectKey, Body: body } = command.input;
+        if (objectKey === `zip-jobs/status/${jobId}.json`) {
+          statusWrites.push(JSON.parse(String(body)));
+        }
+      }
+      return {};
+    });
+    const createUpload = vi.fn(() => ({
+      async done() {},
+      async abort() {},
+    }));
+    const handler = createZipDownloadHandler({
+      s3: { send },
+      filesBucketName: "FilesBucket.test",
+      temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
+      createUpload,
+      clock: () => new Date("2026-01-01T00:02:00.000Z"),
+      ...leaseOptions(secondOwnerId),
+    });
+
+    await handler(event());
+
+    expect(createUpload).toHaveBeenCalledWith(
+      `zip-jobs/results/${jobId}/${secondOwnerId}.zip`,
+      expect.anything(),
+    );
+    expect(statusWrites).toEqual([
+      expect.objectContaining({
+        state: "ready",
+        result_key: `zip-jobs/results/${jobId}/${secondOwnerId}.zip`,
+      }),
+    ]);
+    expect(leases.current().record).toMatchObject({
+      owner_id: secondOwnerId,
+      expires_at: "2026-01-01T00:02:00.000Z",
+    });
+  });
+
+  it("releases the lease when terminal status persistence fails so a retry completes", async () => {
+    const leases = createLeaseStore();
+    const statuses: unknown[] = [];
+    const deletedResults: string[] = [];
+    let statusWriteAttempt = 0;
+    const send = vi.fn(async (command: unknown) => {
+      const leaseResult = await leases.send(command);
+      if (leaseResult.handled) return leaseResult.value;
+      if (command instanceof GetObjectCommand) {
+        const { Key: objectKey } = command.input;
+        if (objectKey === `zip-jobs/status/${jobId}.json`) {
+          throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
+        }
+        if (objectKey === `zip-jobs/requests/${jobId}.json`) {
+          return textObject(manifest);
+        }
+        if (objectKey === firstSourceKey) return { Body: Readable.from("first") };
+        if (objectKey === secondSourceKey) return { Body: Readable.from("second") };
+      }
+      if (command instanceof PutObjectCommand) {
+        const { Key: objectKey, Body: body } = command.input;
+        if (objectKey === `zip-jobs/status/${jobId}.json`) {
+          statusWriteAttempt += 1;
+          if (statusWriteAttempt <= 2) {
+            throw new Error("synthetic status persistence failure");
+          }
+          statuses.push(JSON.parse(String(body)));
+        }
+      }
+      if (command instanceof DeleteObjectCommand) {
+        const { Key: objectKey } = command.input;
+        deletedResults.push(String(objectKey));
+      }
+      return {};
+    });
+    const createUpload = vi.fn(() => ({
+      async done() {},
+      async abort() {},
+    }));
+    const nextOwner = vi
+      .fn()
+      .mockReturnValueOnce(firstOwnerId)
+      .mockReturnValueOnce(secondOwnerId);
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const handler = createZipDownloadHandler({
+      s3: { send },
+      filesBucketName: "FilesBucket.test",
+      temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
+      createUpload,
+      clock: () => new Date(now),
+      ownerId: nextOwner,
+      scheduleLeaseRenewal: vi.fn(() => Symbol("lease-renewal")),
+      cancelLeaseRenewal: vi.fn(),
+    });
+
+    await expect(handler(event())).rejects.toThrow("ZIP worker retry required");
+    await expect(handler(event())).resolves.toBeUndefined();
+
+    expect(statuses).toEqual([
+      expect.objectContaining({
+        state: "ready",
+        result_key: `zip-jobs/results/${jobId}/${secondOwnerId}.zip`,
+      }),
+    ]);
+    expect(deletedResults).toContain(
+      `zip-jobs/results/${jobId}/${firstOwnerId}.zip`,
+    );
+    expect(createUpload).toHaveBeenCalledTimes(2);
+    error.mockRestore();
   });
 });

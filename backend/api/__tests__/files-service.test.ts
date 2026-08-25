@@ -362,11 +362,15 @@ describe("FileService scoped reads and deletion", () => {
       service,
       send,
       presign,
+      journal,
       pdfTemplates,
       questionnaireTemplates,
       publicAuthorizer,
     } = setup();
     const fileReference = templateReference();
+    journal.getFileOperationReceipt.mockResolvedValue({
+      file_uri: fileReference,
+    });
     let mirroredRecord: Record<string, unknown> | undefined;
     pdfTemplates.mirrorFile.mockImplementation(async (input) => {
       mirroredRecord = {
@@ -429,6 +433,27 @@ describe("FileService scoped reads and deletion", () => {
       }),
     );
     expect(presign).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects an owned template mirror until upload completion is journaled", async () => {
+    const { service, send, journal, pdfTemplates } = setup();
+    const fileReference = templateReference();
+
+    await expect(
+      service.mirrorCpaTemplateFile(
+        {
+          template_id: "template-test",
+          file_reference: fileReference,
+          name: "Synthetic template",
+          is_active: true,
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ statusCode: 404 });
+
+    expect(journal.getFileOperationReceipt).toHaveBeenCalledOnce();
+    expect(send).not.toHaveBeenCalled();
+    expect(pdfTemplates.mirrorFile).not.toHaveBeenCalled();
   });
 
   it("removes the delete marker when journal evidence fails", async () => {
@@ -579,7 +604,7 @@ describe("FileService ZIP jobs", () => {
       version: 1,
       job_id: generatedId,
       state: "ready",
-      result_key: `zip-jobs/results/${generatedId}.zip`,
+      result_key: `zip-jobs/results/${generatedId}/${generatedId}.zip`,
       completed_at: "2026-01-01T00:01:00.000Z",
     };
     send
