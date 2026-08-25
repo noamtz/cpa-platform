@@ -3,6 +3,7 @@ import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import type { CpaActor } from "../auth/cpa-context";
 import {
   cpaSubmissionFileUrlSchema,
+  cpaTemplateFileMirrorSchema,
   cpaTemplateFileUrlSchema,
   cpaUploadCompleteSchema,
   cpaUploadInitiateSchema,
@@ -94,6 +95,18 @@ export function registerFileRoutes(
       const input = parseJsonBody(event, cpaTemplateFileUrlSchema);
       return jsonResponse(200, await service.getCpaTemplateFileUrl(input.template_id, actor));
     }),
+  );
+  router.register(
+    "POST /cpa/files/template-mirror",
+    authenticated(async (event, actor) =>
+      jsonResponse(
+        200,
+        await service.mirrorCpaTemplateFile(
+          parseJsonBody(event, cpaTemplateFileMirrorSchema),
+          actor,
+        ),
+      ),
+    ),
   );
   router.register(
     "POST /cpa/submissions/{id}/zip-downloads",

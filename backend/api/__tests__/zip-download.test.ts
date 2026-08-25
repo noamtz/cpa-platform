@@ -133,7 +133,10 @@ describe("ZIP worker", () => {
         if (objectKey === secondSourceKey) return { Body: Readable.from("second") };
       }
       if (command instanceof PutObjectCommand) {
-        statusWrites.push(JSON.parse(String(command.input.Body)));
+        const { Key: objectKey } = command.input;
+        if (objectKey === `zip-jobs/status/${jobId}.json`) {
+          statusWrites.push(JSON.parse(String(command.input.Body)));
+        }
         return {};
       }
       return {};
@@ -179,7 +182,10 @@ describe("ZIP worker", () => {
         throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
       }
       if (command instanceof PutObjectCommand) {
-        writes.push(JSON.parse(String(command.input.Body)));
+        const { Key: objectKey } = command.input;
+        if (objectKey === `zip-jobs/status/${jobId}.json`) {
+          writes.push(JSON.parse(String(command.input.Body)));
+        }
       }
       return {};
     });
@@ -206,5 +212,79 @@ describe("ZIP worker", () => {
       expect.objectContaining({ jobId, errorName: "NoSuchKey" }),
     );
     error.mockRestore();
+  });
+
+  it("allows only one overlapping delivery to own result and terminal writes", async () => {
+    let processingLocked = false;
+    let releaseUpload: (() => void) | undefined;
+    const uploadStarted = new Promise<void>((resolve) => {
+      releaseUpload = resolve;
+    });
+    let finishUpload: (() => void) | undefined;
+    const uploadMayFinish = new Promise<void>((resolve) => {
+      finishUpload = resolve;
+    });
+    const statusWrites: unknown[] = [];
+    const deletes: string[] = [];
+    const send = vi.fn(async (command: unknown) => {
+      if (command instanceof GetObjectCommand) {
+        const { Key: objectKey } = command.input;
+        if (objectKey === `zip-jobs/status/${jobId}.json`) {
+          throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
+        }
+        if (objectKey === `zip-jobs/requests/${jobId}.json`) {
+          return textObject(manifest);
+        }
+        if (objectKey === firstSourceKey) return { Body: Readable.from("first") };
+        if (objectKey === secondSourceKey) return { Body: Readable.from("second") };
+      }
+      if (command instanceof PutObjectCommand) {
+        const { Key: objectKey } = command.input;
+        if (objectKey === `zip-jobs/locks/${jobId}.json`) {
+          if (processingLocked) {
+            throw Object.assign(new Error("locked"), {
+              name: "PreconditionFailed",
+              $metadata: { httpStatusCode: 412 },
+            });
+          }
+          processingLocked = true;
+          expect(command.input.IfNoneMatch).toBe("*");
+          return {};
+        }
+        if (objectKey === `zip-jobs/status/${jobId}.json`) {
+          statusWrites.push(JSON.parse(String(command.input.Body)));
+        }
+      }
+      if (command instanceof DeleteObjectCommand) {
+        const { Key: objectKey } = command.input;
+        deletes.push(String(objectKey));
+      }
+      return {};
+    });
+    const createUpload = vi.fn(() => ({
+      async done() {
+        releaseUpload?.();
+        await uploadMayFinish;
+      },
+      async abort() {},
+    }));
+    const handler = createZipDownloadHandler({
+      s3: { send },
+      filesBucketName: "FilesBucket.test",
+      temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
+      createUpload,
+      clock: () => new Date(now),
+    });
+
+    const owner = handler(event());
+    await uploadStarted;
+    await handler(event());
+    finishUpload?.();
+    await owner;
+
+    expect(createUpload).toHaveBeenCalledOnce();
+    expect(statusWrites).toHaveLength(1);
+    expect(statusWrites[0]).toMatchObject({ state: "ready", job_id: jobId });
+    expect(deletes).toEqual([]);
   });
 });

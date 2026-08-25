@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import {
   GetCommand,
+  PutCommand,
   TransactWriteCommand,
   type TransactWriteCommandInput,
 } from "@aws-sdk/lib-dynamodb";
@@ -9,12 +10,14 @@ import {
 import {
   formatJournalSequence,
   FILE_RECEIPT_SCOPE,
+  FILE_RECONCILIATION_SCOPE,
   JOURNAL_CURSOR_SEQUENCE,
   JOURNAL_MAX_ACTIONS,
   JOURNAL_MAX_ITEM_BYTES,
   JOURNAL_SCOPE,
   journalEntrySchema,
   fileOperationReceiptSchema,
+  fileReconciliationSchema,
   type FileOperationReceipt,
   type MutationChange,
 } from "../contracts/change-journal";
@@ -57,6 +60,17 @@ export interface FileOperationCommitInput {
   readonly receiptKey: string;
   readonly fileUri: string;
   readonly change: MutationChange;
+}
+
+export interface FileReconciliationInput {
+  readonly actorId: string;
+  readonly requestId: string;
+  readonly operationId: string;
+  readonly receiptKey: string;
+  readonly referenceHash: string;
+  readonly deleteMarkerVersionId: string;
+  readonly journalFailureName: string;
+  readonly restorationFailureName: string;
 }
 
 function canonicalize(value: unknown): unknown {
@@ -214,6 +228,29 @@ export class ChangeJournalService {
       if (!winner) throw error;
       return { fileUri: winner.file_uri, replayed: true } as const;
     }
+  }
+
+  async recordFileReconciliation(input: FileReconciliationInput) {
+    const record = fileReconciliationSchema.parse({
+      scope: FILE_RECONCILIATION_SCOPE,
+      sequence: input.receiptKey,
+      item_type: "FILE_RECONCILIATION",
+      operation_id: input.operationId,
+      actor_id: input.actorId,
+      request_id: input.requestId,
+      reference_hash: input.referenceHash,
+      delete_marker_version_id: input.deleteMarkerVersionId,
+      journal_failure_name: input.journalFailureName,
+      restoration_failure_name: input.restorationFailureName,
+      occurred_at: this.clock().toISOString(),
+    });
+    await this.options.client.send(
+      new PutCommand({
+        TableName: this.options.tableName,
+        Item: record,
+      }),
+    );
+    return record;
   }
 
   async commit(input: JournalCommitInput) {

@@ -137,7 +137,7 @@ function verifyContract(contract, stage) {
   const cpaRoutes = contract.routes.filter(({ route }) =>
     route.includes(" /cpa/"),
   );
-  assert(cpaRoutes.length === 20, "The exact CPA route inventory is incomplete.");
+  assert(cpaRoutes.length === 21, "The exact CPA route inventory is incomplete.");
   assert(
     cpaRoutes.every(
       ({ authorization, authorizationScopes }) =>

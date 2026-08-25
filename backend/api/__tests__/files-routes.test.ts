@@ -69,6 +69,7 @@ function setup() {
     completeCpaUpload: vi.fn().mockResolvedValue({ file_uri: "private://files/test" }),
     getCpaSubmissionFileUrl: vi.fn().mockResolvedValue({ signed_url: "https://signed.test/read" }),
     getCpaTemplateFileUrl: vi.fn().mockResolvedValue({ signed_url: "https://signed.test/template" }),
+    mirrorCpaTemplateFile: vi.fn().mockResolvedValue({ template_id: "template-test", mirrored: true }),
     requestZipDownload: vi.fn().mockResolvedValue({ job_id: "job-test", status: "pending" }),
     getZipDownloadStatus: vi.fn().mockResolvedValue({ job_id: "job-test", status: "pending" }),
   } as unknown as FileService;
@@ -147,6 +148,15 @@ describe("assembled file routes", () => {
         { submission_id: "submission-test", source: "response", step_id: "step-test", file_index: 0 },
       ],
       ["POST /cpa/files/template-url", { template_id: "template-test" }],
+      [
+        "POST /cpa/files/template-mirror",
+        {
+          template_id: "template-test",
+          file_reference: "private://synthetic/template.pdf",
+          name: "Synthetic template",
+          is_active: true,
+        },
+      ],
       ["POST /cpa/submissions/{id}/zip-downloads", {}],
       ["GET /cpa/submissions/{id}/zip-downloads/{jobId}", {}],
     ] as const;

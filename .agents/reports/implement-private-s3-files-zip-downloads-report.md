@@ -2,7 +2,7 @@
 
 **Plan**: `.agents/plans/implement-private-s3-files-zip-downloads.md`
 **Branch**: `feature/private-s3-files-zip-downloads`
-**PR**: not opened
+**PR**: [#26](https://github.com/noamtz/cpa-platform/pull/26)
 **Status**: COMPLETE
 
 ## Summary
@@ -50,7 +50,7 @@ Base44 file signing while retaining the explicitly deferred development-only PDF
   completion, ZIP polling, and ready-result download.
 - Extended journal, compatibility-facade, function-client, and SST foundation/verifier tests.
 
-Final automated results: 95 frontend tests passed across 10 files; 182 foundation/backend tests passed across 27
+Final automated results after review fixes: 96 frontend tests passed across 10 files; 189 foundation/backend tests passed across 27
 files.
 
 ## Validation results
@@ -59,8 +59,8 @@ files.
   findings. No automatic audit mutation was performed.
 - `npm ls @aws-sdk/client-s3 @aws-sdk/s3-request-presigner @aws-sdk/lib-storage jszip --depth=0` — passed; all four
   direct dependencies resolve to the pinned versions.
-- `npm test` — passed: 10 files, 95 tests.
-- `npm run test:foundation` — passed: 27 files, 182 tests.
+- `npm test` — passed: 10 files, 96 tests.
+- `npm run test:foundation` — passed: 27 files, 189 tests.
 - `npm run typecheck:foundation` — passed.
 - `npm run lint:foundation` — passed.
 - `node tooling/verify_sst_foundation.mjs --mode contract --stage test` — passed.
@@ -97,8 +97,20 @@ files.
 - The imported frontend baseline still contains repository-wide type/lint debt; changed paths were brought to zero
   diagnostics instead of expanding unrelated cleanup.
 
+## Review fixes
+
+PR #26's agentic review found and this branch fixed all three findings:
+
+- Added a narrow authenticated PdfTemplate file-mirror record so Base44-backed template CRUD can seed AWS-owned file
+  locators without reintroducing arbitrary signing or taking over issue #10's full CRUD scope.
+- Added an atomic conditional ZIP processing lock so overlapping S3 deliveries cannot share result/status ownership.
+- Added bounded durable `FILE_RECONCILIATION` evidence when both delete journaling and delete-marker restoration fail.
+
+Focused regression tests cover the mirror-to-CPA/public read flow, overlapping ZIP deliveries, and the double-failure
+delete path. The complete local validation suite was rerun with the updated totals above.
+
 ## Ready for the next step
 
-The code and local delivery record are complete. Refresh the authorized test-stage AWS session, rerun
-`npm run sst:diff:test`, then use `piv-commit`, `piv-create-pr`, and `piv-review-pr`. Deployment and live browser
-acceptance remain separately authorized actions.
+The code and local delivery record are complete on PR #26. Refresh the authorized test-stage AWS session, rerun
+`npm run sst:diff:test`, and re-review the updated PR. Deployment and live browser acceptance remain separately
+authorized actions.

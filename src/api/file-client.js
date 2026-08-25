@@ -156,6 +156,12 @@ export function createFileClient(options) {
         body: { template_id: templateId },
       });
     },
+    mirrorCpaTemplateFile(payload) {
+      return http.request("/cpa/files/template-mirror", {
+        method: "POST",
+        body: payload,
+      });
+    },
 
     async downloadSubmissionZip(submissionId, { pollInterval = 1000 } = {}) {
       const requested = await http.request(

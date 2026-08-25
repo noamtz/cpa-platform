@@ -134,4 +134,26 @@ describe("private file client", () => {
     });
     expect(anchor.click).toHaveBeenCalledOnce();
   });
+
+  it("persists the authenticated template file mirror before scoped reads", async () => {
+    const request = vi.fn().mockResolvedValue({
+      template_id: "template-test",
+      mirrored: true,
+    });
+    const client = createFileClient({ http: { request } });
+    const payload = {
+      template_id: "template-test",
+      file_reference: "private://synthetic/template.pdf",
+      name: "Synthetic template",
+      is_active: true,
+    };
+
+    await expect(client.mirrorCpaTemplateFile(payload)).resolves.toMatchObject({
+      mirrored: true,
+    });
+    expect(request).toHaveBeenCalledWith("/cpa/files/template-mirror", {
+      method: "POST",
+      body: payload,
+    });
+  });
 });

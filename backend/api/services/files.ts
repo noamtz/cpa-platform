@@ -33,6 +33,7 @@ import {
   zipManifestSchema,
   zipStatusSchema,
   type CpaSubmissionFileUrlInput,
+  type CpaTemplateFileMirrorInput,
   type CpaUploadCompleteInput,
   type CpaUploadInitiateInput,
   type PublicSignedPdfUrlInput,
@@ -92,6 +93,10 @@ type GetResult = {
 
 function purposeSlug(purpose: string) {
   return purpose.replaceAll("_", "-");
+}
+
+function failureName(error: unknown) {
+  return error instanceof Error && error.name ? error.name.slice(0, 128) : "UnknownError";
 }
 
 function submissionPrefix(clientId: string, submissionId: string, purpose: string) {
@@ -165,6 +170,7 @@ function signedPdfReference(submission: SubmissionRecord, stepId: string) {
 }
 
 function templateBaseReference(template: PdfTemplateRecord) {
+  if (template.file_reference) return template.file_reference;
   const basePdf = parseJsonRecord(template.template_json).basePdf;
   if (typeof basePdf === "string") return basePdf;
   if (basePdf && typeof basePdf === "object") {
@@ -609,6 +615,44 @@ export class FileService {
     ]);
   }
 
+  async mirrorCpaTemplateFile(input: CpaTemplateFileMirrorInput, actor: CpaActor) {
+    const { key, kind } = resolveStoredFileReference(input.file_reference);
+    if (kind === "owned") {
+      const templateOwned = key.startsWith(templatePrefix(input.template_id));
+      const pendingOwned = key.startsWith(templatePrefix("pending"));
+      if (!templateOwned && !pendingOwned) throw notFound("File not found");
+      let head: HeadResult;
+      try {
+        head = (await this.options.s3.send(
+          new HeadObjectCommand({
+            Bucket: this.options.filesBucketName,
+            Key: key,
+          }),
+        )) as HeadResult;
+      } catch (error) {
+        if (isMissingObject(error)) throw notFound("File not found");
+        throw internalError();
+      }
+      const expectedOwner = templateOwned ? input.template_id : "pending";
+      if (
+        head.ContentType !== "application/pdf" ||
+        head.Metadata?.purpose !== "pdf_template" ||
+        head.Metadata?.["owner-hash"] !== ownerKeyPart(expectedOwner)
+      ) {
+        throw notFound("File not found");
+      }
+    }
+    await this.options.pdfTemplates.mirrorFile({
+      id: input.template_id,
+      name: input.name,
+      fileReference: input.file_reference,
+      isActive: input.is_active,
+      actorId: actor.userId,
+      occurredAt: this.clock().toISOString(),
+    });
+    return { template_id: input.template_id, mirrored: true } as const;
+  }
+
   async requestZipDownload(submissionId: string, actor: CpaActor) {
     const submission = await this.options.submissions.get(submissionId);
     if (!submission || submission.is_archived) throw notFound("Submission not found");
@@ -793,15 +837,35 @@ export class FileService {
         );
       }
       return { deleted: true, replayed: result.replayed } as const;
-    } catch (error) {
-      await this.options.s3.send(
-        new DeleteObjectCommand({
-          Bucket: this.options.filesBucketName,
-          Key: key,
-          VersionId: deleted.VersionId,
-        }),
-      );
-      throw error;
+    } catch (journalError) {
+      try {
+        await this.options.s3.send(
+          new DeleteObjectCommand({
+            Bucket: this.options.filesBucketName,
+            Key: key,
+            VersionId: deleted.VersionId,
+          }),
+        );
+      } catch (restorationError) {
+        try {
+          await this.options.journal.recordFileReconciliation({
+            actorId: input.actor.userId,
+            requestId: input.requestId,
+            operationId: `file-delete-${receiptKey.slice(0, 32)}`,
+            receiptKey,
+            referenceHash: stableReferenceHash(input.reference),
+            deleteMarkerVersionId: deleted.VersionId,
+            journalFailureName: failureName(journalError),
+            restorationFailureName: failureName(restorationError),
+          });
+        } catch (reconciliationError) {
+          throw new AggregateError(
+            [journalError, restorationError, reconciliationError],
+            "File delete reconciliation recording failed",
+          );
+        }
+      }
+      throw journalError;
     }
   }
 }

@@ -254,6 +254,12 @@ export const apiRoutes = {
     authorization: "cognito-jwt",
     authorizationScopes: ["auditflow-api/cpa"],
   },
+  templateFileMirror: {
+    route: "POST /cpa/files/template-mirror",
+    path: "/cpa/files/template-mirror",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
   submissionZipRequest: {
     route: "POST /cpa/submissions/{id}/zip-downloads",
     path: "/cpa/submissions/{id}/zip-downloads",

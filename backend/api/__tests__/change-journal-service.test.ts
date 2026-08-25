@@ -1,4 +1,4 @@
-import { GetCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, PutCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChangeJournalService, hashRecord } from "../services/change-journal";
@@ -235,5 +235,33 @@ describe("ChangeJournalService", () => {
       }),
     ).resolves.toEqual({ fileUri, replayed: true });
     expect(replaySend).toHaveBeenCalledOnce();
+  });
+
+  it("writes bounded durable evidence for a failed delete restoration", async () => {
+    const send = vi.fn().mockResolvedValue({});
+    const service = new ChangeJournalService({
+      client: { send },
+      tableName: "ChangeJournalTable.test",
+      clock: () => new Date("2026-01-01T00:00:00.000Z"),
+    });
+    await expect(
+      service.recordFileReconciliation({
+        actorId: "user-test",
+        requestId: "request-test",
+        operationId: "file-delete-test",
+        receiptKey: "a".repeat(64),
+        referenceHash: "b".repeat(64),
+        deleteMarkerVersionId: "marker-version",
+        journalFailureName: "InternalError",
+        restorationFailureName: "ServiceUnavailable",
+      }),
+    ).resolves.toMatchObject({
+      scope: "FILE_RECONCILIATION",
+      reference_hash: "b".repeat(64),
+      delete_marker_version_id: "marker-version",
+    });
+    const command = send.mock.calls[0][0];
+    expect(command).toBeInstanceOf(PutCommand);
+    expect(JSON.stringify(command.input.Item)).not.toContain("private://");
   });
 });

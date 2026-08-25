@@ -1,4 +1,4 @@
-import { GetCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { describe, expect, it, vi } from "vitest";
 
 import { PdfTemplateRepository } from "../repositories/pdf-template";
@@ -38,5 +38,40 @@ describe("PdfTemplateRepository", () => {
       "PdfTemplateTable.test",
     );
     await expect(invalid.get("template-test")).rejects.toMatchObject({ statusCode: 500 });
+  });
+
+  it("upserts only the transitional file mirror fields", async () => {
+    const mirrored = {
+      id: "template-test",
+      name: "Synthetic template",
+      file_reference: "private://synthetic/file.pdf",
+      is_active: true,
+      record_type: "PdfTemplate" as const,
+      _version: 1,
+      created_date: "2026-01-01T00:00:00.000Z",
+      updated_date: "2026-01-01T00:00:00.000Z",
+      created_by: "user-test",
+    };
+    const send = vi.fn().mockResolvedValue({ Attributes: mirrored });
+    const repository = new PdfTemplateRepository({ send }, "PdfTemplateTable.test");
+
+    await expect(
+      repository.mirrorFile({
+        id: mirrored.id,
+        name: mirrored.name,
+        fileReference: mirrored.file_reference,
+        isActive: true,
+        actorId: "user-test",
+        occurredAt: mirrored.updated_date,
+      }),
+    ).resolves.toEqual(mirrored);
+    const command = send.mock.calls[0][0];
+    expect(command).toBeInstanceOf(UpdateCommand);
+    expect(command.input).toMatchObject({
+      TableName: "PdfTemplateTable.test",
+      Key: { id: "template-test" },
+      ReturnValues: "ALL_NEW",
+    });
+    expect(command.input.UpdateExpression).not.toContain("template_json");
   });
 });

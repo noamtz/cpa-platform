@@ -46,6 +46,12 @@ function ownedReference(purpose = "questionnaire-document") {
   return privateFileReference(objectKey);
 }
 
+function templateReference(ownerId = "pending") {
+  return privateFileReference(
+    `firms/ddcpa/templates/${ownerKeyPart(ownerId)}/pdf-template/${generatedId}.pdf`,
+  );
+}
+
 function setup(overrides: Record<string, unknown> = {}) {
   const send = vi.fn();
   const presign = vi.fn().mockResolvedValue("https://signed.example.test/object");
@@ -56,6 +62,7 @@ function setup(overrides: Record<string, unknown> = {}) {
       replayed: false,
     }),
     commit: vi.fn().mockResolvedValue([]),
+    recordFileReconciliation: vi.fn().mockResolvedValue({}),
   };
   const publicAuthorizer = {
     authorize: vi.fn().mockResolvedValue(client),
@@ -65,7 +72,7 @@ function setup(overrides: Record<string, unknown> = {}) {
   const clients = { get: vi.fn().mockResolvedValue(client) };
   const submissions = { get: vi.fn().mockResolvedValue(submission) };
   const questionnaireTemplates = { get: vi.fn(), latestActive: vi.fn() };
-  const pdfTemplates = { get: vi.fn() };
+  const pdfTemplates = { get: vi.fn(), mirrorFile: vi.fn() };
   const options = {
     s3: { send },
     presign,
@@ -350,6 +357,80 @@ describe("FileService scoped reads and deletion", () => {
     expect(presign).not.toHaveBeenCalled();
   });
 
+  it("bridges a completed pending upload into scoped CPA and public template reads", async () => {
+    const {
+      service,
+      send,
+      presign,
+      pdfTemplates,
+      questionnaireTemplates,
+      publicAuthorizer,
+    } = setup();
+    const fileReference = templateReference();
+    let mirroredRecord: Record<string, unknown> | undefined;
+    pdfTemplates.mirrorFile.mockImplementation(async (input) => {
+      mirroredRecord = {
+        id: input.id,
+        name: input.name,
+        file_reference: input.fileReference,
+        is_active: input.isActive,
+        record_type: "PdfTemplate",
+        _version: 1,
+        created_date: input.occurredAt,
+        updated_date: input.occurredAt,
+      };
+      return mirroredRecord;
+    });
+    pdfTemplates.get.mockImplementation(async () => mirroredRecord);
+    questionnaireTemplates.get.mockResolvedValue({
+      id: "questionnaire-test",
+      steps: JSON.stringify([
+        { id: "step-test", type: "pdf", config: { pdf_template_id: "template-test" } },
+      ]),
+    });
+    publicAuthorizer.authorizeActiveSubmission.mockResolvedValue({
+      client,
+      submission: { ...submission, template_id: "questionnaire-test" },
+    });
+    send.mockResolvedValue({
+      ContentType: "application/pdf",
+      Metadata: {
+        purpose: "pdf_template",
+        "owner-hash": ownerKeyPart("pending"),
+      },
+    });
+
+    await expect(
+      service.mirrorCpaTemplateFile(
+        {
+          template_id: "template-test",
+          file_reference: fileReference,
+          name: "Synthetic template",
+          is_active: true,
+        },
+        actor,
+      ),
+    ).resolves.toEqual({ template_id: "template-test", mirrored: true });
+    await expect(
+      service.getCpaTemplateFileUrl("template-test", actor),
+    ).resolves.toEqual({ signed_url: "https://signed.example.test/object" });
+    await expect(
+      service.getPublicTemplateFileUrl({
+        client_id: client.id,
+        token: "synthetic-link-value",
+        template_id: "template-test",
+      }),
+    ).resolves.toEqual({ signed_url: "https://signed.example.test/object" });
+    expect(pdfTemplates.mirrorFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "template-test",
+        fileReference,
+        actorId: actor.userId,
+      }),
+    );
+    expect(presign).toHaveBeenCalledTimes(2);
+  });
+
   it("removes the delete marker when journal evidence fails", async () => {
     const { service, send, journal } = setup();
     send
@@ -375,6 +456,46 @@ describe("FileService scoped reads and deletion", () => {
     const restore = send.mock.calls[2][0];
     expect(restore).toBeInstanceOf(DeleteObjectCommand);
     expect(restore.input.VersionId).toBe("marker-version");
+  });
+
+  it("records bounded reconciliation evidence when delete-marker restoration also fails", async () => {
+    const { service, send, journal } = setup();
+    send
+      .mockResolvedValueOnce({
+        ContentLength: 4,
+        ContentType: "application/pdf",
+        VersionId: "old-version",
+      })
+      .mockResolvedValueOnce({ DeleteMarker: true, VersionId: "marker-version" })
+      .mockRejectedValueOnce(Object.assign(new Error("synthetic restore failure"), {
+        name: "ServiceUnavailable",
+      }));
+    journal.commitFileOperation.mockRejectedValue(
+      Object.assign(new Error("synthetic journal failure"), { name: "InternalError" }),
+    );
+
+    await expect(
+      service.deleteOwnedFile({
+        reference: ownedReference(),
+        ownerType: "submission",
+        ownerId: submission.id,
+        actor,
+        requestId: "request-test",
+      }),
+    ).rejects.toThrow("synthetic journal failure");
+    expect(journal.recordFileReconciliation).toHaveBeenCalledWith({
+      actorId: actor.userId,
+      requestId: "request-test",
+      operationId: expect.stringMatching(/^file-delete-/),
+      receiptKey: expect.stringMatching(/^[a-f0-9]{64}$/),
+      referenceHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      deleteMarkerVersionId: "marker-version",
+      journalFailureName: "InternalError",
+      restorationFailureName: "ServiceUnavailable",
+    });
+    expect(
+      JSON.stringify(journal.recordFileReconciliation.mock.calls[0][0]),
+    ).not.toContain("private://");
   });
 
   it("replays a journaled delete without touching S3", async () => {

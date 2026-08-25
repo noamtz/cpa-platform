@@ -70,6 +70,7 @@ const CPA_ROUTE_KEYS = new Set([
   "POST /cpa/files/uploads/complete",
   "POST /cpa/files/submission-url",
   "POST /cpa/files/template-url",
+  "POST /cpa/files/template-mirror",
   "POST /cpa/submissions/{id}/zip-downloads",
   "GET /cpa/submissions/{id}/zip-downloads/{jobId}",
 ]);

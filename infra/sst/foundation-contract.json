@@ -37,6 +37,7 @@
     { "route": "POST /cpa/files/uploads/complete", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/files/submission-url", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/files/template-url", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/files/template-mirror", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/submissions/{id}/zip-downloads", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "GET /cpa/submissions/{id}/zip-downloads/{jobId}", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/users/query", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },

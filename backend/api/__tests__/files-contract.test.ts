@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_SINGLE_PUT_BYTES,
   cpaSubmissionFileUrlSchema,
+  cpaTemplateFileMirrorSchema,
   legacyReferenceKey,
   parsePrivateFileReference,
   privateFileReference,
@@ -82,6 +83,26 @@ describe("file contracts", () => {
         step_id: "step-test",
         file_uri: "private://synthetic/imported.pdf",
       }).success,
+    ).toBe(false);
+  });
+
+  it("accepts only private references in the authenticated template mirror", () => {
+    const input = {
+      template_id: "template-test",
+      file_reference: "private://synthetic/imported.pdf",
+      name: "Synthetic template",
+      is_active: true,
+    };
+    expect(cpaTemplateFileMirrorSchema.parse(input)).toEqual(input);
+    expect(
+      cpaTemplateFileMirrorSchema.safeParse({
+        ...input,
+        file_reference: "https://example.test/template.pdf",
+      }).success,
+    ).toBe(false);
+    expect(
+      cpaTemplateFileMirrorSchema.safeParse({ ...input, object_key: "foreign" })
+        .success,
     ).toBe(false);
   });
 

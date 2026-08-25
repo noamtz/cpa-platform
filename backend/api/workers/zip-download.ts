@@ -9,6 +9,7 @@ import {
   ZIP_REQUEST_PREFIX,
   ZIP_RESULT_PREFIX,
   ZIP_STATUS_PREFIX,
+  ZIP_LOCK_PREFIX,
   zipManifestSchema,
   zipStatusSchema,
   type ZipStatus,
@@ -45,6 +46,17 @@ function isMissingObject(error: unknown) {
   );
 }
 
+function isConditionalConflict(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+  return (
+    candidate.name === "PreconditionFailed" ||
+    candidate.name === "ConditionalRequestConflict" ||
+    candidate.$metadata?.httpStatusCode === 409 ||
+    candidate.$metadata?.httpStatusCode === 412
+  );
+}
+
 async function textBody(result: ObjectBody) {
   if (!result.Body?.transformToString) throw new Error("Invalid object body");
   return result.Body.transformToString();
@@ -76,6 +88,24 @@ async function writeStatus(options: ZipWorkerOptions, status: ZipStatus) {
   );
 }
 
+async function acquireProcessingLock(options: ZipWorkerOptions, jobId: string) {
+  try {
+    await options.s3.send(
+      new PutObjectCommand({
+        Bucket: options.temporaryOutputsBucketName,
+        Key: `${ZIP_LOCK_PREFIX}${jobId}.json`,
+        Body: JSON.stringify({ version: 1, job_id: jobId }),
+        ContentType: "application/json",
+        IfNoneMatch: "*",
+      }),
+    );
+    return true;
+  } catch (error) {
+    if (isConditionalConflict(error)) return false;
+    throw error;
+  }
+}
+
 async function processJob(
   options: ZipWorkerOptions,
   requestKey: string,
@@ -85,6 +115,7 @@ async function processJob(
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(jobId)) return;
   const existing = await optionalStatus(options, jobId);
   if (existing) return;
+  if (!(await acquireProcessingLock(options, jobId))) return;
 
   const resultKey = `${ZIP_RESULT_PREFIX}${jobId}.zip`;
   let upload: ArchiveUpload | undefined;

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatJournalSequence,
   fileOperationReceiptSchema,
+  fileReconciliationSchema,
   journalCursorSchema,
   journalEntrySchema,
 } from "../contracts/change-journal";
@@ -76,5 +77,22 @@ describe("ChangeJournal contract", () => {
         occurred_at: "2026-01-01T00:00:00.000Z",
       }),
     ).toBeTruthy();
+  });
+
+  it("keeps delete-compensation reconciliation bounded and reference-free", () => {
+    const record = fileReconciliationSchema.parse({
+      scope: "FILE_RECONCILIATION",
+      sequence: "a".repeat(64),
+      item_type: "FILE_RECONCILIATION",
+      operation_id: "file-delete-test",
+      actor_id: "user-test",
+      request_id: "request-test",
+      reference_hash: "b".repeat(64),
+      delete_marker_version_id: "marker-version",
+      journal_failure_name: "InternalError",
+      restoration_failure_name: "ServiceUnavailable",
+      occurred_at: "2026-01-01T00:00:00.000Z",
+    });
+    expect(JSON.stringify(record)).not.toContain("private://");
   });
 });

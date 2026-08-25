@@ -216,7 +216,7 @@ describe("foundation resource contract", () => {
     const cpaRoutes = Object.values(apiRoutes).filter(({ path }) =>
       path.startsWith("/cpa/"),
     );
-    expect(cpaRoutes).toHaveLength(20);
+    expect(cpaRoutes).toHaveLength(21);
     expect(
       cpaRoutes.every(
         (route) =>
@@ -237,6 +237,7 @@ describe("foundation resource contract", () => {
       "POST /cpa/files/uploads/complete",
       "POST /cpa/files/submission-url",
       "POST /cpa/files/template-url",
+      "POST /cpa/files/template-mirror",
       "POST /cpa/submissions/{id}/zip-downloads",
       "GET /cpa/submissions/{id}/zip-downloads/{jobId}",
       "POST /cpa/users/query",

@@ -10,6 +10,7 @@ export const CURRENT_FIRM_KEY = "ddcpa";
 export const ZIP_REQUEST_PREFIX = "zip-jobs/requests/";
 export const ZIP_RESULT_PREFIX = "zip-jobs/results/";
 export const ZIP_STATUS_PREFIX = "zip-jobs/status/";
+export const ZIP_LOCK_PREFIX = "zip-jobs/locks/";
 
 const idSchema = z.string().min(1).max(256);
 const tokenSchema = z.string().min(1).max(512);
@@ -175,6 +176,27 @@ export function resolveStoredFileReference(value: unknown): ResolvedFileReferenc
 export function stableReferenceHash(reference: string) {
   return createHash("sha256").update(reference).digest("hex");
 }
+
+export const cpaTemplateFileMirrorSchema = z
+  .object({
+    template_id: idSchema,
+    file_reference: z
+      .string()
+      .min(1)
+      .max(4096)
+      .refine((value) => {
+        try {
+          resolveStoredFileReference(value);
+          return true;
+        } catch {
+          return false;
+        }
+      }, "Invalid private file reference"),
+    name: z.string().min(1).max(512),
+    is_active: z.boolean(),
+  })
+  .strict();
+
 export function ownerKeyPart(value: string) {
   return createHash("sha256").update(value).digest("hex").slice(0, 32);
 }
@@ -225,6 +247,9 @@ export type PublicUploadInitiateInput = z.infer<typeof publicUploadInitiateSchem
 export type PublicUploadCompleteInput = z.infer<typeof publicUploadCompleteSchema>;
 export type CpaUploadInitiateInput = z.infer<typeof cpaUploadInitiateSchema>;
 export type CpaUploadCompleteInput = z.infer<typeof cpaUploadCompleteSchema>;
+export type CpaTemplateFileMirrorInput = z.infer<
+  typeof cpaTemplateFileMirrorSchema
+>;
 export type PublicSignedPdfUrlInput = z.infer<typeof publicSignedPdfUrlSchema>;
 export type PublicTemplateFileUrlInput = z.infer<typeof publicTemplateFileUrlSchema>;
 export type CpaSubmissionFileUrlInput = z.infer<typeof cpaSubmissionFileUrlSchema>;
