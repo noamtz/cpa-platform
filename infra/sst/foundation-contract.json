@@ -14,7 +14,7 @@
     { "logicalName": "ChangeJournalTable", "primaryIndex": { "hashKey": "scope", "rangeKey": "sequence" }, "globalIndexes": { "byEntity": { "hashKey": "entity_key", "rangeKey": "sequence" } } }
   ],
   "buckets": [
-    { "logicalName": "FilesBucket", "private": true, "cors": false, "versioning": true },
+    { "logicalName": "FilesBucket", "private": true, "cors": { "originPolicy": "router-plus-local-test", "allowHeaders": ["content-type", "if-none-match", "x-amz-meta-owner-hash", "x-amz-meta-purpose", "x-amz-meta-declared-size"], "allowMethods": ["PUT", "HEAD"], "exposeHeaders": ["etag", "x-amz-version-id"], "maxAge": "1 hour" }, "versioning": true },
     { "logicalName": "TemporaryOutputsBucket", "private": true, "cors": false, "versioning": false, "expirationDays": 1 }
   ],
   "routes": [
@@ -24,12 +24,23 @@
     { "route": "POST /apps/{appId}/functions/getActiveTemplate", "authorization": "none" },
     { "route": "POST /apps/{appId}/functions/getTemplateById", "authorization": "none" },
     { "route": "POST /apps/{appId}/functions/updateClientSubmission", "authorization": "none" },
+    { "route": "POST /apps/{appId}/functions/uploadFile", "authorization": "none" },
+    { "route": "POST /apps/{appId}/functions/getSignedPdfUrl", "authorization": "none" },
+    { "route": "POST /apps/{appId}/functions/getTemplateFileUrl", "authorization": "none" },
+    { "route": "POST /apps/{appId}/functions/getPdfTemplateById", "authorization": "none" },
     { "route": "POST /cpa/clients/query", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/clients", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "PATCH /cpa/clients/{id}", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/clients/{id}/token-rotation", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/submissions/query", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "PATCH /cpa/submissions/{id}", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/files/uploads/initiate", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/files/uploads/complete", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/files/submission-url", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/files/template-url", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/files/template-mirror", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/submissions/{id}/zip-downloads", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "GET /cpa/submissions/{id}/zip-downloads/{jobId}", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/users/query", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "GET /cpa/me", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "PATCH /cpa/me", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
@@ -65,6 +76,46 @@
     "rewriteReplacement": "/$1",
     "spaFallback": "index.html"
   },
+  "zipWorker": {
+    "logicalName": "ZipDownloadWorker",
+    "handler": "backend/api/workers/zip-download.handler",
+    "runtime": "nodejs20.x",
+    "architecture": "arm64",
+    "memoryMb": 1024,
+    "timeoutSeconds": 900,
+    "storageMb": 2048,
+    "processingLease": {
+      "prefix": "zip-jobs/locks/",
+      "durationSeconds": 60,
+      "heartbeatSeconds": 20,
+      "conditionalWrite": true,
+      "recoverableTakeover": true,
+      "resultOwnership": "job-and-owner",
+      "terminalStatusStorage": "lease-record",
+      "terminalStatusFenced": true
+    },
+    "permissions": {
+      "filesActions": ["s3:GetObject"],
+      "temporaryActions": ["s3:AbortMultipartUpload", "s3:DeleteObject", "s3:GetObject", "s3:ListMultipartUploadParts", "s3:PutObject"],
+      "temporaryPrefix": "zip-jobs/*"
+    },
+    "notification": {
+      "name": "ZipDownloadRequests",
+      "bucketLogicalName": "TemporaryOutputsBucket",
+      "events": ["s3:ObjectCreated:*"],
+      "filterPrefix": "zip-jobs/requests/",
+      "filterSuffix": ".json"
+    }
+  },
+  "deploymentGates": {
+    "privateFilesImport": {
+      "issue": 11,
+      "evidencePath": "docs/migration/private-file-import-verification.json",
+      "verifier": "tooling/verify_private_file_cutover.mjs",
+      "requiredBefore": "sst-deploy",
+      "resolverContract": "legacy-sha256-v1"
+    }
+  },
   "oidc": {
     "providerUrl": "token.actions.githubusercontent.com",
     "audience": "sts.amazonaws.com",
@@ -77,6 +128,7 @@
     "staticSites": 1,
     "apis": 1,
     "apiFunctions": 1,
+    "workerFunctions": 1,
     "userPools": 1,
     "userPoolClients": 1,
     "userPoolDomains": 1,
@@ -90,6 +142,7 @@
     "apiUrl",
     "apiId",
     "apiFunctionName",
+    "zipWorkerFunctionName",
     "routerDistributionId",
     "healthUrl",
     "protectedHealthUrl",

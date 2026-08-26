@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import PdfFormStep from "@/components/questionnaire/PdfFormStep";
-import { buildAuditTrail } from "@/lib/pdfme-config";
+import { fileClient } from "@/api/file-client";
 
 /**
  * PdfSignStepWrapper — Loads a PdfTemplate by ID (from step config),
  * then renders PdfFormStep. When the client signs, it builds a
  * signed_pdfs record with audit trail and passes it up.
  */
-export default function PdfSignStepWrapper({ step, client, submission, onComplete, onBack }) {
+export default function PdfSignStepWrapper({ step, client, submission, onComplete, onBack, isCpaMode = false }) {
   const [pdfTemplate, setPdfTemplate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -105,21 +105,27 @@ export default function PdfSignStepWrapper({ step, client, submission, onComplet
         // Upload the signed PDF blob (skip if incomplete — no blob)
         if (pdfBlob) {
           try {
-            const appId = import.meta.env.VITE_BASE44_APP_ID;
-            const formData = new FormData();
-            formData.append("file", pdfBlob, `${templateName || "signed-form"}.pdf`);
-            // Client auth flow: pass client_id + token as URL params
-            const uploadUrl = client?.id && client?.token
-              ? `/api/apps/${appId}/functions/uploadFile?client_id=${encodeURIComponent(client.id)}&token=${encodeURIComponent(client.token)}`
-              : `/api/apps/${appId}/functions/uploadFile`;
-            const uploadRes = await fetch(uploadUrl, {
-              method: "POST",
-              body: formData,
-            });
-            if (uploadRes.ok) {
-              const { file_uri } = await uploadRes.json();
-              record.pdf_file_url = file_uri;
-            }
+            const file = new File(
+              [pdfBlob],
+              `${templateName || "signed-form"}.pdf`,
+              { type: "application/pdf" },
+            );
+            record.pdf_file_url = isCpaMode
+              ? await fileClient.uploadCpaFile({
+                  file,
+                  ownerType: "submission",
+                  ownerId: submission.id,
+                  purpose: "signed_pdf",
+                  stepId: step.id,
+                })
+              : await fileClient.uploadPublicFile({
+                  file,
+                  clientId: client.id,
+                  token: client.token,
+                  submissionId: submission.id,
+                  purpose: "signed_pdf",
+                  stepId: step.id,
+                });
           } catch (e) {
             console.error("Failed to upload signed PDF:", e);
           }
@@ -129,6 +135,11 @@ export default function PdfSignStepWrapper({ step, client, submission, onComplet
         onComplete(record);
       }}
       onBack={onBack}
+      authContext={
+        isCpaMode
+          ? { cpa: true, template_id: templateId }
+          : { client_id: client.id, token: client.token, template_id: templateId }
+      }
     />
   );
 }

@@ -3,6 +3,10 @@ const MIGRATED_PUBLIC_FUNCTIONS = new Set([
   "getActiveTemplate",
   "getTemplateById",
   "updateClientSubmission",
+  "uploadFile",
+  "getSignedPdfUrl",
+  "getTemplateFileUrl",
+  "getPdfTemplateById",
 ]);
 
 const AWS_COMPATIBILITY_APP_ID = "auditflow";
@@ -54,4 +58,8 @@ export async function invokePublicFunction(name, payload, options) {
     throw new FunctionCallError(name, result.status, result.body);
   }
   return result.body;
+}
+
+export function loadPublicPdfTemplate(payload, options) {
+  return invokePublicFunction("getPdfTemplateById", payload, options);
 }

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   assertBrowserCorsAbsent,
+  assertBrowserCorsExact,
   isRetryableAwsCliFailure,
   parseAwsCliErrorCode,
   retryAwsCliCommand,
@@ -72,5 +73,44 @@ describe("live S3 CORS verification", () => {
     expect(() =>
       assertBrowserCorsAbsent({ ok: true, value: {} }, "FilesBucket"),
     ).toThrow("unexpectedly has browser CORS configured");
+  });
+
+  it("accepts only the exact FilesBucket direct-upload rule", () => {
+    const contract = {
+      allowHeaders: ["content-type", "x-amz-meta-purpose"],
+      allowMethods: ["PUT", "HEAD"],
+      exposeHeaders: ["etag"],
+    };
+    const result = {
+      ok: true,
+      value: {
+        CORSRules: [
+          {
+            AllowedHeaders: ["x-amz-meta-purpose", "content-type"],
+            AllowedMethods: ["HEAD", "PUT"],
+            AllowedOrigins: ["http://localhost:5173", "https://example.cloudfront.net"],
+            ExposeHeaders: ["etag"],
+            MaxAgeSeconds: 3600,
+          },
+        ],
+      },
+    };
+
+    expect(() =>
+      assertBrowserCorsExact(
+        result,
+        "FilesBucket",
+        ["https://example.cloudfront.net", "http://localhost:5173"],
+        contract,
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertBrowserCorsExact(
+        result,
+        "FilesBucket",
+        ["*"],
+        contract,
+      ),
+    ).toThrow("browser CORS configuration has drifted");
   });
 });

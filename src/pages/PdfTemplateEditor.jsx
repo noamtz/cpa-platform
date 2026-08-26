@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
+import { fileClient } from "@/api/file-client";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button as UntypedButton } from "@/components/ui/button";
+import { Input as UntypedInput } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { motion } from "framer-motion";
 import {
@@ -17,6 +18,45 @@ import {
   getFontConfig,
   HEBREW_LABELS,
 } from "@/lib/pdfme-config";
+
+const Button = /** @type {React.ComponentType<any>} */ (UntypedButton);
+const Input = /** @type {React.ComponentType<any>} */ (UntypedInput);
+
+function storedTemplateFileReference(template) {
+  try {
+    const parsed = JSON.parse(template?.template_json || "{}");
+    const basePdf = parsed.basePdf;
+    if (typeof basePdf === "string") return basePdf;
+    if (
+      basePdf?.__type === "file_uri" &&
+      typeof basePdf.value === "string"
+    ) {
+      return basePdf.value;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+async function mirrorTemplateFile(template) {
+  const fileReference = storedTemplateFileReference(template);
+  if (
+    !fileReference ||
+    !template?.id ||
+    !Number.isSafeInteger(template?._version) ||
+    template._version < 1
+  ) {
+    return;
+  }
+  await fileClient.mirrorCpaTemplateFile({
+    template_id: template.id,
+    file_reference: fileReference,
+    name: template.name || "PDF template",
+    is_active: template.is_active !== false,
+    source_version: template._version,
+  });
+}
 
 export default function PdfTemplateEditor() {
   const navigate = useNavigate();
@@ -56,6 +96,17 @@ export default function PdfTemplateEditor() {
   const loadTemplates = async () => {
     try {
       const templates = await base44.entities.PdfTemplate.list("-created_date", 50);
+      const mirrorResults = await Promise.allSettled(
+        (templates || []).map(mirrorTemplateFile),
+      );
+      const failedMirrors = mirrorResults.filter(
+        ({ status }) => status === "rejected",
+      ).length;
+      if (failedMirrors > 0) {
+        console.error("Failed to mirror PDF template file records", {
+          count: failedMirrors,
+        });
+      }
       setExistingTemplates(templates || []);
     } catch (e) {
       console.error("Failed to load templates:", e);
@@ -237,7 +288,7 @@ export default function PdfTemplateEditor() {
 
         select.addEventListener('change', (e) => {
           e.stopPropagation();
-          const val = e.target.value;
+          const val = /** @type {HTMLSelectElement} */ (e.target).value;
 
           if (val) {
             // ── Requirement 3: Rename field to Hebrew label ──
@@ -438,18 +489,11 @@ export default function PdfTemplateEditor() {
 
       // Resolve file_uri basePdf reference back to Uint8Array
       if (parsed.basePdf?.__type === "file_uri") {
-        const appId = import.meta.env.VITE_BASE44_APP_ID;
-        const signRes = await fetch(`/api/apps/${appId}/functions/createSignedUrl`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ file_uri: parsed.basePdf.value }),
-        });
-        if (signRes.ok) {
-          const { signed_url } = await signRes.json();
-          const pdfRes = await fetch(signed_url);
-          const arrayBuffer = await pdfRes.arrayBuffer();
-          parsed.basePdf = new Uint8Array(arrayBuffer);
-        }
+        await mirrorTemplateFile(template);
+        const { signed_url } = await fileClient.getCpaTemplateFileUrl(template.id);
+        const pdfRes = await fetch(signed_url);
+        const arrayBuffer = await pdfRes.arrayBuffer();
+        parsed.basePdf = new Uint8Array(arrayBuffer);
       }
 
       // Load fieldMapping if present
@@ -468,12 +512,14 @@ export default function PdfTemplateEditor() {
     input.type = "file";
     input.accept = ".pdf";
     input.onchange = async (e) => {
-      const file = e.target.files[0];
+      const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
       if (!file) return;
 
       const reader = new FileReader();
       reader.onload = async (ev) => {
-        const pdfData = new Uint8Array(ev.target.result);
+        const result = ev.target?.result;
+        if (!(result instanceof ArrayBuffer)) return;
+        const pdfData = new Uint8Array(result);
 
         // Update the designer's base PDF
         if (designerRef.current) {
@@ -507,24 +553,22 @@ export default function PdfTemplateEditor() {
     setSaving(true);
     try {
       const template = designerRef.current.getTemplate();
-      const appId = import.meta.env.VITE_BASE44_APP_ID;
-
       // Upload basePdf as a file if it's binary data
       let basePdfRef = template.basePdf;
       if (basePdfRef instanceof Uint8Array || basePdfRef instanceof ArrayBuffer) {
+        if (editingId) {
+          const current = existingTemplates.find(({ id }) => id === editingId);
+          if (current) await mirrorTemplateFile(current);
+        }
         const bytes = basePdfRef instanceof ArrayBuffer ? new Uint8Array(basePdfRef) : basePdfRef;
-        const blob = new Blob([bytes], { type: "application/pdf" });
-        const formData = new FormData();
-        formData.append("file", blob, "base.pdf");
-        const uploadRes = await fetch(`/api/apps/${appId}/functions/uploadFile`, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${localStorage.getItem("base44_access_token") || ""}`,
-          },
-          body: formData,
+        const fileBytes = Uint8Array.from(bytes).buffer;
+        const file = new File([fileBytes], "base.pdf", { type: "application/pdf" });
+        const file_uri = await fileClient.uploadCpaFile({
+          file,
+          ownerType: "pdf_template",
+          ownerId: editingId || "pending",
+          purpose: "pdf_template",
         });
-        if (!uploadRes.ok) throw new Error("העלאת ה-PDF נכשלה");
-        const { file_uri } = await uploadRes.json();
         basePdfRef = { __type: "file_uri", value: file_uri };
       }
 
@@ -540,14 +584,24 @@ export default function PdfTemplateEditor() {
         is_active: true,
       };
 
+      let savedTemplate;
       if (editingId) {
-        await base44.entities.PdfTemplate.update(editingId, payload);
-        toast({ title: "נשמר ✅", description: `תבנית "${templateName}" עודכנה` });
+        savedTemplate = await base44.entities.PdfTemplate.update(
+          editingId,
+          payload,
+        );
       } else {
-        const created = await base44.entities.PdfTemplate.create(payload);
-        setEditingId(created.id);
-        toast({ title: "נשמר ✅", description: `תבנית "${templateName}" נוצרה` });
+        savedTemplate = await base44.entities.PdfTemplate.create(payload);
+        setEditingId(savedTemplate.id);
       }
+
+      await mirrorTemplateFile(savedTemplate);
+      toast({
+        title: "נשמר ✅",
+        description: editingId
+          ? `תבנית "${templateName}" עודכנה`
+          : `תבנית "${templateName}" נוצרה`,
+      });
 
       await loadTemplates();
     } catch (e) {

@@ -4,7 +4,8 @@ import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { Loader2, ChevronRight, CheckCircle2, AlertCircle, X, ClipboardEdit } from "lucide-react";
 import { Button as UntypedButton } from "@/components/ui/button";
 import UntypedLightweightSignaturePad from "@/components/questionnaire/LightweightSignaturePad";
-import { invokePublicFunction } from "@/api/function-client";
+import { invokePublicFunction, loadPublicPdfTemplate } from "@/api/function-client";
+import { fileClient } from "@/api/file-client";
 
 const PDF_API_PROD = "https://hickopn9f0.execute-api.il-central-1.amazonaws.com";
 const PDF_API_TEST = "https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com";
@@ -16,17 +17,7 @@ const LightweightSignaturePad = /** @type {React.ComponentType<any>} */ (Untyped
 
 // ─── Downstream PDF helper (owned by issue #9) ──────────────────────────────
 const getTemplateFileUrl = async (payload) => {
-  const appId = import.meta.env.VITE_BASE44_APP_ID;
-  const res = await fetch(`/api/apps/${appId}/functions/getTemplateFileUrl`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `getTemplateFileUrl failed with ${res.status}`);
-  }
-  return res.json();
+  return fileClient.getPublicTemplateFileUrl(payload);
 };
 
 function normalizeFieldName(name) {
@@ -287,14 +278,11 @@ export default function PdfSignIframeOverlay() {
         setSubmission(submissionData);
       }
 
-      const appId = import.meta.env.VITE_BASE44_APP_ID;
-      const tmplRes = await fetch(`/api/apps/${appId}/functions/getPdfTemplateById`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template_id: templateId }),
+      const tmplData = await loadPublicPdfTemplate({
+        client_id: clientId,
+        token,
+        template_id: templateId,
       });
-      if (!tmplRes.ok) throw new Error("Failed to load PDF template");
-      const tmplData = await tmplRes.json();
       if (!tmplData?.template) throw new Error("Template not found");
       const template = tmplData.template;
 
@@ -509,17 +497,19 @@ export default function PdfSignIframeOverlay() {
       let pdfFileUrl = null;
       if (pdfBlob.size > 0) {
         try {
-          const appId = import.meta.env.VITE_BASE44_APP_ID;
-          const formData = new FormData();
-          formData.append("file", pdfBlob, `${templateName || "signed-form"}.pdf`);
-          const uploadRes = await fetch(
-            `/api/apps/${appId}/functions/uploadFile?client_id=${encodeURIComponent(clientId)}&token=${encodeURIComponent(token)}`,
-            { method: "POST", body: formData }
+          const file = new File(
+            [pdfBlob],
+            `${templateName || "signed-form"}.pdf`,
+            { type: "application/pdf" },
           );
-          if (uploadRes.ok) {
-            const { file_uri } = await uploadRes.json();
-            pdfFileUrl = file_uri;
-          }
+          pdfFileUrl = await fileClient.uploadPublicFile({
+            file,
+            clientId,
+            token,
+            submissionId: submission.id,
+            purpose: "signed_pdf",
+            stepId,
+          });
         } catch (uploadErr) {
           console.error("[PdfSignIframeOverlay] Upload failed:", uploadErr);
         }

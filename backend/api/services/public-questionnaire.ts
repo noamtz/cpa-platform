@@ -1,4 +1,4 @@
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
 import type {
   ClientRecord,
@@ -17,7 +17,8 @@ import {
   type QuestionnaireTemplateRecord,
   type UpdateClientSubmissionInput,
 } from "../contracts/public-questionnaire";
-import { ApiError, forbidden, internalError, notFound } from "../core/errors";
+import { PublicClientAuthorizer, taxYearFor } from "../auth/public-client";
+import { ApiError, internalError, notFound } from "../core/errors";
 import type { ClientRepository } from "../repositories/client";
 import type { QuestionnaireTemplateRepository } from "../repositories/questionnaire-template";
 import type { SubmissionRepository } from "../repositories/submission";
@@ -138,6 +139,7 @@ export interface PublicQuestionnaireServiceOptions {
   readonly clock?: () => Date;
   readonly idGenerator?: () => string;
   readonly operationIdGenerator?: () => string;
+  readonly authorizer?: PublicClientAuthorizer;
 }
 
 function conditionalCreate(tableName: string, item: Record<string, unknown>): TransactionItem {
@@ -189,12 +191,6 @@ function activeGuardCreate(
   };
 }
 
-function tokenMatches(stored: string, supplied: string) {
-  const storedDigest = createHash("sha256").update(stored).digest();
-  const suppliedDigest = createHash("sha256").update(supplied).digest();
-  return timingSafeEqual(storedDigest, suppliedDigest);
-}
-
 function reloadConflict(code: string) {
   return new ApiError(409, code, code, { reload: true });
 }
@@ -207,48 +203,22 @@ function projectTemplate(record: QuestionnaireTemplateRecord) {
   }
 }
 
-function taxYearFor(client: ClientRecord) {
-  return client.tax_year ?? 2024;
-}
-
 export class PublicQuestionnaireService {
   private readonly clock: () => Date;
   private readonly idGenerator: () => string;
   private readonly operationIdGenerator: () => string;
+  private readonly authorizer: PublicClientAuthorizer;
 
   constructor(private readonly options: PublicQuestionnaireServiceOptions) {
     this.clock = options.clock ?? (() => new Date());
     this.idGenerator = options.idGenerator ?? randomUUID;
     this.operationIdGenerator = options.operationIdGenerator ?? randomUUID;
-  }
-
-  private async authorize(input: GetClientByTokenInput) {
-    const client = await this.options.clients.get(input.client_id);
-    if (!client || client.is_archived) {
-      throw notFound("לא נמצא לקוח — פנה לרואה החשבון שלך");
-    }
-    if (!client.token || !tokenMatches(client.token, input.token)) {
-      throw forbidden("לינק לא תקין — פנה לרואה החשבון שלך");
-    }
-    return client;
-  }
-
-  private async activeSubmission(client: ClientRecord) {
-    const records = await this.options.submissions.query(
-      {
-        client_id: client.id,
-        tax_year: taxYearFor(client),
-        is_archived: false,
-      },
-      "-created_date",
-      1,
-    );
-    return records[0];
+    this.authorizer = options.authorizer ?? new PublicClientAuthorizer(options);
   }
 
   async getClientByToken(input: GetClientByTokenInput) {
-    const client = await this.authorize(input);
-    const submission = await this.activeSubmission(client);
+    const client = await this.authorizer.authorize(input);
+    const submission = await this.authorizer.activeSubmission(client);
     return {
       client: publicClient(client),
       submission: submission ? publicSubmission(submission) : null,
@@ -303,14 +273,14 @@ export class PublicQuestionnaireService {
   }
 
   async getActiveTemplate(input: GetActiveTemplateInput, requestId: string) {
-    const client = await this.authorize(input);
+    const client = await this.authorizer.authorize(input);
     const template = await this.ensureActiveTemplate(client, requestId);
     return { template: projectTemplate(template) };
   }
 
   async getTemplateById(input: GetTemplateByIdInput) {
-    const client = await this.authorize(input);
-    const submission = await this.activeSubmission(client);
+    const client = await this.authorizer.authorize(input);
+    const submission = await this.authorizer.activeSubmission(client);
     if (
       !submission?.completed_at ||
       submission.template_id !== input.template_id
@@ -435,7 +405,7 @@ export class PublicQuestionnaireService {
     requestId: string,
   ) {
     const before = await this.options.submissions.get(input.submission_id);
-    const active = await this.activeSubmission(client);
+    const active = await this.authorizer.activeSubmission(client);
     if (
       !before ||
       !active ||
@@ -526,7 +496,7 @@ export class PublicQuestionnaireService {
     input: UpdateClientSubmissionInput,
     requestId: string,
   ) {
-    const client = await this.authorize(input);
+    const client = await this.authorizer.authorize(input);
     const submission = input.submission_id
       ? await this.updateExistingSubmission(
           client,
@@ -541,4 +511,4 @@ export class PublicQuestionnaireService {
   }
 }
 
-export { tokenMatches };
+export { tokenMatches } from "../auth/public-client";

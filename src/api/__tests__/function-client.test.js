@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   FunctionCallError,
   invokePublicFunction,
+  loadPublicPdfTemplate,
   postPublicFunction,
 } from "../function-client";
 
@@ -57,6 +58,32 @@ describe("public function client", () => {
       },
     );
     expect(fetchImpl.mock.calls[0][1].headers).not.toHaveProperty("Authorization");
+  });
+
+  it("loads production signing templates through the token-authorized AWS route", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ template: { id: "template-1", template_json: "{}" } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    const payload = {
+      client_id: "client-1",
+      token: "opaque-link-value",
+      template_id: "template-1",
+    };
+
+    await expect(loadPublicPdfTemplate(payload, { fetchImpl })).resolves.toEqual({
+      template: { id: "template-1", template_json: "{}" },
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "/api/apps/auditflow/functions/getPdfTemplateById",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
   });
 
   it("preserves the complete reload body on a 409", async () => {

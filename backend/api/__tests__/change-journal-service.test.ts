@@ -1,4 +1,4 @@
-import { GetCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, PutCommand, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { describe, expect, it, vi } from "vitest";
 
 import { ChangeJournalService, hashRecord } from "../services/change-journal";
@@ -169,5 +169,99 @@ describe("ChangeJournalService", () => {
     expect(hashRecord({ b: 2, a: { d: 4, c: 3 } })).toBe(
       hashRecord({ a: { c: 3, d: 4 }, b: 2 }),
     );
+  });
+
+  it("commits a file receipt with its journal entry and replays it", async () => {
+    const send = vi
+      .fn()
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({});
+    const service = new ChangeJournalService({
+      client: { send },
+      tableName: "ChangeJournalTable.test",
+      clock: () => new Date("2026-01-01T00:00:00.000Z"),
+    });
+    const receiptKey = "a".repeat(64);
+    const fileUri = "private://files/legacy/" + "b".repeat(64);
+    await expect(
+      service.commitFileOperation({
+        actorId: "public-client:test",
+        requestId: "request-test",
+        operationId: "operation-file",
+        receiptKey,
+        fileUri,
+        change: {
+          entityType: "File",
+          entityKey: "b".repeat(64),
+          operationType: "create",
+          before: null,
+          after: { file_uri: fileUri },
+        },
+      }),
+    ).resolves.toEqual({ fileUri, replayed: false });
+    const transaction = send.mock.calls[2][0];
+    expect(transaction).toBeInstanceOf(TransactWriteCommand);
+    expect(transaction.input.TransactItems).toHaveLength(3);
+
+    const replaySend = vi.fn().mockResolvedValue({
+      Item: {
+        scope: "FILE_OPERATION",
+        sequence: receiptKey,
+        item_type: "FILE_RECEIPT",
+        file_uri: fileUri,
+        operation_id: "operation-file",
+        occurred_at: "2026-01-01T00:00:00.000Z",
+      },
+    });
+    const replay = new ChangeJournalService({
+      client: { send: replaySend },
+      tableName: "ChangeJournalTable.test",
+    });
+    await expect(
+      replay.commitFileOperation({
+        actorId: "public-client:test",
+        requestId: "request-test",
+        operationId: "operation-file",
+        receiptKey,
+        fileUri,
+        change: {
+          entityType: "File",
+          entityKey: "b".repeat(64),
+          operationType: "create",
+          before: null,
+          after: { file_uri: fileUri },
+        },
+      }),
+    ).resolves.toEqual({ fileUri, replayed: true });
+    expect(replaySend).toHaveBeenCalledOnce();
+  });
+
+  it("writes bounded durable evidence for a failed delete restoration", async () => {
+    const send = vi.fn().mockResolvedValue({});
+    const service = new ChangeJournalService({
+      client: { send },
+      tableName: "ChangeJournalTable.test",
+      clock: () => new Date("2026-01-01T00:00:00.000Z"),
+    });
+    await expect(
+      service.recordFileReconciliation({
+        actorId: "user-test",
+        requestId: "request-test",
+        operationId: "file-delete-test",
+        receiptKey: "a".repeat(64),
+        referenceHash: "b".repeat(64),
+        deleteMarkerVersionId: "marker-version",
+        journalFailureName: "InternalError",
+        restorationFailureName: "ServiceUnavailable",
+      }),
+    ).resolves.toMatchObject({
+      scope: "FILE_RECONCILIATION",
+      reference_hash: "b".repeat(64),
+      delete_marker_version_id: "marker-version",
+    });
+    const command = send.mock.calls[0][0];
+    expect(command).toBeInstanceOf(PutCommand);
+    expect(JSON.stringify(command.input.Item)).not.toContain("private://");
   });
 });

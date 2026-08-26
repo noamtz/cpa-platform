@@ -1,8 +1,10 @@
 import React from "react";
-import { Button } from "@/components/ui/button";
+import { Button as UntypedButton } from "@/components/ui/button";
 import { motion } from "framer-motion";
 
-export default function WelcomeStep({ client, onStart }) {
+const Button = /** @type {React.ComponentType<any>} */ (UntypedButton);
+
+export default function WelcomeStep({ client, onStart, isStarting = false }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -51,6 +53,7 @@ export default function WelcomeStep({ client, onStart }) {
 
       <Button
         onClick={onStart}
+        disabled={isStarting}
         size="lg"
         className="w-full bg-primary hover:bg-primary/90 text-white rounded-2xl h-14 text-base font-semibold shadow-sm"
       >

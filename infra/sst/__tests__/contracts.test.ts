@@ -7,10 +7,12 @@ import {
   bucketContracts,
   costContract,
   deploymentContract,
+  deploymentGateContract,
   expectedInventory,
   expectedOutputKeys,
   routerContract,
   tableContracts,
+  zipWorkerContract,
 } from "../contracts";
 
 describe("foundation resource contract", () => {
@@ -71,6 +73,8 @@ describe("foundation resource contract", () => {
       rewriteReplacement: routerContract.rewriteReplacement,
       spaFallback: routerContract.spaFallback,
     });
+    expect(verifierContract.zipWorker).toEqual(zipWorkerContract);
+    expect(verifierContract.deploymentGates).toEqual(deploymentGateContract);
     expect(verifierContract.oidc).toEqual({
       providerUrl: deploymentContract.providerUrl,
       audience: deploymentContract.audience,
@@ -90,6 +94,7 @@ describe("foundation resource contract", () => {
       staticSites: 1,
       apis: 1,
       apiFunctions: 1,
+      workerFunctions: 1,
       userPools: 1,
       userPoolClients: 1,
       userPoolDomains: 1,
@@ -153,7 +158,10 @@ describe("foundation resource contract", () => {
         logicalName: "FilesBucket",
         publicAccess: false,
         enforceHttps: true,
-        cors: false,
+        cors: expect.objectContaining({
+          originPolicy: "router-plus-local-test",
+          allowMethods: ["PUT", "HEAD"],
+        }),
         versioning: true,
       }),
       expect.objectContaining({
@@ -194,11 +202,27 @@ describe("foundation resource contract", () => {
         route: "POST /apps/{appId}/functions/updateClientSubmission",
         authorization: "none",
       }),
+      expect.objectContaining({
+        route: "POST /apps/{appId}/functions/uploadFile",
+        authorization: "none",
+      }),
+      expect.objectContaining({
+        route: "POST /apps/{appId}/functions/getSignedPdfUrl",
+        authorization: "none",
+      }),
+      expect.objectContaining({
+        route: "POST /apps/{appId}/functions/getTemplateFileUrl",
+        authorization: "none",
+      }),
+      expect.objectContaining({
+        route: "POST /apps/{appId}/functions/getPdfTemplateById",
+        authorization: "none",
+      }),
     ]);
     const cpaRoutes = Object.values(apiRoutes).filter(({ path }) =>
       path.startsWith("/cpa/"),
     );
-    expect(cpaRoutes).toHaveLength(14);
+    expect(cpaRoutes).toHaveLength(21);
     expect(
       cpaRoutes.every(
         (route) =>
@@ -215,6 +239,13 @@ describe("foundation resource contract", () => {
       "POST /cpa/clients/{id}/token-rotation",
       "POST /cpa/submissions/query",
       "PATCH /cpa/submissions/{id}",
+      "POST /cpa/files/uploads/initiate",
+      "POST /cpa/files/uploads/complete",
+      "POST /cpa/files/submission-url",
+      "POST /cpa/files/template-url",
+      "POST /cpa/files/template-mirror",
+      "POST /cpa/submissions/{id}/zip-downloads",
+      "GET /cpa/submissions/{id}/zip-downloads/{jobId}",
       "POST /cpa/users/query",
       "GET /cpa/me",
       "PATCH /cpa/me",

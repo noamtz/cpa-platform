@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const JOURNAL_SCOPE = "GLOBAL";
 export const JOURNAL_CURSOR_SEQUENCE = "!CURSOR";
+export const FILE_RECEIPT_SCOPE = "FILE_OPERATION";
+export const FILE_RECONCILIATION_SCOPE = "FILE_RECONCILIATION";
 export const JOURNAL_MAX_ACTIONS = 100;
 export const JOURNAL_MAX_ITEM_BYTES = 350_000;
 
@@ -18,7 +20,14 @@ export const journalEntrySchema = z.object({
   scope: z.literal(JOURNAL_SCOPE),
   sequence: z.string().regex(/^\d{20}$/),
   item_type: z.literal("ENTRY"),
-  entity_type: z.enum(["Client", "Submission", "QuestionnaireTemplate", "User"]),
+  entity_type: z.enum([
+    "Client",
+    "Submission",
+    "QuestionnaireTemplate",
+    "PdfTemplate",
+    "User",
+    "File",
+  ]),
   entity_key: z.string().min(1).max(512),
   operation_type: z.enum(["create", "update", "delete"]),
   operation_id: z.string().min(1).max(128),
@@ -42,12 +51,45 @@ export const journalEntrySchema = z.object({
 });
 
 export interface MutationChange {
-  readonly entityType: "Client" | "Submission" | "QuestionnaireTemplate" | "User";
+  readonly entityType:
+    | "Client"
+    | "Submission"
+    | "QuestionnaireTemplate"
+    | "PdfTemplate"
+    | "User"
+    | "File";
   readonly entityKey: string;
   readonly operationType: "create" | "update" | "delete";
   readonly before: Readonly<Record<string, unknown>> | null;
   readonly after: Readonly<Record<string, unknown>> | null;
 }
+
+export const fileOperationReceiptSchema = z.object({
+  scope: z.literal(FILE_RECEIPT_SCOPE),
+  sequence: z.string().regex(/^[a-f0-9]{64}$/),
+  item_type: z.literal("FILE_RECEIPT"),
+  file_uri: z.string().min(1).max(2048),
+  operation_id: z.string().min(1).max(128),
+  occurred_at: z.string().min(1).max(64),
+});
+
+export type FileOperationReceipt = z.infer<typeof fileOperationReceiptSchema>;
+
+export const fileReconciliationSchema = z.object({
+  scope: z.literal(FILE_RECONCILIATION_SCOPE),
+  sequence: z.string().regex(/^[a-f0-9]{64}$/),
+  item_type: z.literal("FILE_RECONCILIATION"),
+  operation_id: z.string().min(1).max(128),
+  actor_id: z.string().min(1).max(256),
+  request_id: z.string().min(1).max(256),
+  reference_hash: z.string().regex(/^[a-f0-9]{64}$/),
+  delete_marker_version_id: z.string().min(1).max(1024),
+  journal_failure_name: z.string().min(1).max(128),
+  restoration_failure_name: z.string().min(1).max(128),
+  occurred_at: z.string().min(1).max(64),
+});
+
+export type FileReconciliation = z.infer<typeof fileReconciliationSchema>;
 
 export function formatJournalSequence(sequence: number) {
   if (!Number.isSafeInteger(sequence) || sequence < 1) {

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Upload, X, FileText, Check, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { getResponses } from "@/lib/submission-compat";
 import { useNavigate } from "react-router-dom";
+import { fileClient } from "@/api/file-client";
 
 const Button = /** @type {React.ComponentType<any>} */ (UntypedButton);
 const Textarea = /** @type {React.ComponentType<any>} */ (UntypedTextarea);
@@ -59,42 +60,42 @@ export default function QuestionStep({ stepConfig, submission, onNext, onComplet
       percent: 0,
     })));
 
-    const appId = import.meta.env.VITE_BASE44_APP_ID;
-    const uploadUrl = clientId && token
-    ? `/api/apps/${appId}/functions/uploadFile?client_id=${encodeURIComponent(clientId)}&token=${encodeURIComponent(token)}`
-    : `/api/apps/${appId}/functions/uploadFile`;
-
-    const uploadOne = (file, index) => new Promise((resolve, reject) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", uploadUrl);
-      xhr.upload.onprogress = (ev) => {
-        if (ev.lengthComputable) {
-          // Cap at 90% until the server confirms — real 100% set in onload
-          const percent = Math.min(Math.round((ev.loaded / ev.total) * 100), 90);
-          setFileProgresses(prev => prev.map((p, i) => i === index ? { ...p, percent } : p));
-        }
+    try {
+      const uploadOne = (file, index) => {
+        const common = {
+          file,
+          purpose: "questionnaire_document",
+          stepId,
+          onProgress: (percent) =>
+            setFileProgresses((prev) =>
+              prev.map((item, itemIndex) =>
+                itemIndex === index ? { ...item, percent } : item,
+              ),
+            ),
+        };
+        return isCpaMode
+          ? fileClient.uploadCpaFile({
+              ...common,
+              ownerType: "submission",
+              ownerId: submission.id,
+            })
+          : fileClient.uploadPublicFile({
+              ...common,
+              clientId,
+              token,
+              submissionId: submission.id,
+            });
       };
-      xhr.onload = () => {
-        if (xhr.status < 200 || xhr.status >= 300) {
-          reject(new Error(`Upload failed: ${xhr.status}`));
-          return;
-        }
-        setFileProgresses(prev => prev.map((p, i) => i === index ? { ...p, percent: 100 } : p));
-        const { file_uri } = JSON.parse(xhr.responseText);
-        resolve(file_uri);
-      };
-      xhr.onerror = reject;
-      xhr.send(formData);
-    });
-
-    const uploaded = await Promise.all(selectedFiles.map((file, i) =>
-      uploadOne(file, i).then(uri => ({ uri, name: file.name }))
-    ));
-    setFiles((prev) => [...prev, ...uploaded]);
-    setUploading(false);
-    setFileProgresses([]);
+      const uploaded = await Promise.all(
+        selectedFiles.map((file, index) =>
+          uploadOne(file, index).then((uri) => ({ uri, name: file.name })),
+        ),
+      );
+      setFiles((prev) => [...prev, ...uploaded]);
+    } finally {
+      setUploading(false);
+      setFileProgresses([]);
+    }
   };
 
   const removeFile = (idx) => setFiles((prev) => prev.filter((_, i) => i !== idx));
@@ -425,16 +426,18 @@ export default function QuestionStep({ stepConfig, submission, onNext, onComplet
                       <button
                         onClick={async () => {
                           try {
-                            const appId = import.meta.env.VITE_BASE44_APP_ID;
-                            const res = await fetch(`/api/apps/${appId}/functions/getSignedPdfUrl`, {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ client_id: clientId, token, step_id: stepConfig.id }),
-                            });
-                            if (res.ok) {
-                              const { signed_url } = await res.json();
-                              if (signed_url) window.open(signed_url, "_blank");
-                            }
+                            const { signed_url } = isCpaMode
+                              ? await fileClient.getCpaSubmissionFileUrl({
+                                  submission_id: submission.id,
+                                  source: "signed_pdf",
+                                  step_id: stepConfig.id,
+                                })
+                              : await fileClient.getPublicSignedPdfUrl({
+                                  client_id: clientId,
+                                  token,
+                                  step_id: stepConfig.id,
+                                });
+                            if (signed_url) window.open(signed_url, "_blank");
                           } catch (e) {
                             console.error("Failed to open signed PDF:", e);
                           }

@@ -4,7 +4,10 @@ import type { StageSettings } from "./stage";
 type TableLogicalName = (typeof tableContracts)[number]["logicalName"];
 type BucketLogicalName = (typeof bucketContracts)[number]["logicalName"];
 
-export function createStorage(stage: StageSettings) {
+export function createStorage(
+  stage: StageSettings,
+  routerOrigin: $util.Input<string>,
+) {
   const tableEntries = tableContracts.map((contract) => {
     const table = new sst.aws.Dynamo(
       contract.logicalName,
@@ -35,7 +38,18 @@ export function createStorage(stage: StageSettings) {
     const bucket = new sst.aws.Bucket(
       contract.logicalName,
       {
-        cors: contract.cors,
+        cors:
+          contract.cors === false
+            ? false
+            : {
+                allowHeaders: [...contract.cors.allowHeaders],
+                allowMethods: [...contract.cors.allowMethods],
+                allowOrigins: stage.isProduction
+                  ? [routerOrigin]
+                  : [routerOrigin, "http://localhost:5173"],
+                exposeHeaders: [...contract.cors.exposeHeaders],
+                maxAge: contract.cors.maxAge,
+              },
         enforceHttps: contract.enforceHttps,
         versioning: contract.versioning,
         lifecycle: expirationDays

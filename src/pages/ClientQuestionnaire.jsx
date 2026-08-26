@@ -9,7 +9,9 @@ import { DEFAULT_STEPS, resolveYearPlaceholders, getActiveSteps, filterStepsByCl
 import { getResponses } from "@/lib/submission-compat";
 import { buildSteps, parseSignedPdfs, getResumeStepIndex, deriveStepStatuses } from "@/lib/questionnaire-steps";
 import { createRecoverableSaveQueue } from "@/lib/questionnaire-save-queue";
+import { startQuestionnaireWithSubmission } from "@/lib/questionnaire-start";
 import { postPublicFunction } from "@/api/function-client";
+import { fileClient } from "@/api/file-client";
 import { useToast } from "@/components/ui/use-toast";
 
 // Lazy-load PDF signing wrapper (pdfme is ~2MB)
@@ -276,6 +278,13 @@ export default function ClientQuestionnaire() {
     return savedSubmission;
   };
 
+  const handleStart = () =>
+    startQuestionnaireWithSubmission({
+      submission,
+      createSubmission: () => updateSubmission({}),
+      showFirstStep: () => setCurrentStep(1),
+    });
+
   const handleComplete = async (stepData) => {
     const finalData = {
       ...stepData,
@@ -374,7 +383,7 @@ export default function ClientQuestionnaire() {
 
       <div className="max-w-lg mx-auto px-4 py-6">
         {step.type === "welcome" && (
-          <WelcomeStep client={client} onStart={() => setCurrentStep(1)} />
+          <WelcomeStep client={client} onStart={handleStart} isStarting={isSaving} />
         )}
 
         {step.type === "question" && (
@@ -447,16 +456,13 @@ export default function ClientQuestionnaire() {
                       onClick={async () => {
                         setPdfViewLoading(prev => ({ ...prev, [step.id]: true }));
                         try {
-                          const appId = import.meta.env.VITE_BASE44_APP_ID;
-                          const res = await fetch(`/api/apps/${appId}/functions/getSignedPdfUrl`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ client_id: clientId, token, step_id: step.id }),
-                          });
-                          if (res.ok) {
-                            const { signed_url } = await res.json();
-                            if (signed_url) window.open(signed_url, "_blank");
-                          }
+                          const { signed_url } =
+                            await fileClient.getPublicSignedPdfUrl({
+                              client_id: clientId,
+                              token,
+                              step_id: step.id,
+                            });
+                          if (signed_url) window.open(signed_url, "_blank");
                         } catch (e) {
                           console.error("Failed to open signed PDF:", e);
                         } finally {
