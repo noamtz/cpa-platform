@@ -83,6 +83,7 @@ const PUBLIC_FUNCTION_ROUTE_KEYS = new Set([
   "POST /apps/{appId}/functions/uploadFile",
   "POST /apps/{appId}/functions/getSignedPdfUrl",
   "POST /apps/{appId}/functions/getTemplateFileUrl",
+  "POST /apps/{appId}/functions/getPdfTemplateById",
 ]);
 
 function requiredEnvironment(name: string) {

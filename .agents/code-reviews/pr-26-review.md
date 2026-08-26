@@ -1,18 +1,14 @@
-# PR #26 Fresh Re-review — Private S3 files and ZIP downloads
+# PR #26 Merge-gate review — Private S3 files and ZIP downloads
 
-**Reviewed head:** `f4418362c9d4f2b5a8ac68451908af5d1975f491`
+**Reviewed head:** `6d8efae3ca2f2d97915cdd3916773cad4d686843`
 
 ## Summary
 
-PR #26 is substantially improved and the four previously reported findings are implemented: deployment fails closed
-until issue #11 import evidence exists, ZIP jobs use renewable leases and owner-specific outputs, worker logs are
-bounded, and owned template mirrors require the exact upload-completion receipt. The full local suite is healthy
-relative to the imported frontend baseline.
-
-The fresh-eyes pass found two Medium-severity correctness gaps. A stale ZIP lease owner can still overwrite the
-shared terminal status after another owner takes over, and the transitional template mirror mutates the AWS
-PdfTemplate pointer without optimistic concurrency or ChangeJournal evidence. Both are undocumented violations of
-the PR's stated ownership and rollback-journal contracts, so the PR is not ready to merge.
+The latest ZIP lease fencing and conditionally journaled PdfTemplate mirror fixes are sound, and the complete local
+suite remains healthy relative to the imported frontend baseline. The fresh merge-gate pass nevertheless found two
+High-severity production-flow regressions: a new taxpayer cannot upload a document before the first Submission is
+created, and the active PDF-signing page requests a template through a compatibility route that the SST API does not
+provide. Both block acceptance criterion #1, so PR #26 is not ready to merge.
 
 ## Findings
 
@@ -22,42 +18,40 @@ None.
 
 ### High
 
-None.
+#### 1. First-time questionnaire uploads dereference a missing Submission
+
+Evidence: `src/components/questionnaire/QuestionStep.jsx:76-87`, `src/pages/ClientQuestionnaire.jsx:161-180`, and
+`src/pages/ClientQuestionnaire.jsx:223-276`.
+
+When a client has no active Submission, `ClientQuestionnaire` intentionally leaves `submission` null and moves from
+the welcome screen directly to the first configured question. The default first question is an upload step. Selecting
+a file calls `uploadPublicFile` with `submission.id`, but the first Submission is only created later when Continue
+invokes `updateClientSubmission`. The property access therefore throws before upload initiation, so a new client who
+answers “yes” cannot upload the required first document.
+
+Fix: establish and return an active provisional Submission before enabling the first direct upload, without advancing
+the questionnaire step, and use that acknowledged ID/version for upload initiation and subsequent saves. Add a
+frontend or assembled-flow regression covering a client with no active Submission uploading on the first question.
+
+#### 2. The active PDF-signing route calls an endpoint absent from the SST API
+
+Evidence: `src/pages/PdfSignIframeOverlay.jsx:281-289`, `src/App.jsx:42-50`, `backend/api/handler.ts:78-86`, and
+`backend/api/handler.ts:221-228`.
+
+`/questionnaire/sign` is the production signing page. Its load path posts directly to
+`/api/apps/{appId}/functions/getPdfTemplateById`, but the SST handler allowlists and registers only the seven listed
+public compatibility routes; an unknown route returns 404 before dependency construction. The local Vite Base44
+proxy can mask this gap, while the deployed Router sends `/api/*` to the SST API. Consequently the production signing
+flow fails before loading the template.
+
+Fix: add an AWS-backed, token-authorized public template-read compatibility route that verifies the requested PDF
+template is referenced by the authorized client's active questionnaire and returns the mirrored template JSON needed
+by the signing page. Do not restore the source endpoint's unauthenticated lookup. Add an assembled-route regression
+and a production-signing-page regression proving the AWS route is used.
 
 ### Medium
 
-#### 1. A stale ZIP lease owner can overwrite the terminal status after takeover
-
-Evidence: `backend/api/workers/zip-download.ts:120-129`, `backend/api/workers/zip-download.ts:209-274`,
-`backend/api/workers/zip-download.ts:356-368`, and `backend/api/contracts/files.ts:290-313`.
-
-The worker renews its lease immediately before publishing, but writes the shared
-`zip-jobs/status/<job>.json` object with an unconditional `PutObject`. If worker A's status write stalls past the
-60-second lease, worker B can atomically take over, publish its owner-specific result and terminal status, and then
-have A's delayed write overwrite that terminal status. The release path swallows the failed stale-owner lease write,
-so nothing detects or repairs the overwritten status. This defeats the result/status ownership guarantee and can
-make the status endpoint expose the stale owner's output.
-
-Fix: fence the terminal transition with the current lease generation/ETag or another conditional owner token. Only
-a terminal status proven to belong to the current lease owner should be publishable and readable. Add a regression
-that pauses owner A after its final renewal, lets owner B take over and publish, then resumes A and proves its delayed
-status write cannot replace B's terminal result.
-
-#### 2. Template mirroring performs an unjournaled, unconditional pointer mutation
-
-Evidence: `backend/api/services/files.ts:618-660`, `backend/api/repositories/pdf-template.ts:42-81`, and
-`.agents/plans/implement-private-s3-files-zip-downloads.md:60-64`.
-
-After verifying ownership and the completion receipt, `mirrorCpaTemplateFile` calls `mirrorFile`, which unconditionally
-updates `file_reference`, `name`, `is_active`, and `_version`. It supplies neither a DynamoDB condition nor a
-ChangeJournal transaction. Two CPA sessions, or a delayed page-load mirror racing a save, can therefore both succeed;
-the later write silently replaces the AWS pointer and metadata without an ordered `PdfTemplate` journal entry or a
-stale-version conflict. The implementation report documents the transitional mirror, but not this exception to the
-plan's journaled pointer-replacement rule.
-
-Fix: make initial mirror creation conditional and make subsequent pointer changes conditionally versioned. Commit the
-corresponding `PdfTemplate` update through ChangeJournal using the route request ID, and return the repository's
-existing conflict shape for stale updates. Add concurrent/stale mirror tests and journal-entry assertions.
+None.
 
 ### Low
 
@@ -67,15 +61,16 @@ None.
 
 | Check | Result |
 | --- | --- |
+| PR state | PASS — open, non-draft, mergeable, clean; GitHub deploy check succeeded |
 | Node/npm | PASS — Node 20.17.0 and npm 10.8.2 |
 | `npm ci` | PASS — documented peer/engine/deprecation warnings; audit reports 31 findings |
 | Direct dependency pins | PASS — S3 client, presigner, multipart helper, and JSZip resolve to exact versions |
 | `npm test` | PASS — 10 files, 96 tests |
-| `npm run test:foundation` | PASS — 28 files, 196 tests |
+| `npm run test:foundation` | PASS — 28 files, 199 tests |
 | `npm run typecheck:foundation` | PASS |
 | `npm run lint:foundation` | PASS |
 | `npm run typecheck` | BASELINE — 151 diagnostics versus 233 documented; zero changed-path hits |
-| `npm run lint -- --quiet` | BASELINE — 17 errors versus 23 documented; zero changed-path hits |
+| `npm run lint` | BASELINE — 17 errors versus 23 documented; zero changed-path hits |
 | `npm run build` | PASS — existing Browserslist-age notice only |
 | SST contract verifier | PASS — test-stage contract and worker inventory verified |
 | Private-file cutover gate | PASS — correctly blocks deployment because issue #11 evidence is absent |
@@ -84,40 +79,46 @@ None.
 | `npm run sst:diff:test` | BLOCKED — STS rejects the cached test credential with `InvalidClientTokenId` |
 | Live AWS/browser acceptance | NOT RUN — requires issue #11 evidence, refreshed credentials, and authorized deployment |
 
-The blocked external preview is not the reason for the verdict. The local validation is healthy; the two findings are
-independent concurrency and mutation-integrity defects that require regression coverage.
+The external preview and live-acceptance gaps are not the basis for this verdict. The two findings follow directly
+from the committed component lifecycle and exact API route allowlist.
 
 ## What is done well
 
-- File contracts remain metadata-only, opaque, and resource-scoped; no arbitrary signer was restored.
-- Owned uploads require exact object metadata and durable completion receipts before use.
-- The deployment command and test workflow both fail closed on missing issue #11 import evidence.
-- ZIP source/result prefixes, filtered notifications, lease takeover, owner-specific result keys, and privacy-safe
-  logging are narrowly scoped and broadly tested.
-- The implementation preserves the documented frontend baseline while keeping all changed paths clean.
+- Terminal ZIP status is now fenced through the conditionally updated lease object, preventing a stale owner from
+  replacing the takeover winner.
+- PdfTemplate mirroring carries source concurrency, uses conditional persistence, and records ordered ChangeJournal
+  evidence with idempotent replay behavior.
+- Upload/read contracts remain metadata-only, opaque, resource-derived, and covered by broad authorization and
+  failure-path tests.
+- Deployment correctly fails closed until issue #11 publishes bounded import evidence.
+- All changed paths remain free of frontend typecheck and lint diagnostics.
 
 ## Recommendation
 
-**Request changes.** Fix the fenced terminal-status transition and the conditionally journaled template pointer
-mutation, add the two concurrency regressions, then rerun the full validation and PR review gate.
+**Request changes.** Fix the first-Submission upload lifecycle and provide the scoped AWS template-read route used by
+the production signing page, add regressions for both flows, then rerun the full validation and merge-gate review.
 
 ## Resolution
 
-Both Medium findings were accepted and fixed on the PR branch:
+Both High findings were accepted and fixed on the PR branch:
 
-1. Terminal ZIP state now lives inside the lease record and is published with `If-Match` against the current lease
-   ETag. A takeover and a terminal publication therefore compete on the same conditional object; a stale owner cannot
-   overwrite the winner. The status route reads only this fenced terminal state. A regression pauses owner A's
-   terminal write, lets owner B take over and complete, then proves A is rejected and B remains authoritative.
-2. Template mirroring now carries the Base44 source version, treats exact replays idempotently, conditionally creates
-   or updates the AWS mirror using `_version`, and commits the `PdfTemplate` mutation through ChangeJournal with the
-   API request ID. Regression tests cover conditional creation, versioned pointer replacement, concurrent different
-   mirrors with one winner, and stale-source rejection with the existing reload conflict shape.
+1. Starting a questionnaire without an active Submission now waits for the journaled provisional Submission response
+   before rendering the first question. The acknowledged ID and revision are installed through the existing save
+   queue, the persisted step remains at the welcome boundary, and the start button is disabled while creation is in
+   flight. Regression coverage proves the first upload step stays unavailable until acknowledgement and that an
+   existing Submission is reused.
+2. The active signing page now loads PDF template JSON through an explicit AWS compatibility route carrying
+   `client_id`, `token`, and `template_id`. The route reuses the scoped template-file authorization boundary: it
+   requires an active Submission, pins that Submission's questionnaire, verifies the questionnaire references the
+   requested PDF template, and returns only the ID, optional name, and template JSON. Contract, service, assembled
+   route, SST inventory, and production signing-client regressions cover the new path.
 
-Post-fix validation passed: 96 frontend tests, 199 foundation/backend tests, foundation typecheck and lint, build,
-the SST contract verifier, cutover gate behavior, Codex-layer validation, dependency-pin checks, and
-`git diff --check`. Repository-wide frontend typecheck and lint remain at their known imported baseline (151 diagnostics and
-17 errors, with zero changed-path hits). The SST diff remains externally blocked by the cached AWS credential's
-`InvalidClientTokenId`; deployment remains intentionally blocked until issue #11 evidence exists.
+Post-fix validation passed under Node 20.17.0: 99 frontend tests, 201 foundation/backend tests, foundation typecheck
+and lint, production build, SST contract verification, Codex-layer validation, dependency-pin checks, and
+`git diff --check`. Repository-wide frontend typecheck and lint remain at the imported baseline (150 diagnostics and
+17 errors, with zero changed-path hits); the typecheck count improved by one because the touched welcome button now
+uses the repository's typed-primitive compatibility pattern. The private-file deployment gate continues to block on
+missing issue #11 evidence as designed. The SST diff remains externally blocked because the cached AWS credential
+returns `InvalidClientTokenId`; live AWS/browser acceptance was not run.
 
-**Resolution status:** fixed; ready for a fresh PR review.
+**Resolution status:** fixed locally; ready for a fresh PR review after commit and push.

@@ -37,6 +37,7 @@ import {
   type CpaUploadCompleteInput,
   type CpaUploadInitiateInput,
   type PublicSignedPdfUrlInput,
+  type PublicPdfTemplateReadInput,
   type PublicTemplateFileUrlInput,
   type PublicUploadCompleteInput,
   type PublicUploadInitiateInput,
@@ -180,6 +181,15 @@ function templateBaseReference(template: PdfTemplateRecord) {
     }
   }
   return undefined;
+}
+
+function publicPdfTemplate(template: PdfTemplateRecord) {
+  if (!template.template_json) throw notFound("Template not found");
+  return {
+    id: template.id,
+    ...(template.name ? { name: template.name } : {}),
+    template_json: template.template_json,
+  };
 }
 
 function questionnaireAllowsPdfTemplate(stepsJson: string, templateId: string) {
@@ -586,7 +596,23 @@ export class FileService {
   }
 
   async getPublicTemplateFileUrl(input: PublicTemplateFileUrlInput) {
-    const { submission } = await this.options.publicAuthorizer.authorizeActiveSubmission(input);
+    const template = await this.authorizedPublicPdfTemplate(input);
+    const reference = templateBaseReference(template);
+    if (!reference) throw notFound("Template has no base PDF file");
+    return this.signedUrlFor(reference, [
+      templatePrefix(input.template_id),
+      templatePrefix("pending"),
+    ]);
+  }
+
+  async getPublicPdfTemplate(input: PublicPdfTemplateReadInput) {
+    const template = await this.authorizedPublicPdfTemplate(input);
+    return { template: publicPdfTemplate(template) };
+  }
+
+  private async authorizedPublicPdfTemplate(input: PublicTemplateFileUrlInput) {
+    const { submission } =
+      await this.options.publicAuthorizer.authorizeActiveSubmission(input);
     if (!submission) throw notFound("Template not found");
     const questionnaire = submission.template_id
       ? await this.options.questionnaireTemplates.get(String(submission.template_id))
@@ -599,12 +625,7 @@ export class FileService {
     }
     const template = await this.options.pdfTemplates.get(input.template_id);
     if (!template) throw notFound("Template not found");
-    const reference = templateBaseReference(template);
-    if (!reference) throw notFound("Template has no base PDF file");
-    return this.signedUrlFor(reference, [
-      templatePrefix(input.template_id),
-      templatePrefix("pending"),
-    ]);
+    return template;
   }
 
   async getCpaSubmissionFileUrl(input: CpaSubmissionFileUrlInput, actor: CpaActor) {

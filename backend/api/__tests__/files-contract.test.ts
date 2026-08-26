@@ -8,6 +8,7 @@ import {
   legacyReferenceKey,
   parsePrivateFileReference,
   privateFileReference,
+  publicPdfTemplateReadSchema,
   publicUploadSchema,
   resolveStoredFileReference,
   sanitizeZipName,
@@ -86,6 +87,22 @@ describe("file contracts", () => {
         step_id: "step-test",
         file_uri: "private://synthetic/imported.pdf",
       }).success,
+    ).toBe(false);
+  });
+
+  it("requires public credentials for PDF template metadata reads", () => {
+    const input = {
+      client_id: "client-test",
+      token: "synthetic-token",
+      template_id: "template-test",
+    };
+    expect(publicPdfTemplateReadSchema.parse(input)).toEqual(input);
+    expect(
+      publicPdfTemplateReadSchema.safeParse({ template_id: "template-test" }).success,
+    ).toBe(false);
+    expect(
+      publicPdfTemplateReadSchema.safeParse({ ...input, file_uri: "private://untrusted" })
+        .success,
     ).toBe(false);
   });
 

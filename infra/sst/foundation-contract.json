@@ -27,6 +27,7 @@
     { "route": "POST /apps/{appId}/functions/uploadFile", "authorization": "none" },
     { "route": "POST /apps/{appId}/functions/getSignedPdfUrl", "authorization": "none" },
     { "route": "POST /apps/{appId}/functions/getTemplateFileUrl", "authorization": "none" },
+    { "route": "POST /apps/{appId}/functions/getPdfTemplateById", "authorization": "none" },
     { "route": "POST /cpa/clients/query", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/clients", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "PATCH /cpa/clients/{id}", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },

@@ -4,7 +4,7 @@ import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { Loader2, ChevronRight, CheckCircle2, AlertCircle, X, ClipboardEdit } from "lucide-react";
 import { Button as UntypedButton } from "@/components/ui/button";
 import UntypedLightweightSignaturePad from "@/components/questionnaire/LightweightSignaturePad";
-import { invokePublicFunction } from "@/api/function-client";
+import { invokePublicFunction, loadPublicPdfTemplate } from "@/api/function-client";
 import { fileClient } from "@/api/file-client";
 
 const PDF_API_PROD = "https://hickopn9f0.execute-api.il-central-1.amazonaws.com";
@@ -278,14 +278,11 @@ export default function PdfSignIframeOverlay() {
         setSubmission(submissionData);
       }
 
-      const appId = import.meta.env.VITE_BASE44_APP_ID;
-      const tmplRes = await fetch(`/api/apps/${appId}/functions/getPdfTemplateById`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template_id: templateId }),
+      const tmplData = await loadPublicPdfTemplate({
+        client_id: clientId,
+        token,
+        template_id: templateId,
       });
-      if (!tmplRes.ok) throw new Error("Failed to load PDF template");
-      const tmplData = await tmplRes.json();
       if (!tmplData?.template) throw new Error("Template not found");
       const template = tmplData.template;
 

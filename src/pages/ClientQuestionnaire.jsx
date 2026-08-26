@@ -9,6 +9,7 @@ import { DEFAULT_STEPS, resolveYearPlaceholders, getActiveSteps, filterStepsByCl
 import { getResponses } from "@/lib/submission-compat";
 import { buildSteps, parseSignedPdfs, getResumeStepIndex, deriveStepStatuses } from "@/lib/questionnaire-steps";
 import { createRecoverableSaveQueue } from "@/lib/questionnaire-save-queue";
+import { startQuestionnaireWithSubmission } from "@/lib/questionnaire-start";
 import { postPublicFunction } from "@/api/function-client";
 import { fileClient } from "@/api/file-client";
 import { useToast } from "@/components/ui/use-toast";
@@ -277,6 +278,13 @@ export default function ClientQuestionnaire() {
     return savedSubmission;
   };
 
+  const handleStart = () =>
+    startQuestionnaireWithSubmission({
+      submission,
+      createSubmission: () => updateSubmission({}),
+      showFirstStep: () => setCurrentStep(1),
+    });
+
   const handleComplete = async (stepData) => {
     const finalData = {
       ...stepData,
@@ -375,7 +383,7 @@ export default function ClientQuestionnaire() {
 
       <div className="max-w-lg mx-auto px-4 py-6">
         {step.type === "welcome" && (
-          <WelcomeStep client={client} onStart={() => setCurrentStep(1)} />
+          <WelcomeStep client={client} onStart={handleStart} isStarting={isSaving} />
         )}
 
         {step.type === "question" && (

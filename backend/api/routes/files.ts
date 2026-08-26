@@ -8,6 +8,7 @@ import {
   cpaUploadCompleteSchema,
   cpaUploadInitiateSchema,
   publicSignedPdfUrlSchema,
+  publicPdfTemplateReadSchema,
   publicTemplateFileUrlSchema,
   publicUploadSchema,
   zipDownloadRequestSchema,
@@ -49,6 +50,14 @@ export function registerFileRoutes(
       200,
       await service.getPublicTemplateFileUrl(
         parseJsonBody(event, publicTemplateFileUrlSchema),
+      ),
+    ),
+  );
+  router.register("POST /apps/{appId}/functions/getPdfTemplateById", async (event) =>
+    jsonResponse(
+      200,
+      await service.getPublicPdfTemplate(
+        parseJsonBody(event, publicPdfTemplateReadSchema),
       ),
     ),
   );

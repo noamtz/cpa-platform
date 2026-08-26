@@ -131,6 +131,10 @@ function verifyContract(contract, stage) {
           route: "POST /apps/{appId}/functions/getTemplateFileUrl",
           authorization: "none",
         },
+        {
+          route: "POST /apps/{appId}/functions/getPdfTemplateById",
+          authorization: "none",
+        },
       ]),
     "The exact public questionnaire route inventory is incomplete.",
   );

@@ -88,6 +88,9 @@ export const publicSignedPdfUrlSchema = z
 export const publicTemplateFileUrlSchema = z
   .object({ ...publicCredentials, template_id: idSchema })
   .strict();
+export const publicPdfTemplateReadSchema = z
+  .object({ ...publicCredentials, template_id: idSchema })
+  .strict();
 export const cpaSubmissionFileUrlSchema = z
   .object({
     submission_id: idSchema,
@@ -253,6 +256,7 @@ export type CpaTemplateFileMirrorInput = z.infer<
 >;
 export type PublicSignedPdfUrlInput = z.infer<typeof publicSignedPdfUrlSchema>;
 export type PublicTemplateFileUrlInput = z.infer<typeof publicTemplateFileUrlSchema>;
+export type PublicPdfTemplateReadInput = z.infer<typeof publicPdfTemplateReadSchema>;
 export type CpaSubmissionFileUrlInput = z.infer<typeof cpaSubmissionFileUrlSchema>;
 
 export const zipManifestSchema = z

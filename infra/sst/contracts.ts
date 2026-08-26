@@ -194,6 +194,11 @@ export const apiRoutes = {
     path: "/apps/{appId}/functions/getTemplateFileUrl",
     authorization: "none",
   },
+  publicGetPdfTemplateById: {
+    route: "POST /apps/{appId}/functions/getPdfTemplateById",
+    path: "/apps/{appId}/functions/getPdfTemplateById",
+    authorization: "none",
+  },
   clientQuery: {
     route: "POST /cpa/clients/query",
     path: "/cpa/clients/query",

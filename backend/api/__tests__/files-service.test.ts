@@ -357,8 +357,64 @@ describe("FileService scoped reads and deletion", () => {
         template_id: "pdf-template-test",
       }),
     ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(
+      service.getPublicPdfTemplate({
+        client_id: client.id,
+        token: "synthetic-link-value",
+        template_id: "pdf-template-test",
+      }),
+    ).rejects.toMatchObject({ statusCode: 404 });
     expect(pdfTemplates.get).not.toHaveBeenCalled();
     expect(presign).not.toHaveBeenCalled();
+  });
+
+  it("returns only the authorized PDF template JSON needed by the signing page", async () => {
+    const {
+      service,
+      questionnaireTemplates,
+      pdfTemplates,
+      publicAuthorizer,
+    } = setup();
+    questionnaireTemplates.get.mockResolvedValue({
+      id: "questionnaire-test",
+      steps: JSON.stringify([
+        { id: "step-test", pdf_sign_config: { pdf_template_id: "template-test" } },
+      ]),
+    });
+    publicAuthorizer.authorizeActiveSubmission.mockResolvedValue({
+      client,
+      submission: { ...submission, template_id: "questionnaire-test" },
+    });
+    pdfTemplates.get.mockResolvedValue({
+      id: "template-test",
+      name: "Synthetic template",
+      template_json: '{"basePdf":"data:application/pdf;base64,fixture"}',
+      file_reference: "private://synthetic/template.pdf",
+      record_type: "PdfTemplate",
+      _version: 7,
+      created_date: "2026-01-01T00:00:00.000Z",
+      updated_date: "2026-01-01T00:00:00.000Z",
+      created_by: "hidden",
+    });
+
+    await expect(
+      service.getPublicPdfTemplate({
+        client_id: client.id,
+        token: "synthetic-link-value",
+        template_id: "template-test",
+      }),
+    ).resolves.toEqual({
+      template: {
+        id: "template-test",
+        name: "Synthetic template",
+        template_json: '{"basePdf":"data:application/pdf;base64,fixture"}',
+      },
+    });
+    expect(publicAuthorizer.authorizeActiveSubmission).toHaveBeenCalledWith({
+      client_id: client.id,
+      token: "synthetic-link-value",
+      template_id: "template-test",
+    });
   });
 
   it("bridges a completed pending upload into scoped CPA and public template reads", async () => {

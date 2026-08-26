@@ -65,6 +65,9 @@ function setup() {
     completePublicUpload: vi.fn().mockResolvedValue({ file_uri: "private://files/test" }),
     getPublicSignedPdfUrl: vi.fn().mockResolvedValue({ signed_url: "https://signed.test/read" }),
     getPublicTemplateFileUrl: vi.fn().mockResolvedValue({ signed_url: "https://signed.test/template" }),
+    getPublicPdfTemplate: vi.fn().mockResolvedValue({
+      template: { id: "template-test", template_json: "{}" },
+    }),
     initiateCpaUpload: vi.fn().mockResolvedValue({ upload_id: "private://files/test" }),
     completeCpaUpload: vi.fn().mockResolvedValue({ file_uri: "private://files/test" }),
     getCpaSubmissionFileUrl: vi.fn().mockResolvedValue({ signed_url: "https://signed.test/read" }),
@@ -94,7 +97,7 @@ function setup() {
 
 describe("assembled file routes", () => {
   it("keeps the exact public locator and upload routes outside Cognito", async () => {
-    const { handler, verifier } = setup();
+    const { files, handler, verifier } = setup();
     const credentials = { client_id: "client-test", token: "opaque-token" };
     const cases = [
       [
@@ -117,12 +120,20 @@ describe("assembled file routes", () => {
         "POST /apps/{appId}/functions/getTemplateFileUrl",
         { ...credentials, template_id: "template-test" },
       ],
+      [
+        "POST /apps/{appId}/functions/getPdfTemplateById",
+        { ...credentials, template_id: "template-test" },
+      ],
     ] as const;
     for (const [routeKey, payload] of cases) {
       const response = await handler(event(routeKey, payload, false), context, callback);
       expect(response).toMatchObject({ statusCode: 200 });
     }
     expect(verifier.verify).not.toHaveBeenCalled();
+    expect(files.getPublicPdfTemplate).toHaveBeenCalledWith({
+      ...credentials,
+      template_id: "template-test",
+    });
   });
 
   it("requires the CPA scope for every CPA file and ZIP route", async () => {

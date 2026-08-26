@@ -214,6 +214,10 @@ describe("foundation resource contract", () => {
         route: "POST /apps/{appId}/functions/getTemplateFileUrl",
         authorization: "none",
       }),
+      expect.objectContaining({
+        route: "POST /apps/{appId}/functions/getPdfTemplateById",
+        authorization: "none",
+      }),
     ]);
     const cpaRoutes = Object.values(apiRoutes).filter(({ path }) =>
       path.startsWith("/cpa/"),
