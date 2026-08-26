@@ -32,6 +32,7 @@ export default $config({
       { createCostControls },
       { createApplication, createApplicationRouter },
       { createTestDeploymentRole },
+      { createPdfApi },
     ] = await Promise.all([
       import("./infra/sst/stage"),
       import("./infra/sst/storage"),
@@ -39,6 +40,7 @@ export default $config({
       import("./infra/sst/cost"),
       import("./infra/sst/application"),
       import("./infra/sst/deployment-role"),
+      import("./infra/sst/pdf"),
     ]);
 
     const stage = getStageSettings($app.stage);
@@ -47,12 +49,18 @@ export default $config({
     const authentication = createAuthentication(stage, router.url);
     createCostControls(stage);
     const testDeployRole = await createTestDeploymentRole(stage);
+    const pdf = createPdfApi(
+      stage,
+      testDeployRole.workloadBoundary.arn,
+      router.url,
+    );
     const application = createApplication(
       stage,
       storage,
       authentication,
       testDeployRole.workloadBoundary.arn,
       router,
+      pdf,
     );
 
     return {
@@ -62,6 +70,11 @@ export default $config({
       apiUrl: application.api.url,
       apiId: application.api.nodes.api.id,
       apiFunctionName: application.apiFunction.name,
+      pdfApiUrl: application.pdf.api.url,
+      pdfApiId: application.pdf.api.nodes.api.id,
+      pdfFunctionName: application.pdf.pdfFunction.name,
+      pdfBaseUrl: $interpolate`${application.router.url}/pdf`,
+      pdfHealthUrl: $interpolate`${application.router.url}/pdf/health`,
       zipWorkerFunctionName: application.zipWorker.name,
       routerDistributionId: application.router.distributionID,
       healthUrl: $interpolate`${application.router.url}/api/health`,

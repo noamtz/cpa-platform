@@ -98,6 +98,11 @@ Mutable objects in the shared SST state bucket are restricted to the exact `audi
 The account-level GitHub OIDC provider remains Terraform-owned, while SST owns only this issue-scoped role and the
 new serverless foundation resources.
 
+The separate SST PDF renderer/generator, synthetic cross-endpoint verifier, same-origin `/pdf` selection, browser
+acceptance matrix, and legacy test rollback switch are documented in
+[`docs/migration/pdf-parity-runbook.md`](docs/migration/pdf-parity-runbook.md). Local parity does not authorize a
+deployment; the private-file evidence gate and explicit owner authorization still apply.
+
 ## Codex project setup
 
 The repository also contains `AGENTS.md`, repo skills, custom agents, hooks, an MCP server, and optional Archon

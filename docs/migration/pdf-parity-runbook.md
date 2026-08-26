@@ -1,0 +1,106 @@
+# SST PDF parity and rollback runbook
+
+This runbook proves the dedicated SST test PDF API preserves the active signing contract before it can replace the
+Terraform-managed test renderer. Use only the synthetic fixture for automated evidence and disposable,
+non-production-like records for the owner-run signing exercise. Never place endpoint URLs, signed file URLs,
+templates, field values, signatures, tokens, or client data in committed evidence.
+
+## Safety boundary and prerequisites
+
+- Use Node 20.17.0 and region `il-central-1` with an independently verified AuditFlow AWS identity.
+- `sst diff` is read-only review, not deployment approval. Test deployment additionally requires explicit owner
+  authorization and `npm run verify:file-cutover:test` to accept issue #11's aggregate evidence.
+- Production deployment, production preview, DNS, Terraform, and the imported legacy Lambda workflows are outside
+  this procedure and remain prohibited without separate authorization.
+- Lambda's complete synchronous proxy response must remain below 6 MB; because generated PDFs are base64-encoded
+  inside that response, the practical raw-PDF ceiling is roughly 4.5 MiB, not 6 MiB. API Gateway separately permits
+  10 MB HTTP payloads. The verifier measures the complete modeled proxy response, caps decoded reads at 6,291,456
+  bytes, and caps each request at 30 seconds even if Lambda could continue running.
+
+Install and validate locally:
+
+```powershell
+$env:Path = "C:\Users\ntzur\AppData\Roaming\nvm\v20.17.0;$env:Path"
+npm ci
+npm run test:pdf
+npm run test:foundation
+npm run typecheck:foundation
+npm run lint:foundation
+npm run build
+node tooling/verify_sst_foundation.mjs --mode contract --stage test
+npm run sst:diff:test
+```
+
+After preview, verify the exact Heebo copy source plus the staged Linux ARM64 `@napi-rs/canvas` package and AArch64
+ELF binary. When SST has materialized the deployment archive, the same command prefers `code.zip` and verifies the
+font inside it:
+
+```powershell
+npm run verify:pdf-bundle -- --artifacts .sst\artifacts --function PdfRendererFunction
+```
+
+## Endpoint selection
+
+The active browser resolver uses this priority, with trailing slashes removed:
+
+1. A nonblank build-time `VITE_PDF_API_URL`.
+2. The retained production legacy URL only when `window.location.hostname` is `app.ddcpa.co.il`.
+3. The retained test legacy URL for every other hostname.
+
+The SST site contract sets `VITE_PDF_API_URL=/pdf`; CloudFront routes `/pdf/*` to the dedicated SST PDF API. The
+raw API and the same-origin Router path expose exactly `GET /health`, `POST /render-pages`,
+`POST /generate-pdf`, and `OPTIONS /{proxy+}`.
+
+For an authorized test cutover, deploy through `npm run sst:deploy:test` only, then verify the live raw and Router
+paths with `tooling/verify_sst_foundation.mjs`. To prove rollback, rebuild the test site with
+`VITE_PDF_API_URL` set to the retained legacy **test** base URL and repeat the smoke journey. To restore SST, rebuild
+with `/pdf`. Do not add a browser-persisted toggle and never select the production legacy URL in a test exercise.
+
+## Synthetic cross-endpoint evidence
+
+Keep URLs in shell variables so they are not written to command history or evidence. Run the compact profile first,
+then representative and boundary profiles only after compact passes:
+
+```powershell
+$env:AUDITFLOW_LEGACY_PDF_TEST_URL = "<owner-supplied-legacy-test-base-url>"
+$env:AUDITFLOW_SST_PDF_TEST_URL = "<verified-sst-test-base-url>"
+npm run verify:pdf-parity -- `
+  --legacy-url "$env:AUDITFLOW_LEGACY_PDF_TEST_URL" `
+  --sst-url "$env:AUDITFLOW_SST_PDF_TEST_URL" `
+  --fixture lambda/pdf-generator/__fixtures__/rtl-multipage-case.json `
+  --profile compact `
+  --output <private-or-approved-aggregate-output.json>
+```
+
+The verifier calls legacy twice before SST. The boundary profile carries a deterministic off-page image resource so
+both its request and base64-bearing Lambda proxy response approach their synchronous 6 MB ceilings without changing
+visible page pixels. Exact response hashes are required only when the two legacy responses
+prove stable. Otherwise, it falls back to PDF structure and lossless local RGBA comparison. Pixel mismatch counts a
+pixel once when any RGB channel exceeds the fixture delta. The accepted ratio is the larger of the fixture minimum
+and legacy self-variance plus margin, capped at 1%; legacy self-variance above 1% fails calibration.
+
+Evidence schema version 1 contains only endpoint labels, statuses, durations, byte counts, page counts/dimensions,
+synthetic-artifact SHA-256 hashes, pixel counts/ratios, thresholds, limits, and verdicts. Review the JSON before
+committing an approved aggregate artifact. A nonzero verifier exit or `passed: false` blocks cutover.
+
+After an authorized live run, collect the matching CloudWatch Lambda `REPORT` aggregates: invocation count,
+duration, billed duration, and maximum memory used for cold and warm compact/representative/boundary calls. Record
+only ranges or aggregates with observation times; do not copy request logs. The handler's structured measurements
+are limited to route label, status, duration, byte/page counts, RSS/configured memory, and request ID.
+
+## Owner-run supported-browser acceptance
+
+Follow the active `/questionnaire/sign` journey in `src/docs/PDF_MODULE.md`. Every selected cell must complete:
+render → Hebrew text → checkbox on/off → mouse/touch signature → generate → upload → save → return → refresh/resume
+→ retrieve/reopen. Verify fixed page layout and field/signature placement. Repeat the smoke path once with the
+legacy test override to prove rollback.
+
+| Date/time (Asia/Jerusalem) | Device | OS/version | Browser or in-app browser/version | Endpoint label | Actions completed | Expected/actual signed-record facts | Reopened artifact | Resume result | Sentry observation | Verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| _owner entry_ | Desktop | _version_ | Chromium or Edge / _version_ | SST test | _facts only_ | _facts only_ | _pass/fail_ | _pass/fail_ | No relevant new event / unavailable / sampling-inconclusive | _pass/fail_ |
+| _owner entry_ | Mobile | _version_ | WhatsApp in-app browser or WKWebView / _version_ | SST test | _facts only_ | _facts only_ | _pass/fail_ | _pass/fail_ | No relevant new event / unavailable / sampling-inconclusive | _pass/fail_ |
+| _owner entry_ | Smoke device | _version_ | _browser/version_ | Legacy test rollback | _facts only_ | _facts only_ | _pass/fail_ | _pass/fail_ | No relevant new event / unavailable / sampling-inconclusive | _pass/fail_ |
+
+Do not infer a Sentry result: record the exact observation window and whether it was unavailable or inconclusive.
+Any failed selected cell, new relevant crash, misplaced field, output over 6 MB, request over 30 seconds, or inability
+to retrieve/resume blocks cutover and leaves the legacy test selection in place.

@@ -84,7 +84,15 @@ export default [
     },
   },
   {
-    files: ["tooling/verify_sst_foundation.mjs"],
+    files: [
+      "tooling/verify_sst_foundation.mjs",
+      "tooling/verify_pdf_bundle.mjs",
+      "tooling/verify_pdf_bundle.test.mjs",
+      "tooling/verify_pdf_parity.mjs",
+      "tooling/verify_pdf_parity.test.mjs",
+      "lambda/pdf-generator/index.mjs",
+      "lambda/pdf-generator/__tests__/**/*.test.mjs",
+    ],
     ...pluginJs.configs.recommended,
     languageOptions: {
       globals: globals.node,

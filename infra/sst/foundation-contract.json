@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "app": "auditflow",
   "sstVersion": "3.19.3",
   "region": "il-central-1",
@@ -76,6 +76,41 @@
     "rewriteReplacement": "/$1",
     "spaFallback": "index.html"
   },
+  "pdf": {
+    "apiLogicalName": "PdfApi",
+    "functionLogicalName": "PdfRendererFunction",
+    "handler": "lambda/pdf-generator/index.handler",
+    "runtime": "nodejs20.x",
+    "architecture": "arm64",
+    "memoryMb": 1024,
+    "timeoutSeconds": 60,
+    "storageMb": 512,
+    "corsOriginPolicy": "router-origin-exact",
+    "apiCors": false,
+    "routerPrefix": "/pdf",
+    "routerPattern": "/pdf/*",
+    "rewritePattern": "^/pdf/(.*)$",
+    "rewriteReplacement": "/$1",
+    "routes": [
+      { "route": "GET /health" },
+      { "route": "POST /render-pages" },
+      { "route": "POST /generate-pdf" },
+      { "route": "OPTIONS /{proxy+}" }
+    ],
+    "nodejsInstall": [
+      "@napi-rs/canvas",
+      "@napi-rs/canvas-linux-arm64-gnu",
+      "pdfjs-dist"
+    ],
+    "font": {
+      "source": "lambda/pdf-generator/fonts/Heebo-Regular.ttf",
+      "destination": "fonts/Heebo-Regular.ttf",
+      "bytes": 122012,
+      "sha256": "18F930B583FA8FE6B40B2F8263B7AC6AFBAC07ADC91A12467874E7467D3ACE30"
+    },
+    "resourceLinks": [],
+    "permissions": []
+  },
   "zipWorker": {
     "logicalName": "ZipDownloadWorker",
     "handler": "backend/api/workers/zip-download.handler",
@@ -127,7 +162,9 @@
     "routers": 1,
     "staticSites": 1,
     "apis": 1,
+    "pdfApis": 1,
     "apiFunctions": 1,
+    "pdfFunctions": 1,
     "workerFunctions": 1,
     "userPools": 1,
     "userPoolClients": 1,
@@ -142,6 +179,11 @@
     "apiUrl",
     "apiId",
     "apiFunctionName",
+    "pdfApiUrl",
+    "pdfApiId",
+    "pdfFunctionName",
+    "pdfBaseUrl",
+    "pdfHealthUrl",
     "zipWorkerFunctionName",
     "routerDistributionId",
     "healthUrl",

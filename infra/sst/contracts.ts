@@ -39,6 +39,10 @@ export interface ApiRouteContract {
   readonly authorizationScopes?: readonly string[];
 }
 
+export interface PdfRouteContract {
+  readonly route: `${"GET" | "POST" | "OPTIONS"} /${string}`;
+}
+
 export const tableContracts = [
   {
     logicalName: "ClientTable",
@@ -337,6 +341,43 @@ export const routerContract = {
   spaFallback: "index.html",
 } as const;
 
+export const pdfContract = {
+  apiLogicalName: "PdfApi",
+  functionLogicalName: "PdfRendererFunction",
+  handler: "lambda/pdf-generator/index.handler",
+  runtime: "nodejs20.x",
+  architecture: "arm64",
+  memoryMb: 1024,
+  timeoutSeconds: 60,
+  storageMb: 512,
+  corsOriginPolicy: "router-origin-exact",
+  apiCors: false,
+  routerPrefix: "/pdf",
+  routerPattern: "/pdf/*",
+  rewritePattern: "^/pdf/(.*)$",
+  rewriteReplacement: "/$1",
+  routes: [
+    { route: "GET /health" },
+    { route: "POST /render-pages" },
+    { route: "POST /generate-pdf" },
+    { route: "OPTIONS /{proxy+}" },
+  ] as const satisfies readonly PdfRouteContract[],
+  nodejsInstall: [
+    "@napi-rs/canvas",
+    "@napi-rs/canvas-linux-arm64-gnu",
+    "pdfjs-dist",
+  ] as const,
+  font: {
+    source: "lambda/pdf-generator/fonts/Heebo-Regular.ttf",
+    destination: "fonts/Heebo-Regular.ttf",
+    bytes: 122012,
+    sha256:
+      "18F930B583FA8FE6B40B2F8263B7AC6AFBAC07ADC91A12467874E7467D3ACE30",
+  },
+  resourceLinks: [] as const,
+  permissions: [] as const,
+} as const;
+
 export const zipWorkerContract = {
   logicalName: "ZipDownloadWorker",
   handler: "backend/api/workers/zip-download.handler",
@@ -439,7 +480,9 @@ export const expectedInventory = {
   routers: 1,
   staticSites: 1,
   apis: 1,
+  pdfApis: 1,
   apiFunctions: 1,
+  pdfFunctions: 1,
   workerFunctions: 1,
   userPools: 1,
   userPoolClients: 1,
@@ -455,6 +498,11 @@ export const expectedOutputKeys = [
   "apiUrl",
   "apiId",
   "apiFunctionName",
+  "pdfApiUrl",
+  "pdfApiId",
+  "pdfFunctionName",
+  "pdfBaseUrl",
+  "pdfHealthUrl",
   "zipWorkerFunctionName",
   "routerDistributionId",
   "healthUrl",

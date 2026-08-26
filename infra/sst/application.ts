@@ -1,12 +1,14 @@
 import {
   apiRoutes,
   authContract,
+  pdfContract,
   routerContract,
   zipWorkerContract,
 } from "./contracts";
 import type { FoundationAuthentication } from "./auth";
 import type { StageSettings } from "./stage";
 import type { FoundationStorage } from "./storage";
+import type { FoundationPdf } from "./pdf";
 
 export function createApplicationRouter() {
   return new sst.aws.Router(routerContract.logicalName);
@@ -18,6 +20,7 @@ export function createApplication(
   authentication: FoundationAuthentication,
   workloadBoundaryArn: $util.Input<string>,
   router: ReturnType<typeof createApplicationRouter>,
+  pdf: FoundationPdf,
 ) {
   const api = new sst.aws.ApiGatewayV2("ApplicationApi", {
     cors: false,
@@ -145,6 +148,13 @@ export function createApplication(
     },
   });
 
+  router.route(pdfContract.routerPattern, pdf.api.url, {
+    rewrite: {
+      regex: pdfContract.rewritePattern,
+      to: pdfContract.rewriteReplacement,
+    },
+  });
+
   const site = new sst.aws.StaticSite(routerContract.staticSiteLogicalName, {
     path: ".",
     build: {
@@ -154,6 +164,7 @@ export function createApplication(
     errorPage: routerContract.spaFallback,
     environment: {
       VITE_API_BASE_URL: routerContract.apiPrefix,
+      VITE_PDF_API_URL: pdfContract.routerPrefix,
       VITE_COGNITO_AUTHORITY: authentication.authority,
       VITE_COGNITO_CLIENT_ID: authentication.userPoolClient.id,
       VITE_COGNITO_CALLBACK_URL: authentication.callbackUrl,
@@ -166,5 +177,5 @@ export function createApplication(
     },
   });
 
-  return { router, api, apiFunction, zipWorker, authorizer, site };
+  return { router, api, apiFunction, zipWorker, authorizer, site, pdf };
 }
