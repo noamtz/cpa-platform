@@ -1,8 +1,11 @@
 # Implementation Report — Prove SST PDF generation and signing parity
 
-**Plan**: `.agents/plans/prove-sst-pdf-generation-signing-parity.md`  
-**Branch**: `feature/prove-sst-pdf-generation-signing-parity`  
-**PR**: not created  
+**Plan**: `.agents/plans/prove-sst-pdf-generation-signing-parity.md`
+
+**Branch**: `feature/prove-sst-pdf-generation-signing-parity`
+
+**PR**: [#27](https://github.com/noamtz/cpa-platform/pull/27)
+
 **Status**: PARTIAL
 
 ## Summary
@@ -50,7 +53,8 @@ deployment/manual-test authorization.
   raw/JSON/object base64 fallbacks, malformed responses, and server errors.
 - `tooling/verify_pdf_parity.test.mjs`: self-variance calibration, unstable-byte fallback, 1% cap, deterministic
   near-limit boundary output, complete Lambda proxy-response sizing, explicit over-limit rejection, 6 MB decoded
-  read ceiling, timeout, URL/query redaction, and a real local handler end-to-end parity run.
+  read ceiling, timeout, URL/query redaction, exact legacy/SST iteration counts, and real local handler end-to-end
+  parity runs.
 - `tooling/verify_pdf_bundle.test.mjs`: preview-directory and archive verification, exact font/package identity, and
   rejection of an x64 ELF renamed as the ARM64 native binary.
 - `infra/sst/__tests__/contracts.test.ts`: separate PDF inventory, exact runtime/routes/packages/font, no links or data
@@ -62,8 +66,8 @@ deployment/manual-test authorization.
 - Clean install: PASS — `npm ci`; inherited peer/engine/deprecation warnings and 34 audit findings remain.
 - Dependency tree: PASS — direct `@napi-rs/canvas@0.1.100`, PDFme `6.1.1`, and
   `pdfjs-dist@3.11.174` resolved as pinned. PDFme UI retains its own `pdfjs-dist@5.7.284` transitive dependency.
-- Focused PDF tests: PASS — 3 files / 21 tests.
-- Foundation/backend/tooling tests: PASS — 31 files / 223 tests.
+- Focused PDF tests: PASS — 3 files / 22 tests.
+- Foundation/backend/tooling tests: PASS — 31 files / 224 tests.
 - Full browser-facing tests: PASS — 12 files / 108 tests.
 - Focused frontend characterization: PASS — 4 files / 40 tests.
 - Foundation typecheck/lint: PASS — zero diagnostics.
@@ -128,6 +132,7 @@ deployment/manual-test authorization.
 
 ## Ready for the next step
 
-The code and read-only preview are ready for `piv-review-changes`. It should not be committed as a fully accepted
-parity proof until issue #11 evidence exists and the owner decides whether to authorize the gated test deployment
-and manual matrix. After those plan tasks pass: run `piv-commit`, `piv-create-pr`, then `piv-review-pr`.
+PR #27 contains the locally validated implementation and remains a draft. Its two advisory review findings were
+resolved with an iteration-count regression and PR-range whitespace validation. It should not be treated as a fully
+accepted parity proof until issue #11 evidence exists and the owner authorizes the gated test deployment and manual
+matrix. After those plan tasks pass, rerun the PR review gate before human approval.

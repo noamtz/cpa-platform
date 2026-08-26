@@ -1,7 +1,9 @@
 # Code review — SST PDF generation and signing parity
 
-**Branch:** `feature/prove-sst-pdf-generation-signing-parity`  
-**Reviewed commit:** `b2734d34166c30ca781148d788fc42ad3350df98` plus the current working tree  
+**Branch:** `feature/prove-sst-pdf-generation-signing-parity`
+
+**Reviewed commit:** `b2734d34166c30ca781148d788fc42ad3350df98` plus the current working tree
+
 **PR:** not created
 
 ## Summary

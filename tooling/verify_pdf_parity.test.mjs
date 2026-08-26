@@ -32,13 +32,15 @@ async function listen(responder) {
   return `http://127.0.0.1:${address.port}`;
 }
 
-async function handlerEndpoint() {
+async function handlerEndpoint(onRequest = () => {}) {
   const handler = createHandler({ log: () => {} });
   return listen(async (request, response) => {
     const chunks = [];
     for await (const chunk of request) chunks.push(chunk);
+    const path = new URL(request.url, "http://local").pathname;
+    onRequest({ method: request.method, path });
     const result = await handler({
-      rawPath: new URL(request.url, "http://local").pathname,
+      rawPath: path,
       body: Buffer.concat(chunks).toString("utf8") || undefined,
       requestContext: { http: { method: request.method } },
     });
@@ -173,5 +175,33 @@ describe("bounded endpoint I/O", () => {
     expect(result.runs).toHaveLength(3);
     expect(JSON.stringify(result)).not.toContain(endpoint);
     expect(result.comparisons[0].generate.visual.candidateMismatch).toBe(0);
+  }, 60_000);
+
+  it("uses exactly two legacy calibration runs and the requested SST iterations", async () => {
+    const legacyRequests = [];
+    const sstRequests = [];
+    const legacyEndpoint = await handlerEndpoint((request) => legacyRequests.push(request));
+    const sstEndpoint = await handlerEndpoint((request) => sstRequests.push(request));
+    const result = await runParity({
+      legacyUrl: legacyEndpoint,
+      sstUrl: sstEndpoint,
+      fixture,
+      profile: "compact",
+      iterations: 2,
+      timeoutMs: 30_000,
+    });
+
+    const countRenderRequests = (requests) => requests.filter(
+      ({ method, path }) => method === "POST" && path === "/render-pages",
+    ).length;
+    expect(countRenderRequests(legacyRequests)).toBe(2);
+    expect(countRenderRequests(sstRequests)).toBe(2);
+    expect(result.runs.map(({ endpoint }) => endpoint)).toEqual([
+      "legacy-1",
+      "legacy-2",
+      "sst-1",
+      "sst-2",
+    ]);
+    expect(result.comparisons).toHaveLength(2);
   }, 60_000);
 });

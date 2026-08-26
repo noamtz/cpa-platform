@@ -489,7 +489,7 @@ export async function runParity({ legacyUrl, sstUrl, fixture, profile, iteration
   const probes = { legacy: await probeEndpoint(legacyUrl, limits), sst: await probeEndpoint(sstUrl, limits) };
   const legacy = [];
   const sst = [];
-  for (let index = 0; index < iterations + 1; index += 1) {
+  for (let index = 0; index < 2; index += 1) {
     // Cross a PDF metadata clock tick so two coincidentally equal responses do
     // not misclassify a timestamp-bearing generator as byte-stable.
     if (index === 1) await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_100));
@@ -498,8 +498,8 @@ export async function runParity({ legacyUrl, sstUrl, fixture, profile, iteration
   for (let index = 0; index < iterations; index += 1) sst.push(await invokeEndpoint(sstUrl, payload, limits, fixture));
   const comparisons = sst.map((candidate, index) => ({
     iteration: index + 1,
-    render: compareArtifact(legacy.slice(0, 2).map((run) => run.render), candidate.render, fixture),
-    generate: compareArtifact(legacy.slice(0, 2).map((run) => run.generated), candidate.generated, fixture),
+    render: compareArtifact(legacy.map((run) => run.render), candidate.render, fixture),
+    generate: compareArtifact(legacy.map((run) => run.generated), candidate.generated, fixture),
   }));
   const passed = probes.legacy.passed && probes.sst.passed && comparisons.every((item) =>
     item.render.bytes.passed && item.render.visual.passed && item.generate.bytes.passed && item.generate.visual.passed,
