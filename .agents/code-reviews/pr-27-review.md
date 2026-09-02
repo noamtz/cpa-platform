@@ -4,21 +4,60 @@
 
 **State:** Draft
 
-**Reviewed:** 2026-08-26
+**Reviewed:** 2026-09-02
 
 ## Summary
 
-Advisory review: no critical, high, or medium issues were found. The dedicated PDF runtime, same-origin routing,
-frontend endpoint seam, response-boundary model, native ARM64/font verification, and deployment gate are internally
-coherent and well covered. Two low-severity cleanup findings remain: redundant legacy parity invocations when
-multiple SST iterations are requested, and whitespace errors in committed Markdown that make a base-to-head diff
-check fail.
+Advisory verdict: the implementation and automated live evidence are ready for human acceptance, with no unresolved
+Critical, High, Medium, or Low code findings. The dedicated PDF runtime, same-origin routing, exact handler CORS,
+native ARM64/font bundle, bounded parity verifier, compute-only role, and legacy rollback boundary are coherent and
+validated locally and in CI. The PR remains a draft because the required authenticated desktop, mobile in-app
+browser, legacy rollback, and negative legacy-reference acceptance cells are not complete.
 
-The PR should remain a draft. The documented omission of deployment, live cross-endpoint parity, and owner browser
-acceptance is intentional because the issue #11 private-file evidence gate currently reports `missing_evidence`.
-Those missing tasks are not review findings, but they still prevent representing issue #9 parity as fully accepted.
+## Issue counts
 
-## Findings
+| Severity | Unresolved |
+| --- | ---: |
+| Critical | 0 |
+| High | 0 |
+| Medium | 0 |
+| Low | 0 |
+
+## Review routing
+
+### AGENT FIXES
+
+None remain.
+
+### HUMAN DECIDES
+
+None.
+
+### HUMAN READS
+
+- `infra/sst/deployment-policy.ts:380` — the API tag permission now requires matching request tags and pre-existing
+  AuditFlow test resource tags, preventing an unrelated API from adopting the stage identity.
+- `infra/sst/pdf.ts:48` — the API transform removes SST's empty API Gateway CORS object so the Lambda remains the
+  single owner of exact browser CORS behavior.
+- `tooling/verify_pdf_parity.mjs:268` — the live verifier sends `templateJson` as the same JSON string used by the
+  product and applies bounded structural/visual comparisons without retaining endpoint values.
+
+### HUMAN TESTS
+
+- `docs/migration/pdf-parity-runbook.md:58` — run the synthetic negative legacy-reference probe and confirm 404 with
+  no signed URL, source read, or ZIP job.
+- `docs/migration/pdf-parity-runbook.md:107` — complete authenticated desktop signing, reopen/resume, and the dated
+  Sentry observation.
+- `docs/migration/pdf-parity-runbook.md:108` — complete the WhatsApp/WKWebView touch signing path.
+- `docs/migration/pdf-parity-runbook.md:109` — complete one legacy-test rollback smoke path.
+
+### FYI
+
+- `tooling/verify_sst_foundation.mjs:1249` — the final review initially found an API-tag adoption path. Commit
+  `f95c1cf` fixed it, and both live IAM simulation and the fresh-eyes re-review confirmed request tags alone are
+  denied while an existing correctly tagged AuditFlow API remains manageable.
+
+## Findings by severity
 
 ### Critical
 
@@ -26,7 +65,7 @@ None.
 
 ### High
 
-None.
+None unresolved. The API-tag adoption finding was fixed and independently rechecked before this verdict.
 
 ### Medium
 
@@ -34,87 +73,46 @@ None.
 
 ### Low
 
-#### 1. Extra legacy calls do not contribute to parity comparison
-
-- **File:** `tooling/verify_pdf_parity.mjs:492`
-- **Evidence:** `runParity` invokes the legacy endpoint `iterations + 1` times, but every SST comparison uses only
-  `legacy.slice(0, 2)`. With `--iterations 5`, this produces six legacy runs and five SST runs, while four legacy
-  runs cannot affect the verdict or evidence. The runbook also states that legacy is called twice before SST.
-- **Impact:** Boundary profiles are intentionally expensive and near the synchronous payload limit. The unused calls
-  increase test-stage latency, load, and cost without increasing confidence.
-- **Fix:** Invoke legacy exactly twice for stability calibration and invoke SST `iterations` times. Alternatively,
-  compare and report every legacy invocation if the extra sampling is intentional. Add an `iterations: 2` regression
-  that asserts endpoint invocation counts, not only argument parsing.
-
-#### 2. The committed PR range fails whitespace validation
-
-- **Files:** `.agents/code-reviews/prove-sst-pdf-generation-signing-parity-review.md:3`,
-  `.agents/reports/prove-sst-pdf-generation-signing-parity-report.md:3`
-- **Evidence:** `git diff --check origin/main...HEAD` reports five trailing-whitespace errors: two in the earlier
-  code-review heading metadata and three in the implementation-report metadata. A plain `git diff --check` on the
-  clean worktree passes because it has no uncommitted diff, so it does not validate the committed PR range.
-- **Impact:** The PR does not reproduce the implementation report's diff-hygiene claim when validated against its
-  base. This is documentation-only and does not affect runtime behavior.
-- **Fix:** Remove the trailing spaces or replace Markdown hard breaks with blank lines, then validate with
-  `git diff --check origin/main...HEAD`.
+None.
 
 ## Validation
 
 | Check | Result |
 | --- | --- |
-| Node/npm | PASS — Node 20.17.0, npm 10.8.2 |
-| `npm ci` | PASS — inherited peer/engine/deprecation warnings; 34 audit findings |
-| Dependency tree | PASS — pdfme 6.1.1, `@napi-rs/canvas` 0.1.100, PDF.js 3.11.174 |
+| Node/npm | PASS — Node 20.17.0 |
+| `npm ci` | PASS — inherited peer/engine/deprecation warnings; 36 audit findings |
 | `npm test` | PASS — 12 files / 108 tests |
 | `npm run test:pdf` | PASS — 3 files / 22 tests |
-| `npm run test:foundation` | PASS — 31 files / 224 tests |
+| `npm run test:foundation` | PASS — 31 files / 234 tests |
 | `npm run typecheck:foundation` | PASS |
 | `npm run lint:foundation` | PASS |
-| `npm run typecheck` | KNOWN BASELINE — 150 diagnostics, zero in touched paths |
-| `npm run lint` | KNOWN BASELINE/GENERATED — 19 errors: 16 inherited source and 3 generated artifact errors; zero in touched source |
-| Touched frontend lint | PASS |
+| `npm run typecheck` | KNOWN BASELINE — 150 diagnostics, zero touched-path matches |
+| `npm run lint` | KNOWN BASELINE/GENERATED — 19 errors; zero touched-source errors |
 | `npm run build` | PASS |
-| Foundation contract verifier | PASS — schema v3 with distinct application and PDF API/function inventories |
-| Post-preview PDF bundle verifier | PASS — exact Heebo digest, canvas package 0.1.100, ELF64 AArch64 binary |
-| Codex-layer validator | PASS — 31 skills / 6 custom agents |
-| `npm run sst:install` | PASS |
-| `npm run sst:diff:test` | PASS — read-only preview synthesized 180 resources; no deployment |
-| `git diff --check` | PASS on clean worktree; base-to-head range FAILS as finding #2 |
-| Protected Terraform/workflow/Sentry paths | PASS — unchanged from `origin/main` |
-| Private-file cutover gate | EXPECTED BLOCK — `missing_evidence` for issue #11 |
-| Test deploy/live parity/manual browser matrix | NOT RUN — intentionally gated and not authorized |
-
-The first preview attempt encountered an expired/stale AWS session. The existing `ntz-taxflow` SSO profile was
-refreshed, stale child-process credential variables were excluded, and the read-only preview then completed. No SST
-deployment, Terraform action, DNS change, or production action was performed.
+| Foundation contract verifier | PASS — distinct application/PDF APIs and functions |
+| Live foundation verifier | PASS — runtime/assets/CORS/IAM/storage/auth/health and both legacy-read flags false |
+| PDF parity | PASS — compact ×2, representative ×2, boundary ×1; zero rendered-pixel mismatch |
+| Boundary limits | PASS — 5,717,960-byte request, 4,224,444-byte PDF, 5,632,968-byte SST proxy envelope |
+| Protected Terraform/workflow/Sentry paths | PASS — unchanged from the PR merge base |
+| `git diff --check origin/main...HEAD` | PASS |
+| GitHub Actions run 33620970616 | PASS — validation, preview, bundle, deploy, and live verification |
+| Private-file import gate | EXPECTED BLOCK — still required before either legacy reader may be enabled |
+| Owner browser matrix | PENDING — four HUMAN TESTS above |
 
 ## What is good
 
-- The PDF Lambda is isolated from the ordinary API runtime, has the workload permissions boundary, and receives no
-  S3, DynamoDB, Cognito, or other data links/permissions.
-- Handler-owned CORS, JSON error shapes, binary PDF responses, page fallback, and multipage flattening remain
-  characterized and compatible.
-- The frontend keeps the explicit endpoint override as the highest-priority rollback seam while SST selects the
-  same-origin `/pdf` path.
-- The boundary fixture measures the complete base64-bearing Lambda proxy envelope and includes an explicit
-  over-limit regression.
-- Preview verification checks the exact font and AArch64 native artifact before deployment; live verification is
-  correctly reserved for the actual deployed `code.zip`.
-- The workflow retains the issue #11 gate before deployment and does not alter legacy Terraform PDF ownership.
+- The PDF Lambda is isolated from the ordinary API, has a permissions boundary, and receives no S3, DynamoDB, or
+  Cognito data permissions.
+- The verifier proved exact render bytes and zero pixel mismatch across compact, eight-page representative, and
+  24-page near-limit boundary profiles while keeping committed evidence endpoint-free and synthetic-only.
+- Handler-owned CORS was tested through both the raw API and same-origin Router path after removing API Gateway's
+  empty CORS configuration.
+- The deployment workflow preserves the owner-approved synthetic-only exception while leaving both legacy-read
+  switches false and retaining the issue #11 gate for any later enablement.
+- Legacy Terraform endpoints/workflows, DNS, production resources, and Sentry instrumentation are unchanged.
 
 ## Recommendation
 
-Keep PR #27 as a draft and address the two low findings before marking it ready. There are no code-review blockers
-in the locally implemented scope. After issue #11 evidence is accepted and deployment is explicitly authorized,
-complete the live verifier, cross-endpoint parity evidence, and owner browser/rollback matrix before seeking final
-human approval for issue #9 parity.
-
-## Resolution
-
-Both low findings were accepted for this PR:
-
-1. The parity verifier now performs exactly two legacy stability-calibration runs regardless of the requested SST
-   iteration count. An end-to-end regression with separate local legacy/SST endpoints proves two legacy renders,
-   two requested SST renders, four summarized runs, and two comparisons when `iterations` is two.
-2. The five Markdown hard-break spaces were replaced with blank-line-separated metadata. PR-range whitespace
-   validation now covers `origin/main...HEAD` plus the pending fixes rather than relying on an empty worktree diff.
+Keep PR #27 as a draft until the four HUMAN TESTS are recorded. After they pass, update the implementation report,
+mark the PR ready, and hand it to a human for final approval and merge. No additional code remediation is currently
+recommended.
