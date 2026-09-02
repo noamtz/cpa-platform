@@ -140,8 +140,11 @@ export function createRuntimeDependencies(): ApiDependencies {
         return sdkS3Client.send(command as never);
       },
     },
-    presign(command, expiresIn) {
-      return getSignedUrl(sdkS3Client, command as never, { expiresIn });
+    presign(command, expiresIn, unhoistableHeaders) {
+      return getSignedUrl(sdkS3Client, command as never, {
+        expiresIn,
+        ...(unhoistableHeaders ? { unhoistableHeaders } : {}),
+      });
     },
     filesBucketName: requiredEnvironment("FILES_BUCKET_NAME"),
     temporaryOutputsBucketName: requiredEnvironment("TEMPORARY_OUTPUTS_BUCKET_NAME"),

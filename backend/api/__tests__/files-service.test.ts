@@ -135,6 +135,13 @@ describe("FileService uploads", () => {
       },
     });
     expect(presign.mock.calls[0][1]).toBe(900);
+    expect(presign.mock.calls[0][2]).toEqual(
+      new Set([
+        "x-amz-meta-owner-hash",
+        "x-amz-meta-purpose",
+        "x-amz-meta-declared-size",
+      ]),
+    );
     expect(result.upload_id).toBe(ownedReference());
     expect(result.headers["if-none-match"]).toBe("*");
     expect(send).not.toHaveBeenCalled();

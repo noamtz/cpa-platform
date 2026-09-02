@@ -58,6 +58,7 @@ export interface FileServiceOptions {
   readonly presign: (
     command: PutObjectCommand | GetObjectCommand,
     expiresIn: number,
+    unhoistableHeaders?: Set<string>,
   ) => Promise<string>;
   readonly filesBucketName: string;
   readonly temporaryOutputsBucketName: string;
@@ -427,6 +428,9 @@ export class FileService {
       purpose,
       "declared-size": String(size),
     };
+    const metadataHeaders = new Set(
+      Object.keys(metadata).map((name) => `x-amz-meta-${name}`),
+    );
     const command = new PutObjectCommand({
       Bucket: this.options.filesBucketName,
       Key: key,
@@ -434,7 +438,11 @@ export class FileService {
       IfNoneMatch: "*",
       Metadata: metadata,
     });
-    const uploadUrl = await this.options.presign(command, UPLOAD_URL_TTL_SECONDS);
+    const uploadUrl = await this.options.presign(
+      command,
+      UPLOAD_URL_TTL_SECONDS,
+      metadataHeaders,
+    );
     return {
       upload_id: fileUri,
       upload_url: uploadUrl,
