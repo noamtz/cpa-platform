@@ -534,9 +534,11 @@ export default function PdfTemplateEditor() {
 
       let savedTemplate;
       if (editingId) {
+        const current = existingTemplates.find(({ id }) => id === editingId);
+        if (!current?.revision) throw new Error("Template revision is missing");
         savedTemplate = await base44.entities.PdfTemplate.update(
           editingId,
-          payload,
+          { ...payload, revision: current.revision },
         );
       } else {
         savedTemplate = await base44.entities.PdfTemplate.create(payload);
@@ -558,10 +560,10 @@ export default function PdfTemplateEditor() {
     setSaving(false);
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (template) => {
     if (!confirm("למחוק את התבנית?")) return;
     try {
-      await base44.entities.PdfTemplate.delete(id);
+      await base44.entities.PdfTemplate.delete(template.id, template.revision);
       toast({ title: "נמחק", description: "התבנית נמחקה" });
       await loadTemplates();
     } catch (e) {
@@ -716,7 +718,7 @@ export default function PdfTemplateEditor() {
                       {loadingTemplate === t.id ? "טוען..." : "עריכה"}
                     </Button>
                     <Button
-                      onClick={() => handleDelete(t.id)}
+                      onClick={() => handleDelete(t)}
                       variant="ghost"
                       size="icon"
                       className="text-destructive hover:bg-red-50 rounded-xl"

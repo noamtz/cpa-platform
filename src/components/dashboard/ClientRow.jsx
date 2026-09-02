@@ -688,7 +688,9 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                 <button
                   onClick={async (e) => {
                     e.stopPropagation();
-                    await base44.entities.Client.update(client.id, { status: 'pending' });
+                    await base44.functions.invoke("resetOrphanClientStatus", {
+                      client_id: client.id,
+                    });
                     onRefresh();
                   }}
                   className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"

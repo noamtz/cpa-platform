@@ -79,13 +79,14 @@ describe("protected template routes", () => {
     const { handler, service } = setup();
     await handler(event("GET /cpa/questionnaire-templates"), {} as Context, vi.fn());
     const archived = await handler(
-      event("POST /cpa/pdf-templates/{id}/archive"),
+      event("POST /cpa/pdf-templates/{id}/archive", { revision: 3 }),
       {} as Context,
       vi.fn(),
     );
     expect(service.listQuestionnaireHistory).toHaveBeenCalledOnce();
     expect(service.archivePdfTemplate).toHaveBeenCalledWith(
       "template-1",
+      { revision: 3 },
       expect.any(Object),
       "request-1",
     );
@@ -108,5 +109,34 @@ describe("protected template routes", () => {
     );
     expect(malformed).toMatchObject({ statusCode: 400 });
     expect(service.saveQuestionnaire).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed PDF file references before create or update dispatch", async () => {
+    const { handler, service } = setup();
+    const template_json = JSON.stringify({
+      basePdf: { __type: "file_uri", value: "https://example.test/file.pdf" },
+      schemas: [],
+    });
+    const created = await handler(
+      event("POST /cpa/pdf-templates", {
+        name: "Invalid template",
+        template_json,
+        is_active: true,
+      }),
+      {} as Context,
+      vi.fn(),
+    );
+    const updated = await handler(
+      event("PATCH /cpa/pdf-templates/{id}", {
+        template_json,
+        revision: 1,
+      }),
+      {} as Context,
+      vi.fn(),
+    );
+    expect(created).toMatchObject({ statusCode: 400 });
+    expect(updated).toMatchObject({ statusCode: 400 });
+    expect(service.createPdfTemplate).not.toHaveBeenCalled();
+    expect(service.updatePdfTemplate).not.toHaveBeenCalled();
   });
 });

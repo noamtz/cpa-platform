@@ -90,6 +90,7 @@ const CPA_ROUTE_KEYS = new Set([
   "POST /cpa/pdf-templates/{id}/archive",
   "POST /apps/{appId}/functions/cpaSaveSubmission",
   "POST /cpa/clients/{id}/tax-year",
+  "POST /cpa/clients/{id}/orphan-status-reset",
   "POST /cpa/submissions/{id}/restore",
   "POST /cpa/submissions/{id}/workflow-status",
 ]);

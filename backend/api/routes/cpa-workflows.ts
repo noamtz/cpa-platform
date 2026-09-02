@@ -4,6 +4,7 @@ import type { CpaActor } from "../auth/cpa-context";
 import {
   changeClientTaxYearSchema,
   cpaSaveSubmissionSchema,
+  resetOrphanClientStatusSchema,
   restoreSubmissionSchema,
   transitionSubmissionStatusSchema,
 } from "../contracts/cpa-workflows";
@@ -56,6 +57,20 @@ export function registerCpaWorkflowRoutes(
         ),
       ),
     ),
+  );
+  router.register(
+    "POST /cpa/clients/{id}/orphan-status-reset",
+    authenticated(async (event, actor) => {
+      parseJsonBody(event, resetOrphanClientStatusSchema);
+      return jsonResponse(
+        200,
+        await service.resetOrphanStatus(
+          pathId(event),
+          actor,
+          event.requestContext.requestId,
+        ),
+      );
+    }),
   );
   router.register(
     "POST /cpa/submissions/{id}/restore",

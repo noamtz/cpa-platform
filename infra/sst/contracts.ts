@@ -251,6 +251,12 @@ export const apiRoutes = {
     authorization: "cognito-jwt",
     authorizationScopes: ["auditflow-api/cpa"],
   },
+  clientOrphanStatusReset: {
+    route: "POST /cpa/clients/{id}/orphan-status-reset",
+    path: "/cpa/clients/{id}/orphan-status-reset",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
   submissionRestore: {
     route: "POST /cpa/submissions/{id}/restore",
     path: "/cpa/submissions/{id}/restore",

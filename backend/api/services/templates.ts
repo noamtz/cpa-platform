@@ -9,6 +9,7 @@ import {
   cpaPdfTemplate,
   pdfTemplateFileReference,
   questionnaireTemplateHistory,
+  type ArchivePdfTemplateInput,
   type CreatePdfTemplateInput,
   type PdfTemplateRecord,
   type QuestionnaireTemplateGuard,
@@ -301,6 +302,16 @@ export class TemplateService {
   ) {
     const before = await this.options.pdfTemplates.get(id);
     if (!before || before.is_active === false) throw notFound("Template not found");
+    if (before._version !== input.revision) {
+      throw reloadConflict("PDF_TEMPLATE_CONFLICT");
+    }
+    const changes = {
+      ...(input.name === undefined ? {} : { name: input.name }),
+      ...(input.template_json === undefined
+        ? {}
+        : { template_json: input.template_json }),
+      ...(input.is_active === undefined ? {} : { is_active: input.is_active }),
+    };
     const templateJson = input.template_json ?? before.template_json;
     if (!templateJson) throw internalError();
     const reference = pdfTemplateFileReference(templateJson);
@@ -311,7 +322,7 @@ export class TemplateService {
     );
     const after: PdfTemplateRecord = {
       ...before,
-      ...input,
+      ...changes,
       template_json: templateJson,
       file_reference: reference,
       _version: before._version + 1,
@@ -321,9 +332,17 @@ export class TemplateService {
     return cpaPdfTemplate(after);
   }
 
-  async archivePdfTemplate(id: string, actor: CpaActor, requestId: string) {
+  async archivePdfTemplate(
+    id: string,
+    input: ArchivePdfTemplateInput,
+    actor: CpaActor,
+    requestId: string,
+  ) {
     const before = await this.options.pdfTemplates.get(id);
     if (!before || before.is_active === false) throw notFound("Template not found");
+    if (before._version !== input.revision) {
+      throw reloadConflict("PDF_TEMPLATE_CONFLICT");
+    }
     const after: PdfTemplateRecord = {
       ...before,
       is_active: false,

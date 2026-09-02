@@ -480,6 +480,38 @@ export class CpaWorkflowService {
     return publicRecord(restored);
   }
 
+  async resetOrphanStatus(
+    clientId: string,
+    actor: CpaActor,
+    requestId: string,
+  ) {
+    const client = await this.client(clientId);
+    const active = (await this.activeSubmission(client.id, taxYearFor(client))).record;
+    if (active || client.status !== "completed") {
+      throw reloadConflict("ORPHAN_STATUS_CONFLICT");
+    }
+    const after: ClientRecord = {
+      ...client,
+      status: "pending",
+      updated_date: this.clock().toISOString(),
+      _version: client._version + 1,
+    };
+    await this.commit(
+      actor,
+      requestId,
+      [conditionalUpdate(this.options.clients.tableName, after, client._version)],
+      [{
+        entityType: "Client",
+        entityKey: client.id,
+        operationType: "update",
+        before: client,
+        after,
+      }],
+      "ORPHAN_STATUS_CONFLICT",
+    );
+    return publicRecord(after);
+  }
+
   async transitionStatus(
     submissionId: string,
     input: TransitionSubmissionStatusInput,

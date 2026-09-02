@@ -28,6 +28,7 @@ function setup() {
   const service = {
     saveSubmission: vi.fn().mockResolvedValue({ submission: { id: "submission-1" } }),
     changeTaxYear: vi.fn().mockResolvedValue({ id: "client-1" }),
+    resetOrphanStatus: vi.fn().mockResolvedValue({ id: "client-1", status: "pending" }),
     restoreSubmission: vi.fn().mockResolvedValue({ id: "submission-1" }),
     transitionStatus: vi.fn().mockResolvedValue({ client: {}, submission: {} }),
   } as unknown as CpaWorkflowService;
@@ -76,9 +77,10 @@ describe("protected CPA workflow routes", () => {
     );
   });
 
-  it("dispatches tax-year, restore, and paired-status operations", async () => {
+  it("dispatches tax-year, orphan-reset, restore, and paired-status operations", async () => {
     const { handler, service } = setup();
     await handler(event("POST /cpa/clients/{id}/tax-year", { tax_year: 2025 }), {} as Context, vi.fn());
+    await handler(event("POST /cpa/clients/{id}/orphan-status-reset", {}), {} as Context, vi.fn());
     await handler(event("POST /cpa/submissions/{id}/restore", {}), {} as Context, vi.fn());
     await handler(
       event("POST /cpa/submissions/{id}/workflow-status", { client_id: "client-1", status: "reviewed" }),
@@ -86,6 +88,7 @@ describe("protected CPA workflow routes", () => {
       vi.fn(),
     );
     expect(service.changeTaxYear).toHaveBeenCalledWith("submission-1", { tax_year: 2025 }, expect.any(Object), "request-2");
+    expect(service.resetOrphanStatus).toHaveBeenCalledWith("submission-1", expect.any(Object), "request-2");
     expect(service.restoreSubmission).toHaveBeenCalledOnce();
     expect(service.transitionStatus).toHaveBeenCalledOnce();
   });

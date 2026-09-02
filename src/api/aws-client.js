@@ -62,10 +62,10 @@ export function createAwsClient({ auth, http }) {
             method: "PATCH",
             body: patch,
           }),
-        delete: (id) =>
+        delete: (id, revision) =>
           http.request(`/cpa/pdf-templates/${encodeURIComponent(id)}/archive`, {
             method: "POST",
-            body: {},
+            body: { revision },
           }),
       },
     },
@@ -107,6 +107,11 @@ export function createAwsClient({ auth, http }) {
             `/cpa/clients/${encodeURIComponent(payload.client_id)}/tax-year`,
             "POST",
             { tax_year: payload.tax_year },
+          ],
+          resetOrphanClientStatus: [
+            `/cpa/clients/${encodeURIComponent(payload.client_id)}/orphan-status-reset`,
+            "POST",
+            {},
           ],
           restoreSubmission: [
             `/cpa/submissions/${encodeURIComponent(payload.submission_id)}/restore`,

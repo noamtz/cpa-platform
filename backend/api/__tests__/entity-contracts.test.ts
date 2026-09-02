@@ -4,6 +4,7 @@ import {
   clientCreateSchema,
   clientPersistedSchema,
   clientQuerySchema,
+  clientUpdateSchema,
   publicRecord,
   submissionPersistedSchema,
   submissionUpdateSchema,
@@ -57,6 +58,22 @@ describe("entity compatibility contracts", () => {
     ).toMatchObject({ token: "weak" });
     expect(() => submissionUpdateSchema.parse({ alert_sent: true })).toThrow();
     expect(() => updateMeSchema.parse({ role: "admin" })).toThrow();
+  });
+
+  it("reserves workflow-owned fields for dedicated operations", () => {
+    expect(clientUpdateSchema.parse({ full_name: "Updated", is_archived: true })).toEqual({
+      full_name: "Updated",
+      is_archived: true,
+    });
+    expect(submissionUpdateSchema.parse({ is_archived: true })).toEqual({
+      is_archived: true,
+    });
+    expect(() => clientUpdateSchema.parse({ tax_year: 2025 })).toThrow();
+    expect(() => clientUpdateSchema.parse({ status: "pending" })).toThrow();
+    expect(() =>
+      clientUpdateSchema.parse({ last_activity: "2026-09-02T12:00:00.000Z" }),
+    ).toThrow();
+    expect(() => submissionUpdateSchema.parse({ cpa_status: "reviewed" })).toThrow();
   });
 
   it("bounds list sorting and limits", () => {

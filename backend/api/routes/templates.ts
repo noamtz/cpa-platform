@@ -2,8 +2,8 @@ import type { APIGatewayProxyEventV2 } from "aws-lambda";
 
 import type { CpaActor } from "../auth/cpa-context";
 import {
+  archivePdfTemplateSchema,
   createPdfTemplateSchema,
-  emptyBodySchema,
   saveQuestionnaireTemplateSchema,
   updatePdfTemplateSchema,
 } from "../contracts/templates";
@@ -101,11 +101,11 @@ export function registerTemplateRoutes(
   router.register(
     "POST /cpa/pdf-templates/{id}/archive",
     authenticated(async (event, actor) => {
-      parseJsonBody(event, emptyBodySchema);
       return jsonResponse(
         200,
         await service.archivePdfTemplate(
           pathId(event),
+          parseJsonBody(event, archivePdfTemplateSchema),
           actor,
           event.requestContext.requestId,
         ),

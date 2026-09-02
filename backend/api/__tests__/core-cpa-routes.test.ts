@@ -164,7 +164,7 @@ describe("assembled CPA routes", () => {
   it("maps path parameters for updates and token rotation", async () => {
     const { handler, entities } = setup();
     await handler(
-      event("PATCH /cpa/clients/{id}", { status: "reviewed" }, { id: "client-1" }),
+      event("PATCH /cpa/clients/{id}", { notes: "Updated" }, { id: "client-1" }),
       context,
       callback,
     );
@@ -177,7 +177,7 @@ describe("assembled CPA routes", () => {
       expect.objectContaining({ userId: "user-1" }),
       "request-1",
       "client-1",
-      { status: "reviewed" },
+      { notes: "Updated" },
     );
     expect(entities.rotateClientToken).toHaveBeenCalled();
   });

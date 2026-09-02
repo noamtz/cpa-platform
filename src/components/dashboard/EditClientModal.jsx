@@ -23,7 +23,14 @@ export default function EditClientModal({ client, onClose, onSaved }) {
       return;
     }
     setSaving(true);
-    await base44.entities.Client.update(client.id, form);
+    const { tax_year, ...profile } = form;
+    if (tax_year !== client.tax_year) {
+      await base44.functions.invoke("changeClientTaxYear", {
+        client_id: client.id,
+        tax_year,
+      });
+    }
+    await base44.entities.Client.update(client.id, profile);
     setSaving(false);
     onSaved();
     onClose();

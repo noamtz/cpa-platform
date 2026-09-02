@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { resolveStoredFileReference } from "./files";
 import { questionnaireTemplatePersistedSchema } from "./public-questionnaire";
 
 export const MAX_QUESTIONNAIRE_STEPS = 200;
@@ -44,6 +45,9 @@ function jsonTemplateSchema(value: string, context: z.RefinementCtx) {
     const parsed = JSON.parse(value) as Record<string, unknown>;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
     if (!("basePdf" in parsed) || !Array.isArray(parsed.schemas)) throw new Error();
+    const reference = pdfTemplateFileReference(value);
+    if (!reference) throw new Error();
+    resolveStoredFileReference(reference);
     const supportedTypes = new Set([
       "text",
       "image",
@@ -83,11 +87,20 @@ const pdfTemplateFields = {
 
 export const createPdfTemplateSchema = z.object(pdfTemplateFields).strict();
 export const updatePdfTemplateSchema = z
-  .object(pdfTemplateFields)
-  .partial()
+  .object({
+    name: pdfTemplateFields.name.optional(),
+    template_json: pdfTemplateFields.template_json.optional(),
+    is_active: z.boolean().optional(),
+    revision: z.number().int().positive(),
+  })
   .strict()
-  .refine((value) => Object.keys(value).length > 0);
-export const emptyBodySchema = z.object({}).strict();
+  .refine(
+    (value) => Object.keys(value).some((key) => key !== "revision"),
+    "PDF template update is empty",
+  );
+export const archivePdfTemplateSchema = z
+  .object({ revision: z.number().int().positive() })
+  .strict();
 
 export const questionnaireTemplateGuardSchema = z
   .object({
@@ -134,6 +147,7 @@ export type QuestionnaireTemplateGuard = z.infer<
 >;
 export type CreatePdfTemplateInput = z.infer<typeof createPdfTemplateSchema>;
 export type UpdatePdfTemplateInput = z.infer<typeof updatePdfTemplateSchema>;
+export type ArchivePdfTemplateInput = z.infer<typeof archivePdfTemplateSchema>;
 export type PdfTemplateRecord = z.infer<typeof pdfTemplatePersistedSchema>;
 
 export function questionnaireTemplateHistory(record: QuestionnaireTemplateRecord) {
@@ -161,7 +175,10 @@ export function questionnaireTemplateHistory(record: QuestionnaireTemplateRecord
 }
 
 export function cpaPdfTemplate(record: PdfTemplateRecord) {
-  const visible: Record<string, unknown> = { ...record };
+  const visible: Record<string, unknown> = {
+    ...record,
+    revision: record._version,
+  };
   delete visible.record_type;
   return visible;
 }

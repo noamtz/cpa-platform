@@ -50,7 +50,15 @@ export const clientCreateSchema = z
   .strict();
 
 export const clientUpdateSchema = z
-  .object(clientFields)
+  .object({
+    full_name: clientFields.full_name,
+    email: clientFields.email,
+    phone: clientFields.phone,
+    osek_type: clientFields.osek_type,
+    pricing: clientFields.pricing,
+    notes: clientFields.notes,
+    is_archived: clientFields.is_archived,
+  })
   .partial()
   .strict()
   .refine((value) => Object.keys(value).length > 0);
@@ -104,7 +112,6 @@ export const activeSubmissionGuardSchema = z
 
 export const submissionUpdateSchema = z
   .object({
-    cpa_status: submissionKnownFields.cpa_status,
     is_archived: submissionKnownFields.is_archived,
   })
   .strict()

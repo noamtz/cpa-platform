@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -9,7 +11,18 @@ import {
   parseAwsCliErrorCode,
   pdfRoutesTargetSingleFunction,
   retryAwsCliCommand,
+  scopedCpaRouteCount,
 } from "../../../tooling/verify_sst_foundation.mjs";
+
+describe("live verifier evidence", () => {
+  it("reports the CPA route count derived from the enforced contract", () => {
+    const contract = JSON.parse(
+      readFileSync(new URL("../foundation-contract.json", import.meta.url), "utf8"),
+    );
+
+    expect(scopedCpaRouteCount(contract)).toBe(35);
+  });
+});
 
 describe("live S3 notification verification", () => {
   it("normalizes AWS CLI filter-rule names without changing their values", () => {

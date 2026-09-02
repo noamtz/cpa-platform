@@ -27,6 +27,13 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+export function scopedCpaRouteCount(contract) {
+  return contract.routes.filter(
+    ({ route, authorization }) =>
+      authorization === "cognito-jwt" && route !== "GET /auth/health",
+  ).length;
+}
+
 function parseArguments(argv) {
   const parsed = { mode: undefined, stage: undefined, outputs: undefined };
   for (let index = 0; index < argv.length; index += 2) {
@@ -148,7 +155,10 @@ function verifyContract(contract, stage) {
     ({ route, authorization }) =>
       authorization === "cognito-jwt" && route !== "GET /auth/health",
   );
-  assert(cpaRoutes.length === 34, "The exact CPA route inventory is incomplete.");
+  assert(
+    cpaRoutes.length === 35 && scopedCpaRouteCount(contract) === cpaRoutes.length,
+    "The exact CPA route inventory is incomplete.",
+  );
   assert(
     cpaRoutes.every(
       ({ authorization, authorizationScopes }) =>
@@ -1371,7 +1381,7 @@ async function verifyLive(contract, stage, outputsPath) {
       routerDeployed: true,
       managedLoginConfigured: true,
       refreshRotationEnabled: true,
-      cpaRoutesScoped: 14,
+      cpaRoutesScoped: scopedCpaRouteCount(contract),
       exactOidcTrust: true,
       noAdministratorPolicy: true,
       noDeployRoleSelfMutation: true,

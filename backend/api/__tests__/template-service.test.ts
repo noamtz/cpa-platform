@@ -127,7 +127,7 @@ describe("TemplateService", () => {
       actor,
     );
     await expect(
-      service.archivePdfTemplate("pdf-1", actor, "request-3"),
+      service.archivePdfTemplate("pdf-1", { revision: 1 }, actor, "request-3"),
     ).resolves.toEqual({ id: "pdf-1", deleted: true });
     expect(commit).toHaveBeenCalledTimes(2);
     expect(commit.mock.calls[1][0].businessActions[0].Put.Item).toMatchObject({
@@ -135,6 +135,38 @@ describe("TemplateService", () => {
       is_active: false,
       _version: 2,
     });
+  });
+
+  it("rejects a stale PDF template update without journaling", async () => {
+    const { service, commit } = setup();
+    await expect(
+      service.updatePdfTemplate(
+        "pdf-1",
+        { name: "Stale edit", revision: 2 },
+        actor,
+        "request-stale-update",
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      details: { reload: true },
+    });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it("rejects a stale PDF template archive without journaling", async () => {
+    const { service, commit } = setup();
+    await expect(
+      service.archivePdfTemplate(
+        "pdf-1",
+        { revision: 2 },
+        actor,
+        "request-stale-archive",
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      details: { reload: true },
+    });
+    expect(commit).not.toHaveBeenCalled();
   });
 
   it("hides archived PDF templates from detail reads", async () => {

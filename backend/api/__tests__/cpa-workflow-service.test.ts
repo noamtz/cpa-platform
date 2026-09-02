@@ -48,7 +48,10 @@ function submission(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function setup(active = submission(), guarded = true) {
+function setup(
+  active: ReturnType<typeof submission> | null = submission(),
+  guarded = true,
+) {
   const clients = {
     tableName: "Client.test",
     get: vi.fn().mockResolvedValue(client()),
@@ -225,5 +228,29 @@ describe("CpaWorkflowService", () => {
       "Client",
       "Submission",
     ]);
+  });
+
+  it("resets a completed orphan through a conditional journaled update", async () => {
+    const { service, clients, commit } = setup(null);
+    vi.mocked(clients.get).mockResolvedValue(client({ status: "completed" }));
+
+    await expect(
+      service.resetOrphanStatus("client-1", actor, "request-orphan"),
+    ).resolves.toMatchObject({ status: "pending" });
+    expect(commit.mock.calls[0][0].businessActions[0].Put).toMatchObject({
+      ConditionExpression: "#version = :expected_version",
+      ExpressionAttributeValues: { ":expected_version": 3 },
+    });
+    expect(commit.mock.calls[0][0].changes).toHaveLength(1);
+  });
+
+  it("rejects orphan reset when an active submission exists", async () => {
+    const { service, clients, commit } = setup();
+    vi.mocked(clients.get).mockResolvedValue(client({ status: "completed" }));
+
+    await expect(
+      service.resetOrphanStatus("client-1", actor, "request-not-orphan"),
+    ).rejects.toMatchObject({ statusCode: 409, details: { reload: true } });
+    expect(commit).not.toHaveBeenCalled();
   });
 });

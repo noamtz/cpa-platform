@@ -52,11 +52,13 @@ describe("AWS compatibility client", () => {
     ).resolves.toEqual({ data: { connected: false } });
     await client.functions.invoke("getActiveTemplate", {});
     await client.functions.invoke("cpaSaveSubmission", { client_id: "client-1" });
+    await client.functions.invoke("resetOrphanClientStatus", { client_id: "client/1" });
     await client.connectors.connectAppUser("connector-1");
     expect(request.mock.calls).toEqual([
       ["/cpa/integrations/google-drive/sync", { method: "POST", body: { check_connection: true } }],
       ["/cpa/questionnaire-templates/active", { method: "GET" }],
       ["/apps/auditflow/functions/cpaSaveSubmission", { method: "POST", body: { client_id: "client-1" } }],
+      ["/cpa/clients/client%2F1/orphan-status-reset", { method: "POST", body: {} }],
       ["/cpa/integrations/google-drive/connect", { method: "POST", body: { connector_id: "connector-1" } }],
     ]);
   });
@@ -71,13 +73,13 @@ describe("AWS compatibility client", () => {
     const { client, request } = setup();
     await client.entities.PdfTemplate.list();
     await client.entities.PdfTemplate.create({ name: "Form", template_json: "{}" });
-    await client.entities.PdfTemplate.update("template/1", { name: "Updated" });
-    await client.entities.PdfTemplate.delete("template/1");
+    await client.entities.PdfTemplate.update("template/1", { name: "Updated", revision: 4 });
+    await client.entities.PdfTemplate.delete("template/1", 5);
     expect(request.mock.calls).toEqual([
       ["/cpa/pdf-templates"],
       ["/cpa/pdf-templates", { method: "POST", body: { name: "Form", template_json: "{}" } }],
-      ["/cpa/pdf-templates/template%2F1", { method: "PATCH", body: { name: "Updated" } }],
-      ["/cpa/pdf-templates/template%2F1/archive", { method: "POST", body: {} }],
+      ["/cpa/pdf-templates/template%2F1", { method: "PATCH", body: { name: "Updated", revision: 4 } }],
+      ["/cpa/pdf-templates/template%2F1/archive", { method: "POST", body: { revision: 5 } }],
     ]);
   });
 });

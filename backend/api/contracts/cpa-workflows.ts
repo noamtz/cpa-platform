@@ -35,6 +35,8 @@ export const changeClientTaxYearSchema = z
   .object({ tax_year: z.number().int().min(1900).max(2200) })
   .strict();
 
+export const resetOrphanClientStatusSchema = z.object({}).strict();
+
 export const restoreSubmissionSchema = z
   .object({ conflicting_submission_id: idSchema.optional() })
   .strict();
