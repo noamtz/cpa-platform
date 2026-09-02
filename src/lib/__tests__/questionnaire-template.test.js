@@ -127,7 +127,7 @@ describe('Active Step Resolution', () => {
 
 describe('Year Placeholder Resolution', () => {
   it('year placeholders in title and question are replaced', () => {
-    const steps = [makeStep('s1', { title: 'Income {year}', question: 'Did you work in {year}?' })];
+    const steps = [makeStep('s1', { title: 'Income {year}', question: 'Did you work in {TAX_YEAR}?' })];
     const result = resolveYearPlaceholders(steps, 2024);
     expect(result[0].title).toBe('Income 2024');
     expect(result[0].question).toBe('Did you work in 2024?');

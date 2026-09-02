@@ -192,7 +192,7 @@ export const DEFAULT_STEPS = [
  */
 export function resolveYearPlaceholders(steps, taxYear) {
   const year = String(taxYear);
-  const r = (s) => s ? s.replace(/\{year\}/g, year) : s;
+  const r = (s) => s ? s.replace(/\{(?:year|TAX_YEAR)\}/g, year) : s;
   return steps.map((step) => ({
     ...step,
     title: r(step.title),
