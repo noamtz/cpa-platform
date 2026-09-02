@@ -36,6 +36,7 @@ const DEFAULT_TEMPLATE_STEPS = [
     no_label: "לא, לא הייתי שכיר",
     response_type: "upload",
     is_active: true,
+    enabled: true,
     order: 1,
     upload_config: {
       title: "העלאת טופס 106",
@@ -53,6 +54,7 @@ const DEFAULT_TEMPLATE_STEPS = [
     no_label: "לא, לא הפקדתי",
     response_type: "upload",
     is_active: true,
+    enabled: true,
     order: 2,
     upload_config: {
       title: "אישורי מס פנסיה",
@@ -70,6 +72,7 @@ const DEFAULT_TEMPLATE_STEPS = [
     no_label: "לא, לא השקעתי",
     response_type: "upload",
     is_active: true,
+    enabled: true,
     order: 3,
     upload_config: {
       title: "העלאת טופס 867",
@@ -87,6 +90,7 @@ const DEFAULT_TEMPLATE_STEPS = [
     no_label: "לא, אין לי ביטוח חיים",
     response_type: "upload",
     is_active: true,
+    enabled: true,
     order: 4,
     upload_config: {
       title: "אישורי ביטוח חיים",
@@ -104,6 +108,7 @@ const DEFAULT_TEMPLATE_STEPS = [
     no_label: "לא, לא תרמתי",
     response_type: "upload",
     is_active: true,
+    enabled: true,
     order: 5,
     upload_config: {
       title: "קבלות תרומה",
@@ -121,6 +126,7 @@ const DEFAULT_TEMPLATE_STEPS = [
     no_label: "לא, לא היו לי הכנסות נוספות",
     response_type: "text",
     is_active: true,
+    enabled: true,
     order: 6,
     text_config: {
       title: "פרטי הכנסות נוספות",
