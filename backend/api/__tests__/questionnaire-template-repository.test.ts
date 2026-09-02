@@ -56,4 +56,26 @@ describe("QuestionnaireTemplateRepository", () => {
     const repository = new QuestionnaireTemplateRepository({ send }, "Table.test");
     await expect(repository.get("broken")).rejects.toMatchObject({ statusCode: 500 });
   });
+
+  it("strongly reads the fixed active guard and bounds descending history", async () => {
+    const guard = {
+      id: "!ACTIVE",
+      record_type: "!ACTIVE_GUARD",
+      active_template_id: "record-2",
+      active_version: 2,
+      _version: 1,
+    };
+    const send = vi
+      .fn()
+      .mockResolvedValueOnce({ Item: guard })
+      .mockResolvedValueOnce({ Items: [storedTemplate("record-2", 2)] });
+    const repository = new QuestionnaireTemplateRepository({ send }, "Table.test");
+    await expect(repository.getActiveGuard()).resolves.toEqual(guard);
+    await expect(repository.history(100)).resolves.toHaveLength(1);
+    expect(send.mock.calls[1][0]).toBeInstanceOf(QueryCommand);
+    expect(send.mock.calls[1][0].input).toMatchObject({
+      IndexName: "byVersion",
+      ScanIndexForward: false,
+    });
+  });
 });

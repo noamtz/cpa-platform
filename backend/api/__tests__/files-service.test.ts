@@ -37,6 +37,8 @@ const submission = {
 };
 const actor = {
   userId: "user-test",
+  email: "admin@example.test",
+  fullName: "Invented Admin",
   cognitoSubject: "subject-test",
   role: "admin" as const,
 };

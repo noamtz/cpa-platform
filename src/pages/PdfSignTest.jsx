@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
+import { loadPublicPdfTemplate } from "@/api/function-client";
+import { fileClient } from "@/api/file-client";
 
 /**
  * Isolated test — same inline pdfme approach as PdfTestPage,
@@ -79,14 +81,15 @@ export default function PdfSignTest() {
       console.log("[PdfSignTest] pdfme loaded");
 
       // 2. Load template from API
-      const appId = import.meta.env.VITE_BASE44_APP_ID;
-      const res = await fetch(`/api/apps/${appId}/functions/getPdfTemplateById`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template_id: TEMPLATE_ID }),
+      const params = new URLSearchParams(window.location.search);
+      const clientId = params.get("client");
+      const token = params.get("token");
+      if (!clientId || !token) throw new Error("Synthetic client credentials are required");
+      const data = await loadPublicPdfTemplate({
+        client_id: clientId,
+        token,
+        template_id: TEMPLATE_ID,
       });
-      if (!res.ok) throw new Error("Failed to load template");
-      const data = await res.json();
       const template = data.template;
       console.log("[PdfSignTest] Template loaded:", template?.name);
 
@@ -98,12 +101,11 @@ export default function PdfSignTest() {
       // 4. Resolve basePdf (same logic as resolveBasePdf)
       if (tpl.basePdf && typeof tpl.basePdf === "object" && tpl.basePdf.__type === "file_uri") {
         console.log("[PdfSignTest] Resolving file_uri...");
-        const signRes = await fetch(`/api/apps/${appId}/functions/createSignedUrl`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ file_uri: tpl.basePdf.value }),
+        const { signed_url } = await fileClient.getPublicTemplateFileUrl({
+          client_id: clientId,
+          token,
+          template_id: TEMPLATE_ID,
         });
-        const { signed_url } = await signRes.json();
         const pdfRes = await fetch(signed_url);
         const arrayBuffer = await pdfRes.arrayBuffer();
         tpl.basePdf = new Uint8Array(arrayBuffer);

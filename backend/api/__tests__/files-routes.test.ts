@@ -80,7 +80,7 @@ function setup() {
     verifier,
     users: {
       findByCognitoSubject: vi.fn().mockResolvedValue([
-        { id: "user-test", role: "admin", cognito_sub: "subject-test" },
+        { id: "user-test", email: "admin@example.test", role: "admin", cognito_sub: "subject-test" },
       ]),
     } as unknown as UserRepository,
     entities: {} as EntityService,

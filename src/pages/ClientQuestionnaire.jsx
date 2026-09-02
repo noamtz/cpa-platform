@@ -355,7 +355,7 @@ export default function ClientQuestionnaire() {
       <div className="bg-white border-b border-border sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
           <img
-            src="https://media.base44.com/images/public/69f6f0a2ca1cf47418010a34/cbf7a3438_brandimage.jpg"
+            src="/brand-image.jpg"
             alt="Doron & Doron"
             className="h-9 w-auto object-contain flex-shrink-0"
           />

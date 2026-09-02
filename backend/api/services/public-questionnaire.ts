@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
 
+import { PutCommand } from "@aws-sdk/lib-dynamodb";
+
 import type {
   ClientRecord,
   SubmissionRecord,
 } from "../contracts/entities";
 import type { MutationChange } from "../contracts/change-journal";
+import type { QuestionnaireTemplateGuard } from "../contracts/templates";
 import {
   PUBLIC_QUESTIONNAIRE_ERROR_CODES,
   publicClient,
@@ -197,6 +200,13 @@ function activeGuardCreate(
   };
 }
 
+function questionnaireGuardCreate(
+  tableName: string,
+  guard: QuestionnaireTemplateGuard,
+): TransactionItem {
+  return conditionalCreate(tableName, guard);
+}
+
 function reloadConflict(code: string) {
   return new ApiError(409, code, code, { reload: true });
 }
@@ -235,8 +245,49 @@ export class PublicQuestionnaireService {
     client: ClientRecord,
     requestId: string,
   ): Promise<QuestionnaireTemplateRecord> {
-    const existing = await this.options.templates.latestActive();
-    if (existing) return existing;
+    const guard = await this.options.templates.getActiveGuard();
+    if (guard) {
+      const guarded = await this.options.templates.get(guard.active_template_id);
+      if (
+        !guarded ||
+        !guarded.is_active ||
+        guarded.version !== guard.active_version
+      ) {
+        throw internalError();
+      }
+      return guarded;
+    }
+
+    const existingRecords = await this.options.templates.history(100);
+    const activeRecords = existingRecords.filter((record) => record.is_active);
+    if (activeRecords.length > 1) throw internalError();
+    const existing = activeRecords[0];
+    if (existing) {
+      const initialGuard: QuestionnaireTemplateGuard = {
+        id: "!ACTIVE",
+        record_type: "!ACTIVE_GUARD",
+        active_template_id: existing.id,
+        active_version: existing.version,
+        _version: 1,
+      };
+      try {
+        await this.options.templates.client.send(
+          new PutCommand({
+            TableName: this.options.templates.tableName,
+            Item: initialGuard,
+            ConditionExpression: "attribute_not_exists(#id)",
+            ExpressionAttributeNames: { "#id": "id" },
+          }),
+        );
+        return existing;
+      } catch {
+        const winnerGuard = await this.options.templates.getActiveGuard();
+        if (!winnerGuard) throw internalError();
+        const winner = await this.options.templates.get(winnerGuard.active_template_id);
+        if (!winner || !winner.is_active) throw internalError();
+        return winner;
+      }
+    }
 
     const now = this.clock().toISOString();
     const actorId = `public-client:${client.id}`;
@@ -251,6 +302,13 @@ export class PublicQuestionnaireService {
       updated_date: now,
       created_by: actorId,
     };
+    const seededGuard: QuestionnaireTemplateGuard = {
+      id: "!ACTIVE",
+      record_type: "!ACTIVE_GUARD",
+      active_template_id: seeded.id,
+      active_version: seeded.version,
+      _version: 1,
+    };
     try {
       await this.options.journal.commit({
         actorId,
@@ -258,6 +316,7 @@ export class PublicQuestionnaireService {
         operationId: this.operationIdGenerator(),
         businessActions: [
           conditionalCreate(this.options.templates.tableName, seeded),
+          questionnaireGuardCreate(this.options.templates.tableName, seededGuard),
         ],
         changes: [
           {
@@ -272,8 +331,10 @@ export class PublicQuestionnaireService {
       return seeded;
     } catch (error) {
       if (!(error instanceof ApiError) || error.statusCode !== 409) throw error;
-      const winner = await this.options.templates.latestActive();
-      if (!winner) throw internalError();
+      const winnerGuard = await this.options.templates.getActiveGuard();
+      if (!winnerGuard) throw internalError();
+      const winner = await this.options.templates.get(winnerGuard.active_template_id);
+      if (!winner || !winner.is_active) throw internalError();
       return winner;
     }
   }

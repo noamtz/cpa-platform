@@ -34,11 +34,10 @@ client secret to browser configuration. `VITE_COGNITO_AUTHORITY` is the regional
 discovery, not the separate managed-login domain. Invited CPA users receive Cognito's temporary-password setup flow and must
 choose a new password at managed login before using the application.
 
-`src/api/base44Client.js` is a temporary hybrid compatibility facade. CPA auth, Client, Submission, User,
-invitation, Drive, and Telegram methods are AWS-only and never fall back when AWS rejects a request. Only the
-explicit PDF-template and readiness-agent allowlist remains on Base44 while its downstream migration
-tickets are incomplete. Direct legacy `/api/apps/...` calls do not pass through this facade and are not provided by
-the SST API.
+`src/api/base44Client.js` preserves the source-facing method names while routing the application runtime entirely
+through AWS. CPA auth, Client, Submission, User, questionnaire/PDF-template, lifecycle, invitation, Drive, and
+Telegram methods never fall back when AWS rejects a request. Public questionnaire and signing calls use the
+same-origin, token-scoped SST compatibility routes; the retained `base44/` tree is migration evidence only.
 
 Document, signed-PDF, and template-file bytes use private S3 references. Browser uploads exchange metadata for a
 short-lived signed PUT, upload directly to `FilesBucket`, and complete through the API before the opaque reference is

@@ -10,6 +10,8 @@ import type { AccessTokenVerifier } from "./jwt";
 
 export interface LinkedUser {
   readonly id: string;
+  readonly email: string;
+  readonly full_name?: string;
   readonly role: string;
   readonly cognito_sub: string;
 }
@@ -20,6 +22,8 @@ export interface SubjectUserLookup {
 
 export interface CpaActor {
   readonly userId: string;
+  readonly email: string;
+  readonly fullName: string;
   readonly cognitoSubject: string;
   readonly role: "admin";
 }
@@ -57,6 +61,8 @@ export async function resolveCpaActor(
   }
   return Object.freeze({
     userId: user.id,
+    email: user.email,
+    fullName: user.full_name ?? user.email,
     cognitoSubject: verified.sub,
     role: "admin" as const,
   });

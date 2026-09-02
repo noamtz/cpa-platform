@@ -239,7 +239,9 @@ export default function ClientsPage() {
                       if (conflict) {
                         setRestoreConflict({ toRestore: sub, conflicting: conflict, clientName: client?.full_name || "לקוח" });
                       } else {
-                        await base44.entities.Submission.update(sub.id, { is_archived: false });
+                        await base44.functions.invoke("restoreSubmission", {
+                          submission_id: sub.id,
+                        });
                         toast({ title: "הגשה שוחזרה", description: `${client?.full_name} — שנת ${sub.tax_year}` });
                         loadData();
                       }
@@ -263,11 +265,10 @@ export default function ClientsPage() {
           onChoose={async (choice) => {
             const { toRestore, conflicting } = restoreConflict;
             if (choice === "restore") {
-              // Activate the archived one, archive the currently active one
-              await Promise.all([
-                base44.entities.Submission.update(toRestore.id, { is_archived: false }),
-                base44.entities.Submission.update(conflicting.id, { is_archived: true }),
-              ]);
+              await base44.functions.invoke("restoreSubmission", {
+                submission_id: toRestore.id,
+                conflicting_submission_id: conflicting.id,
+              });
               toast({ title: "הגשה שוחזרה", description: `${restoreConflict.clientName} — שנת ${toRestore.tax_year}` });
             } else {
               // Keep existing active, leave the archived one in archive

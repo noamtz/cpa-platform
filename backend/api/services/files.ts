@@ -640,7 +640,7 @@ export class FileService {
       throw notFound("Template not found");
     }
     const template = await this.options.pdfTemplates.get(input.template_id);
-    if (!template) throw notFound("Template not found");
+    if (!template || template.is_active === false) throw notFound("Template not found");
     return template;
   }
 
@@ -663,7 +663,7 @@ export class FileService {
   async getCpaTemplateFileUrl(templateId: string, actor: CpaActor) {
     void actor;
     const template = await this.options.pdfTemplates.get(templateId);
-    if (!template) throw notFound("Template not found");
+    if (!template || template.is_active === false) throw notFound("Template not found");
     const reference = templateBaseReference(template);
     if (!reference) throw notFound("Template has no base PDF file");
     return this.signedUrlFor(reference, [
@@ -672,46 +672,56 @@ export class FileService {
     ]);
   }
 
+  async validateCpaTemplateReference(
+    input: { readonly templateId: string; readonly fileReference: string },
+    actor: CpaActor,
+  ) {
+    void actor;
+    const { key, kind } = resolveStoredFileReference(input.fileReference);
+    this.assertReadableReferenceKind(kind);
+    if (kind !== "owned") return;
+
+    const receiptKey = createHash("sha256")
+      .update(`create:${input.fileReference}`)
+      .digest("hex");
+    const receipt = await this.options.journal.getFileOperationReceipt(receiptKey);
+    if (!receipt || receipt.file_uri !== input.fileReference) {
+      throw notFound("File not found");
+    }
+    const templateOwned = key.startsWith(templatePrefix(input.templateId));
+    const pendingOwned = key.startsWith(templatePrefix("pending"));
+    if (!templateOwned && !pendingOwned) throw notFound("File not found");
+    let head: HeadResult;
+    try {
+      head = (await this.options.s3.send(
+        new HeadObjectCommand({
+          Bucket: this.options.filesBucketName,
+          Key: key,
+        }),
+      )) as HeadResult;
+    } catch (error) {
+      if (isMissingObject(error)) throw notFound("File not found");
+      throw internalError();
+    }
+    const expectedOwner = templateOwned ? input.templateId : "pending";
+    if (
+      head.ContentType !== "application/pdf" ||
+      head.Metadata?.purpose !== "pdf_template" ||
+      head.Metadata?.["owner-hash"] !== ownerKeyPart(expectedOwner)
+    ) {
+      throw notFound("File not found");
+    }
+  }
+
   async mirrorCpaTemplateFile(
     input: CpaTemplateFileMirrorInput,
     actor: CpaActor,
     requestId: string,
   ) {
-    const { key, kind } = resolveStoredFileReference(input.file_reference);
-    this.assertReadableReferenceKind(kind);
-    if (kind === "owned") {
-      const receiptKey = createHash("sha256")
-        .update(`create:${input.file_reference}`)
-        .digest("hex");
-      const receipt =
-        await this.options.journal.getFileOperationReceipt(receiptKey);
-      if (!receipt || receipt.file_uri !== input.file_reference) {
-        throw notFound("File not found");
-      }
-      const templateOwned = key.startsWith(templatePrefix(input.template_id));
-      const pendingOwned = key.startsWith(templatePrefix("pending"));
-      if (!templateOwned && !pendingOwned) throw notFound("File not found");
-      let head: HeadResult;
-      try {
-        head = (await this.options.s3.send(
-          new HeadObjectCommand({
-            Bucket: this.options.filesBucketName,
-            Key: key,
-          }),
-        )) as HeadResult;
-      } catch (error) {
-        if (isMissingObject(error)) throw notFound("File not found");
-        throw internalError();
-      }
-      const expectedOwner = templateOwned ? input.template_id : "pending";
-      if (
-        head.ContentType !== "application/pdf" ||
-        head.Metadata?.purpose !== "pdf_template" ||
-        head.Metadata?.["owner-hash"] !== ownerKeyPart(expectedOwner)
-      ) {
-        throw notFound("File not found");
-      }
-    }
+    await this.validateCpaTemplateReference(
+      { templateId: input.template_id, fileReference: input.file_reference },
+      actor,
+    );
     const before = await this.options.pdfTemplates.get(input.template_id);
     const existingSourceVersion = before?.source_version ?? 0;
     if (

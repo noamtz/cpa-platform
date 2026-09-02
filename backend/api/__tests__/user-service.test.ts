@@ -10,6 +10,8 @@ import { UserService } from "../services/users";
 
 const actor = {
   userId: "user-1",
+  email: "admin@example.test",
+  fullName: "Invented Admin",
   cognitoSubject: "subject-1",
   role: "admin" as const,
 };

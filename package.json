@@ -33,8 +33,6 @@
     "@aws-sdk/lib-dynamodb": "3.1116.0",
     "@aws-sdk/lib-storage": "3.1116.0",
     "@aws-sdk/s3-request-presigner": "3.1116.0",
-    "@base44/sdk": "^0.8.41",
-    "@base44/vite-plugin": "^1.0.30",
     "@hello-pangea/dnd": "^17.0.0",
     "@hookform/resolvers": "^4.1.2",
     "@napi-rs/canvas": "0.1.100",

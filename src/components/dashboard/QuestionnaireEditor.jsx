@@ -8,9 +8,9 @@ import { useToast } from "@/components/ui/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronUp, ChevronDown, Plus, Trash2, Save, Eye, EyeOff,
-  GripVertical, Pencil, X, Upload, FileText, Type, ChevronRight, PenTool, Loader2
+  Pencil, X, Upload, FileText, Type, PenTool, Loader2
 } from "lucide-react";
-import { DEFAULT_STEPS, parseTemplateSteps, getActiveSteps } from "@/lib/questionnaire-template";
+import { DEFAULT_STEPS } from "@/lib/questionnaire-template";
 
 const RESPONSE_TYPES = [
   { value: "upload", label: "העלאת קובץ", icon: Upload, emoji: "📎" },
@@ -587,23 +587,7 @@ export default function QuestionnaireEditor() {
   const loadTemplate = async () => {
     setLoading(true);
     try {
-      const appId = import.meta.env.VITE_BASE44_APP_ID;
-      const res = await fetch(`/api/apps/${appId}/functions/getActiveTemplate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("base44_access_token")}`,
-        },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) {
-        // Function not deployed yet — use defaults
-        setSteps([...DEFAULT_STEPS]);
-        setTemplateVersion(0);
-        setLoading(false);
-        return;
-      }
-      const data = await res.json();
+      const { data } = await base44.functions.invoke("getActiveTemplate", {});
       if (data?.template?.steps) {
         setSteps(data.template.steps);
         setTemplateVersion(data.template.version);
@@ -624,30 +608,10 @@ export default function QuestionnaireEditor() {
       // Recompute order before saving
       const orderedSteps = steps.map((s, i) => ({ ...s, order: i }));
 
-      const appId = import.meta.env.VITE_BASE44_APP_ID;
-      const res = await fetch(`/api/apps/${appId}/functions/saveQuestionnaireTemplate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("base44_access_token")}`,
-        },
-        body: JSON.stringify({ steps: orderedSteps }),
-      });
-
-      if (!res.ok) {
-        let errMsg;
-        try {
-          const errData = await res.json();
-          errMsg = errData?.error || errData?.message || JSON.stringify(errData);
-        } catch {
-          errMsg = await res.text().catch(() => "Unknown error");
-        }
-        toast({ title: "שגיאה", description: `שרת: ${errMsg} (${res.status})`, variant: "destructive" });
-        setSaving(false);
-        return;
-      }
-
-      const data = await res.json();
+      const { data } = await base44.functions.invoke(
+        "saveQuestionnaireTemplate",
+        { steps: orderedSteps },
+      );
 
       if (data?.error) {
         toast({ title: "שגיאה", description: data.error, variant: "destructive" });

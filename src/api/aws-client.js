@@ -51,6 +51,23 @@ export function createAwsClient({ auth, http }) {
         list: (sort, limit) =>
           queryEntity(http, "/cpa/users/query", {}, sort, limit),
       },
+      PdfTemplate: {
+        list: () => http.request("/cpa/pdf-templates"),
+        get: (id) =>
+          http.request(`/cpa/pdf-templates/${encodeURIComponent(id)}`),
+        create: (data) =>
+          http.request("/cpa/pdf-templates", { method: "POST", body: data }),
+        update: (id, patch) =>
+          http.request(`/cpa/pdf-templates/${encodeURIComponent(id)}`, {
+            method: "PATCH",
+            body: patch,
+          }),
+        delete: (id) =>
+          http.request(`/cpa/pdf-templates/${encodeURIComponent(id)}/archive`, {
+            method: "POST",
+            body: {},
+          }),
+      },
     },
     auth: {
       isAuthenticated: () => auth.isAuthenticated(),
@@ -71,14 +88,47 @@ export function createAwsClient({ auth, http }) {
         }),
     },
     functions: {
-      invoke(name, payload) {
-        if (name !== "syncFilesToGoogleDrive") {
-          throw new Error(`AWS function is not migrated: ${name}`);
-        }
-        return http.request("/cpa/integrations/google-drive/sync", {
-          method: "POST",
-          body: payload,
+      async invoke(name, payload = {}) {
+        const routes = {
+          syncFilesToGoogleDrive: ["/cpa/integrations/google-drive/sync", "POST", payload],
+          getActiveTemplate: ["/cpa/questionnaire-templates/active", "GET"],
+          getAllTemplateVersions: ["/cpa/questionnaire-templates", "GET"],
+          getTemplateById: [
+            `/cpa/questionnaire-templates/${encodeURIComponent(payload.template_id)}`,
+            "GET",
+          ],
+          saveQuestionnaireTemplate: ["/cpa/questionnaire-templates", "POST", payload],
+          cpaSaveSubmission: [
+            "/apps/auditflow/functions/cpaSaveSubmission",
+            "POST",
+            payload,
+          ],
+          changeClientTaxYear: [
+            `/cpa/clients/${encodeURIComponent(payload.client_id)}/tax-year`,
+            "POST",
+            { tax_year: payload.tax_year },
+          ],
+          restoreSubmission: [
+            `/cpa/submissions/${encodeURIComponent(payload.submission_id)}/restore`,
+            "POST",
+            payload.conflicting_submission_id
+              ? { conflicting_submission_id: payload.conflicting_submission_id }
+              : {},
+          ],
+          transitionSubmissionStatus: [
+            `/cpa/submissions/${encodeURIComponent(payload.submission_id)}/workflow-status`,
+            "POST",
+            { client_id: payload.client_id, status: payload.status },
+          ],
+        };
+        const route = routes[name];
+        if (!route) throw new Error(`AWS function is not migrated: ${name}`);
+        const [path, method, body] = route;
+        const result = await http.request(path, {
+          method,
+          ...(body === undefined ? {} : { body }),
         });
+        return { data: result };
       },
     },
     connectors: {

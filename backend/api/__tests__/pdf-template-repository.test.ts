@@ -1,4 +1,4 @@
-import { GetCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { describe, expect, it, vi } from "vitest";
 
 import { PdfTemplateRepository } from "../repositories/pdf-template";
@@ -7,6 +7,7 @@ const record = {
   id: "template-test",
   name: "Synthetic template",
   template_json: '{"basePdf":{"__type":"file_uri","value":"private://synthetic/file.pdf"}}',
+  is_active: true,
   record_type: "PdfTemplate",
   _version: 1,
   created_date: "2026-01-01T00:00:00.000Z",
@@ -38,5 +39,19 @@ describe("PdfTemplateRepository", () => {
       "PdfTemplateTable.test",
     );
     await expect(invalid.get("template-test")).rejects.toMatchObject({ statusCode: 500 });
+  });
+
+  it("lists only active records through the creation-date index", async () => {
+    const send = vi.fn().mockResolvedValue({
+      Items: [record, { ...record, id: "archived", is_active: false }],
+    });
+    const repository = new PdfTemplateRepository({ send }, "PdfTemplateTable.test");
+    await expect(repository.list(true, 200)).resolves.toEqual([record]);
+    const command = send.mock.calls[0][0];
+    expect(command).toBeInstanceOf(QueryCommand);
+    expect(command.input).toMatchObject({
+      IndexName: "byCreatedDate",
+      ScanIndexForward: false,
+    });
   });
 });

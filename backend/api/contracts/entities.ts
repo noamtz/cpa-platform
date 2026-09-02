@@ -92,6 +92,16 @@ export const submissionPersistedSchema = z
   })
   .passthrough();
 
+export const activeSubmissionGuardSchema = z
+  .object({
+    id: z.string().startsWith("!ACTIVE#"),
+    record_type: z.literal("!ACTIVE_GUARD"),
+    submission_id: id,
+    client_id: id,
+    tax_year: z.number().int().min(1900).max(2200),
+  })
+  .strict();
+
 export const submissionUpdateSchema = z
   .object({
     cpa_status: submissionKnownFields.cpa_status,
@@ -167,6 +177,7 @@ export const telegramSchema = z
 
 export type ClientRecord = z.infer<typeof clientPersistedSchema>;
 export type SubmissionRecord = z.infer<typeof submissionPersistedSchema>;
+export type ActiveSubmissionGuard = z.infer<typeof activeSubmissionGuardSchema>;
 export type UserRecord = z.infer<typeof userPersistedSchema>;
 export type ClientFilter = z.infer<typeof clientFilterSchema>;
 export type SubmissionFilter = z.infer<typeof submissionFilterSchema>;
@@ -174,6 +185,9 @@ export type EntitySort = z.infer<typeof sort>;
 
 export function publicRecord<T extends Record<string, unknown>>(record: T) {
   const visible: Record<string, unknown> = { ...record };
+  if (record.record_type === "Submission" && typeof record._version === "number") {
+    visible.revision = record._version;
+  }
   delete visible.record_type;
   delete visible.cognito_sub;
   delete visible._version;

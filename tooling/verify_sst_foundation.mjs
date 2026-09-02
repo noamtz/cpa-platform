@@ -102,8 +102,9 @@ function verifyContract(contract, stage) {
     ),
     "Protected health route contract is missing.",
   );
-  const publicQuestionnaireRoutes = contract.routes.filter(({ route }) =>
-    route.includes(" /apps/{appId}/functions/"),
+  const publicQuestionnaireRoutes = contract.routes.filter(
+    ({ route, authorization }) =>
+      route.includes(" /apps/{appId}/functions/") && authorization === "none",
   );
   assert(
     JSON.stringify(publicQuestionnaireRoutes) ===
@@ -143,10 +144,11 @@ function verifyContract(contract, stage) {
       ]),
     "The exact public questionnaire route inventory is incomplete.",
   );
-  const cpaRoutes = contract.routes.filter(({ route }) =>
-    route.includes(" /cpa/"),
+  const cpaRoutes = contract.routes.filter(
+    ({ route, authorization }) =>
+      authorization === "cognito-jwt" && route !== "GET /auth/health",
   );
-  assert(cpaRoutes.length === 21, "The exact CPA route inventory is incomplete.");
+  assert(cpaRoutes.length === 34, "The exact CPA route inventory is incomplete.");
   assert(
     cpaRoutes.every(
       ({ authorization, authorizationScopes }) =>
@@ -822,8 +824,9 @@ async function verifyLive(contract, stage, outputsPath) {
     "--api-id",
     outputs.apiId,
   ]).value.Items;
-  for (const routeContract of contract.routes.filter(({ route }) =>
-    route.includes(" /cpa/"),
+  for (const routeContract of contract.routes.filter(
+    ({ route, authorization }) =>
+      authorization === "cognito-jwt" && route !== "GET /auth/health",
   )) {
     const deployedRoute = deployedRoutes?.find(
       ({ RouteKey }) => RouteKey === routeContract.route,
@@ -835,8 +838,9 @@ async function verifyLive(contract, stage, outputsPath) {
       `CPA route ${routeContract.route} is missing JWT scope authorization.`,
     );
   }
-  for (const routeContract of contract.routes.filter(({ route }) =>
-    route.includes(" /apps/{appId}/functions/"),
+  for (const routeContract of contract.routes.filter(
+    ({ route, authorization }) =>
+      route.includes(" /apps/{appId}/functions/") && authorization === "none",
   )) {
     const deployedRoute = deployedRoutes?.find(
       ({ RouteKey }) => RouteKey === routeContract.route,

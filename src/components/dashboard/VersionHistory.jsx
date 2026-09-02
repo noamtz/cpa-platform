@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Eye, RefreshCw } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { base44 } from "@/api/base44Client";
 
 export default function VersionHistory() {
   const [versions, setVersions] = useState([]);
@@ -19,21 +20,7 @@ export default function VersionHistory() {
   const loadVersions = async () => {
     setLoading(true);
     try {
-      const appId = import.meta.env.VITE_BASE44_APP_ID;
-      const res = await fetch(`/api/apps/${appId}/functions/getAllTemplateVersions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("base44_access_token")}`,
-        },
-        body: JSON.stringify({}),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to load versions");
-      }
-
-      const data = await res.json();
+      const { data } = await base44.functions.invoke("getAllTemplateVersions", {});
       setVersions(data.versions || []);
     } catch (err) {
       toast({ title: "שגיאה", description: err.message, variant: "destructive" });
@@ -44,21 +31,10 @@ export default function VersionHistory() {
 
   const viewVersionDetails = async (versionId) => {
     try {
-      const appId = import.meta.env.VITE_BASE44_APP_ID;
-      const res = await fetch(`/api/apps/${appId}/functions/getTemplateById`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("base44_access_token")}`,
-        },
-        body: JSON.stringify({ template_id: versionId }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to load template details");
-      }
-
-      const data = await res.json();
+      const { data } = await base44.functions.invoke(
+        "getTemplateById",
+        { template_id: versionId },
+      );
       setViewingVersion(data.template);
     } catch (err) {
       toast({ title: "שגיאה", description: err.message, variant: "destructive" });

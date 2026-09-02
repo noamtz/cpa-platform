@@ -205,8 +205,9 @@ describe("foundation resource contract", () => {
       authorization: "none",
     });
     expect(apiRoutes.protectedHealth.authorization).toBe("cognito-jwt");
-    const publicQuestionnaireRoutes = Object.values(apiRoutes).filter(({ path }) =>
-      path.startsWith("/apps/{appId}/functions/"),
+    const publicQuestionnaireRoutes = Object.values(apiRoutes).filter(
+      ({ path, authorization }) =>
+        path.startsWith("/apps/{appId}/functions/") && authorization === "none",
     );
     expect(publicQuestionnaireRoutes).toEqual([
       expect.objectContaining({
@@ -242,10 +243,11 @@ describe("foundation resource contract", () => {
         authorization: "none",
       }),
     ]);
-    const cpaRoutes = Object.values(apiRoutes).filter(({ path }) =>
-      path.startsWith("/cpa/"),
+    const cpaRoutes = Object.values(apiRoutes).filter(
+      ({ route, authorization }) =>
+        authorization === "cognito-jwt" && route !== "GET /auth/health",
     );
-    expect(cpaRoutes).toHaveLength(21);
+    expect(cpaRoutes).toHaveLength(34);
     expect(
       cpaRoutes.every(
         (route) =>
@@ -262,6 +264,19 @@ describe("foundation resource contract", () => {
       "POST /cpa/clients/{id}/token-rotation",
       "POST /cpa/submissions/query",
       "PATCH /cpa/submissions/{id}",
+      "POST /apps/{appId}/functions/cpaSaveSubmission",
+      "POST /cpa/clients/{id}/tax-year",
+      "POST /cpa/submissions/{id}/restore",
+      "POST /cpa/submissions/{id}/workflow-status",
+      "GET /cpa/questionnaire-templates/active",
+      "GET /cpa/questionnaire-templates",
+      "GET /cpa/questionnaire-templates/{id}",
+      "POST /cpa/questionnaire-templates",
+      "GET /cpa/pdf-templates",
+      "GET /cpa/pdf-templates/{id}",
+      "POST /cpa/pdf-templates",
+      "PATCH /cpa/pdf-templates/{id}",
+      "POST /cpa/pdf-templates/{id}/archive",
       "POST /cpa/files/uploads/initiate",
       "POST /cpa/files/uploads/complete",
       "POST /cpa/files/submission-url",

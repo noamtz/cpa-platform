@@ -113,6 +113,7 @@ export const questionnaireTemplatePersistedSchema = z
     created_date: z.string().min(1).max(64),
     updated_date: z.string().min(1).max(64),
     created_by: z.string().max(512).optional(),
+    created_by_email: z.string().email().max(512).optional(),
   })
   .passthrough();
 

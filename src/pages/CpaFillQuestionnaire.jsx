@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
-import WelcomeStep from "@/components/questionnaire/WelcomeStep";
 import QuestionStep from "@/components/questionnaire/QuestionStep";
 import ProgressBar from "@/components/questionnaire/ProgressBar";
 import CompletionScreen from "@/components/questionnaire/CompletionScreen";
@@ -28,11 +27,16 @@ export default function CpaFillQuestionnaire() {
   const [activeSteps, setActiveSteps] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const saveQueue = useRef(Promise.resolve());
+  const pendingSavesRef = useRef(0);
   const submissionIdRef = useRef(null);
+  const revisionRef = useRef(null);
   const currentStepRef = useRef(1);
 
   useEffect(() => { currentStepRef.current = currentStep; }, [currentStep]);
-  useEffect(() => { submissionIdRef.current = submission?.id || null; }, [submission]);
+  useEffect(() => {
+    submissionIdRef.current = submission?.id || null;
+    revisionRef.current = submission?.revision || null;
+  }, [submission]);
 
   useEffect(() => {
     if (!clientId) {
@@ -55,7 +59,7 @@ export default function CpaFillQuestionnaire() {
     setCpaUser(user);
 
     // Load client + submission directly via SDK (CPA has session)
-    const [clientData, tplData] = await Promise.all([
+    const [clientData, activeTemplateData] = await Promise.all([
       base44.entities.Client.filter({ id: clientId }),
       base44.functions.invoke("getActiveTemplate", {}),
     ]);
@@ -73,6 +77,13 @@ export default function CpaFillQuestionnaire() {
     const sub = subs?.[0] || null;
     setSubmission(sub);
     submissionIdRef.current = sub?.id || null;
+    revisionRef.current = sub?.revision || null;
+
+    const tplData = sub?.completed_at && sub?.template_id
+      ? await base44.functions.invoke("getTemplateById", {
+          template_id: sub.template_id,
+        })
+      : activeTemplateData;
 
     // Resolve template
     let steps, version, tId;
@@ -107,14 +118,12 @@ export default function CpaFillQuestionnaire() {
   };
 
   const callCpaSave = async (stepId, data, completed = false) => {
-    const appId = import.meta.env.VITE_BASE44_APP_ID;
-    const token = localStorage.getItem('base44_access_token') || '';
-    const res = await fetch(`/api/apps/${appId}/functions/cpaSaveSubmission`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({
+    const { data: result } = await base44.functions.invoke(
+      "cpaSaveSubmission",
+      {
         client_id: clientId,
         submission_id: submissionIdRef.current,
+        ...(submissionIdRef.current ? { revision: revisionRef.current } : {}),
         step_id: stepId,
         data: {
           ...data,
@@ -123,40 +132,54 @@ export default function CpaFillQuestionnaire() {
           template_id: templateId,
         },
         completed,
-      }),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json;
+      },
+    );
+    return result;
   };
 
   const STEPS = buildSteps(activeSteps);
 
-  const updateSubmission = (stepId, data, completed = false) => {
+  const updateSubmission = async (stepId, data, completed = false) => {
+    pendingSavesRef.current += 1;
     setIsSaving(true);
-    saveQueue.current = saveQueue.current.then(async () => {
+    const queued = saveQueue.current.then(async () => {
       const result = await callCpaSave(stepId, data, completed);
       if (result?.submission) {
         submissionIdRef.current = result.submission.id;
+        revisionRef.current = result.submission.revision;
         setSubmission(result.submission);
       }
-    }).finally(() => {
-      saveQueue.current.then(() => setIsSaving(false));
     });
+    saveQueue.current = queued.catch(() => {});
+    try {
+      await queued;
+      return true;
+    } catch (saveError) {
+      if (saveError?.status === 409) {
+        await loadData();
+        return false;
+      }
+      setError(saveError?.message || "שמירת השאלון נכשלה");
+      return false;
+    } finally {
+      pendingSavesRef.current -= 1;
+      if (pendingSavesRef.current === 0) setIsSaving(false);
+    }
   };
 
-  const handleNext = (stepData, stepId) => {
+  const handleNext = async (stepData, stepId) => {
+    if (!(await updateSubmission(stepId, stepData))) return;
     setCurrentStep((prev) => prev + 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
-    updateSubmission(stepId, stepData);
   };
 
   const handleComplete = async (stepData, stepId) => {
-    updateSubmission(stepId, {
+    const saved = await updateSubmission(stepId, {
       ...stepData,
       step_completed: STEPS.length - 1,
       completed_at: new Date().toISOString(),
     }, true);
+    if (!saved) return;
     setCurrentStep(STEPS.length - 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -254,7 +277,7 @@ export default function CpaFillQuestionnaire() {
       <div className="bg-white border-b border-border sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
           <img
-            src="https://media.base44.com/images/public/69f6f0a2ca1cf47418010a34/cbf7a3438_brandimage.jpg"
+            src="/brand-image.jpg"
             alt="Doron & Doron"
             className="h-9 w-auto object-contain flex-shrink-0"
           />
