@@ -6,7 +6,7 @@
 
 **PR**: [#27](https://github.com/noamtz/cpa-platform/pull/27)
 
-**Status**: PARTIAL
+**Status**: LIVE VALIDATED; OWNER BROWSER MATRIX PENDING
 
 ## Summary
 
@@ -15,11 +15,10 @@ Implemented the complete local PDF parity boundary: a dedicated compute-only SST
 multipage fixtures, handler/contract/frontend tests, staged-bundle and cross-endpoint parity verifiers, and the
 operational runbook/workflow gate. Post-review remediation now makes the size-boundary profile exercise the complete
 base64-bearing Lambda proxy envelope and makes staged/native verification a mandatory pre-deploy workflow step.
-Tasks 1–11 and the read-only preview portion of task 12 are complete. The preview
-exposed and then verified a fix for Windows staging of native canvas: the function now explicitly installs the Linux
-ARM64 N-API package and loads PDF.js only after injecting its N-API DOM globals. Deployment/parity evidence and
-owner-run browser/rollback acceptance remain gated by missing issue #11 cutover evidence and the lack of explicit
-deployment/manual-test authorization.
+Tasks 1–13 are complete under the owner-approved synthetic-only exception, with application and ZIP-worker legacy
+reads pinned off. The test deployment, live foundation verifier, raw and same-origin PDF routes, compact,
+representative, and boundary parity profiles, and aggregate CloudWatch measurements pass. The final owner browser
+matrix remains pending authentication plus the mobile/in-app-browser and legacy rollback cells.
 
 ## Tasks completed
 
@@ -63,11 +62,11 @@ deployment/manual-test authorization.
 ## Validation results
 
 - Node runtime: PASS — `v20.17.0`.
-- Clean install: PASS — `npm ci`; inherited peer/engine/deprecation warnings and 34 audit findings remain.
+- Clean install: PASS — `npm ci`; inherited peer/engine/deprecation warnings and 36 audit findings remain.
 - Dependency tree: PASS — direct `@napi-rs/canvas@0.1.100`, PDFme `6.1.1`, and
   `pdfjs-dist@3.11.174` resolved as pinned. PDFme UI retains its own `pdfjs-dist@5.7.284` transitive dependency.
 - Focused PDF tests: PASS — 3 files / 22 tests.
-- Foundation/backend/tooling tests: PASS — 31 files / 224 tests.
+- Foundation/backend/tooling tests: PASS — 31 files / 234 tests.
 - Full browser-facing tests: PASS — 12 files / 108 tests.
 - Focused frontend characterization: PASS — 4 files / 40 tests.
 - Foundation typecheck/lint: PASS — zero diagnostics.
@@ -80,38 +79,55 @@ deployment/manual-test authorization.
 - Foundation contract verifier: PASS — schema v3 with 1 ordinary API/function and 1 PDF API/function.
 - Codex layer validator: PASS — 31 skills / 6 custom agents.
 - `git diff --check`: PASS; only configured line-ending notices.
-- Protected provenance: PASS — source/rewrite SHA-256 matches for legacy Lambda package/lock/build/font and both
-  Terraform stage files; no imported PDF workflow or `src/instrument.js` diff.
+- Protected provenance: PASS — the imported Lambda baseline was verified before its intentional testability and
+  aggregate-logging edits; both Terraform stages, all imported PDF workflows, and `src/instrument.js` remain
+  unchanged from the PR merge base.
 - SST provider install: PASS.
 - AWS identity: PASS — owner-authorized SSO login completed and STS matched the account configured for
   `ntz-taxflow` without printing identity values into the report.
 - Read-only SST test diff: PASS — SST synthesized 180 resources and the new PDF API/function, four routes,
-  `/pdf/*` Router route, `VITE_PDF_API_URL=/pdf`, bounded logs, and execution-role boundary. The same preview also
+  `/pdf` Router prefix, `VITE_PDF_API_URL=/pdf`, bounded logs, and execution-role boundary. The same preview also
   contains the already-known undeployed private-file/ZIP resources described by the repository migration status;
   no Terraform, DNS, production, or imported workflow change appeared and nothing was deployed.
 - Native staging inspection: PASS — `.sst/artifacts/PdfRendererFunction-src` contains
   `@napi-rs/canvas-linux-arm64-gnu@0.1.100`; its 27,711,392-byte native artifact starts with ELF magic
   `7F454C46`. The staged bundle loads PDF.js dynamically after assigning N-API `DOMMatrix`/`Path2D`.
-- PDF runtime-asset verifier: PASS for preview staging — the command consumes `PdfRendererFunction-src`, verifies
+- PDF runtime-asset verifier: PASS for preview and live deployment — the command consumes `PdfRendererFunction-src`, verifies
   the exact 122,012-byte Heebo copy source and SHA-256, exact Linux ARM64 N-API package/version, and the ELF64
-  AArch64 machine header. CI now runs it after preview and before deployment. The live verifier downloads and checks
-  the actual deployed `code.zip`; that post-deploy archive check remains NOT RUN until deployment is authorized.
+  AArch64 machine header. CI runs it after preview and before deployment; the live verifier also downloaded and
+  checked the deployed `code.zip`.
 - Private-file cutover gate: expected BLOCK — `missing_evidence`; issue #11 has not published the required aggregate
   evidence artifact.
-- Test deploy/live parity/manual browser matrix: NOT RUN — deployment gate, authorization, and deployed SST URL are
-  absent.
+- Test deployment: PASS — owner-authorized synthetic-only SST test deployment converged without Terraform, DNS,
+  production, or legacy-endpoint changes. Both application and ZIP-worker legacy reads are deployed as `false`.
+- Live foundation verifier: PASS — deployed resource inventory, Node 20/ARM64 PDF runtime, exact font/native bundle,
+  raw and same-origin health/render paths, exact handler CORS, permissions boundary, IAM denial simulations, private
+  storage, ZIP notification, Cognito, and least-privilege deployment policy all passed.
+- Cross-endpoint PDF parity: PASS — compact (2 SST iterations), representative (2), and boundary (1) all returned
+  correct page counts/dimensions with zero rendered-pixel mismatch. Boundary evidence records a 5,717,960-byte
+  request, 4,224,444-byte generated PDF, and 5,632,968-byte SST Lambda proxy envelope, all within configured limits.
+- Aggregate SST runtime observations, 2026-09-02 13:17–13:18 Asia/Jerusalem: compact successful render/generate
+  invocations used 35–73/425–515 billed ms with 184–194 MB maximum memory; representative used 251–264/411–480
+  billed ms with 216–223 MB; boundary used 3,250/2,252 billed ms with 353/366 MB. A cold health initialization used
+  1,001 billed ms and 166 MB. No request content or endpoint URL is retained in committed evidence.
+- Failure behavior: PASS — live health/OPTIONS/malformed-JSON probes return 200/200/400; focused handler tests cover
+  upstream fetch, render, and generation failures; verifier timeout/read/proxy limits fail closed.
+- Desktop browser smoke: PENDING — deployed site and managed login were opened successfully; authenticated signing
+  flow awaits owner completion of Cognito login. Mobile WhatsApp/WKWebView and legacy rollback cells remain owner-run.
 
 ## Deviations from the plan
 
-- Tasks 13 and 14 were intentionally not executed. The plan requires explicit deployment authorization, accepted
-  issue #11 evidence, a verified AuditFlow AWS identity, and owner-run supported-browser work; none is currently
-  available.
+- The owner approved the Wiki-recorded synthetic-only exception: issue #11 aggregate import evidence is not required
+  for issue #9 acceptance while both legacy-read switches remain pinned off and only disposable synthetic data is
+  used. The ordinary issue #11 gate still blocks enabling either legacy reader and remains an expected failure.
+- Task 14 cannot be completed solely through headless automation: the desktop flow requires the owner's Cognito
+  authentication, and WhatsApp/WKWebView touch behavior requires an owner-controlled mobile device.
 - SST preview does not materialize the final PDF `code.zip` for a new function. The verifier therefore proves the
   preview's exact native staging plus font copy source before deployment, then the live verifier inspects the actual
   AWS deployment archive after an authorized deploy rather than manufacturing a local archive and presenting it as
   SST output.
-- No `docs/migration/pdf-parity-evidence.json` was created: evidence must come from the authorized deployed legacy
-  and SST test endpoints, not a fabricated or local-only run.
+- `docs/migration/pdf-parity-evidence.json` contains the aggregate-only authorized live boundary run; it contains no
+  endpoints, tokens, customer data, or request content.
 - The byte-stability probe deliberately crosses a one-second PDF metadata clock tick between the two legacy calls.
   This prevents timestamp-bearing output from being misclassified as stable while preserving the plan's exact-byte
   requirement for genuinely stable legacy output.
@@ -119,7 +135,7 @@ deployment/manual-test authorization.
 ## Issues encountered
 
 - `npm ci` reports inherited peer conflicts, an engine warning for PDFme UI's transitive PDF.js 5 package under the
-  repository-pinned Node 20.17.0, deprecations, and 34 audit findings. The dedicated Lambda/verifier import is pinned
+  repository-pinned Node 20.17.0, deprecations, and 36 audit findings. The dedicated Lambda/verifier import is pinned
   to PDF.js 3.11.174 and all focused native-runtime tests pass.
 - The first successful preview revealed that PDF.js's optional `canvas` installer staged a Windows PE binary and
   omitted the optional N-API Linux ARM64 package. The platform package is now declared both as an exact root
@@ -129,10 +145,20 @@ deployment/manual-test authorization.
   optional Node canvas shim.
 - SST continues to emit a non-fatal Windows temporary-log cleanup warning and spends about five minutes installing
   PDF.js's optional canvas dependency during each preview.
+- The first CI deployment attempt exposed two missing least-privilege actions used by SST: CloudWatch Logs
+  `ListTagsForResource` and API Gateway v2 tag `POST`. Narrow stage-scoped statements and regression/live assertions
+  were added; no broad resource or action wildcard was introduced for either operation.
+- SST 3.19.3 normalizes `cors: false` to an empty API Gateway CORS object, which suppressed the handler-owned CORS
+  headers. The PDF API transform now removes that object entirely; live raw and Router responses prove exact CORS.
+- Live API Gateway created one integration per route even though all four target the same Lambda. The live verifier
+  now resolves integration IDs and asserts the shared function URI instead of assuming a shared integration ID.
+- SST Router prefix matching requires `/pdf`, not `/pdf/*`. The corrected prefix and rewrite were redeployed and the
+  same-origin `/pdf/health`, render, and generation paths passed.
+- The first live parity request revealed that the Terraform legacy Lambda requires `templateJson` as a JSON string,
+  matching the product client. The verifier now sends that exact contract and reports safe endpoint labels in errors.
 
 ## Ready for the next step
 
-PR #27 contains the locally validated implementation and remains a draft. Its two advisory review findings were
-resolved with an iteration-count regression and PR-range whitespace validation. It should not be treated as a fully
-accepted parity proof until issue #11 evidence exists and the owner authorizes the gated test deployment and manual
-matrix. After those plan tasks pass, rerun the PR review gate before human approval.
+PR #27 now contains live deployment and automated parity proof. Before it is ready for final human approval, complete
+the authenticated desktop signing/reopen/resume path, the owner-run mobile WhatsApp/WKWebView cell, and one legacy
+rollback smoke; record the dated results and Sentry observation, then rerun the final PR review gate.

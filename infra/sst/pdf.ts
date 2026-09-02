@@ -43,6 +43,11 @@ export function createPdfApi(
     accessLog: {
       retention: stage.isProduction ? "1 month" : "2 weeks",
     },
+    transform: {
+      api(args) {
+        args.corsConfiguration = undefined;
+      },
+    },
   });
 
   for (const { route } of pdfContract.routes) {

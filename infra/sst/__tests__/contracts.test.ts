@@ -293,7 +293,7 @@ describe("foundation resource contract", () => {
       corsOriginPolicy: "router-origin-exact",
       apiCors: false,
       routerPrefix: "/pdf",
-      routerPattern: "/pdf/*",
+      routerPattern: "/pdf",
       rewritePattern: "^/pdf/(.*)$",
       rewriteReplacement: "/$1",
       routes: [
@@ -329,6 +329,7 @@ describe("foundation resource contract", () => {
     expect(pdfSource).toContain("link: [...pdfContract.resourceLinks]");
     expect(pdfSource).toContain("permissions: [...pdfContract.permissions]");
     expect(pdfSource).toContain("args.permissionsBoundary = workloadBoundaryArn");
+    expect(pdfSource).toContain("args.corsConfiguration = undefined");
     expect(applicationSource).toContain(
       "router.route(pdfContract.routerPattern, pdf.api.url",
     );

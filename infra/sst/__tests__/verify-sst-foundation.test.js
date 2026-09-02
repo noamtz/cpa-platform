@@ -3,10 +3,79 @@ import { describe, expect, it, vi } from "vitest";
 import {
   assertBrowserCorsAbsent,
   assertBrowserCorsExact,
+  hasApiGatewayCorsConfiguration,
   isRetryableAwsCliFailure,
+  notificationFilterRulesByName,
   parseAwsCliErrorCode,
+  pdfRoutesTargetSingleFunction,
   retryAwsCliCommand,
 } from "../../../tooling/verify_sst_foundation.mjs";
+
+describe("live S3 notification verification", () => {
+  it("normalizes AWS CLI filter-rule names without changing their values", () => {
+    expect(
+      notificationFilterRulesByName([
+        { Name: "Prefix", Value: "zip-jobs/requests/" },
+        { Name: "Suffix", Value: ".json" },
+      ]),
+    ).toEqual({
+      prefix: "zip-jobs/requests/",
+      suffix: ".json",
+    });
+  });
+});
+
+describe("live PDF API CORS verification", () => {
+  it("accepts absent or empty API Gateway CORS and rejects configured values", () => {
+    expect(hasApiGatewayCorsConfiguration(undefined)).toBe(false);
+    expect(hasApiGatewayCorsConfiguration({})).toBe(false);
+    expect(
+      hasApiGatewayCorsConfiguration({ AllowOrigins: ["https://example.com"] }),
+    ).toBe(true);
+  });
+});
+
+describe("live PDF API route verification", () => {
+  const routes = [
+    {
+      AuthorizationType: "NONE",
+      RouteKey: "GET /health",
+      Target: "integrations/health",
+    },
+    {
+      AuthorizationType: "NONE",
+      RouteKey: "POST /generate-pdf",
+      Target: "integrations/generate",
+    },
+  ];
+  const integration = (IntegrationId, functionName = "pdf-function") => ({
+    IntegrationId,
+    IntegrationMethod: "POST",
+    IntegrationType: "AWS_PROXY",
+    IntegrationUri: `arn:aws:lambda:region:account:function:${functionName}`,
+    PayloadFormatVersion: "2.0",
+  });
+
+  it("accepts distinct integrations that resolve to the same public Lambda", () => {
+    expect(
+      pdfRoutesTargetSingleFunction(
+        routes,
+        [integration("health"), integration("generate")],
+        "pdf-function",
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a route integration targeting another Lambda", () => {
+    expect(
+      pdfRoutesTargetSingleFunction(
+        routes,
+        [integration("health"), integration("generate", "other-function")],
+        "pdf-function",
+      ),
+    ).toBe(false);
+  });
+});
 
 describe("AWS CLI retry handling", () => {
   it.each([

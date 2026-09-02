@@ -49,7 +49,7 @@ The active browser resolver uses this priority, with trailing slashes removed:
 2. The retained production legacy URL only when `window.location.hostname` is `app.ddcpa.co.il`.
 3. The retained test legacy URL for every other hostname.
 
-The SST site contract sets `VITE_PDF_API_URL=/pdf`; CloudFront routes `/pdf/*` to the dedicated SST PDF API. The
+The SST site contract sets `VITE_PDF_API_URL=/pdf`; CloudFront routes the `/pdf` prefix to the dedicated SST PDF API. The
 raw API and the same-origin Router path expose exactly `GET /health`, `POST /render-pages`,
 `POST /generate-pdf`, and `OPTIONS /{proxy+}`.
 

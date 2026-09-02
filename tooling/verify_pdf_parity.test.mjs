@@ -92,7 +92,7 @@ describe("PDF parity policy", () => {
     expect(first.requestBytes).toBeGreaterThanOrEqual(5_500_000);
     expect(first.requestBytes).toBeLessThanOrEqual(5_900_000);
     expect(first.profileContract.responseReadCeilingBytes).toBe(6_291_456);
-    expect(first.generateBody.templateJson.schemas).toHaveLength(24);
+    expect(JSON.parse(first.generateBody.templateJson).schemas).toHaveLength(24);
   });
 
   it("puts the boundary PDF near the real Lambda proxy-response ceiling", async () => {

@@ -1,0 +1,423 @@
+{
+  "schemaVersion": 1,
+  "fixture": "synthetic-rtl-multipage",
+  "profile": "boundary",
+  "syntheticRequestBytes": 5717960,
+  "syntheticRequestSha256": "3d83ab001910caf3b4c08a6e2d18411ae4c33f361b43ddaa4a3b93430150a5ff",
+  "limits": {
+    "timeoutMs": 29000,
+    "responseReadCeilingBytes": 6291456,
+    "lambdaSynchronousPayloadBytes": 6291456
+  },
+  "probes": {
+    "legacy": {
+      "passed": true,
+      "healthStatus": 200,
+      "preflightStatus": 200,
+      "invalidJsonStatus": 400,
+      "durationsMs": [
+        164.22,
+        137.14,
+        35.15
+      ]
+    },
+    "sst": {
+      "passed": true,
+      "healthStatus": 200,
+      "preflightStatus": 200,
+      "invalidJsonStatus": 400,
+      "durationsMs": [
+        336.56,
+        135.63,
+        58.02
+      ]
+    }
+  },
+  "runs": [
+    {
+      "endpoint": "legacy-1",
+      "render": {
+        "status": 200,
+        "durationMs": 3735.67,
+        "bytes": 236738,
+        "syntheticSha256": "3a7aaae6525c0ac1e9a0f6a9bf9f8667870483942ba16913734698e9537c1f45"
+      },
+      "generate": {
+        "status": 200,
+        "durationMs": 2858.88,
+        "bytes": 4224444,
+        "lambdaProxyPayloadBytes": 5632933,
+        "syntheticSha256": "2f9a874d09d742e66789afab5d5c6a37ebe4341480d1447f6350e496da0477a3",
+        "pageCount": 24,
+        "pageDimensionsPoints": [
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          }
+        ]
+      }
+    },
+    {
+      "endpoint": "legacy-2",
+      "render": {
+        "status": 200,
+        "durationMs": 3108.56,
+        "bytes": 236738,
+        "syntheticSha256": "3a7aaae6525c0ac1e9a0f6a9bf9f8667870483942ba16913734698e9537c1f45"
+      },
+      "generate": {
+        "status": 200,
+        "durationMs": 2283.85,
+        "bytes": 4224444,
+        "lambdaProxyPayloadBytes": 5632933,
+        "syntheticSha256": "2094bf2af2a2622a7529dc6a6135d2a6b47ed293af9e47fbd60d690dbd0758fa",
+        "pageCount": 24,
+        "pageDimensionsPoints": [
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          }
+        ]
+      }
+    },
+    {
+      "endpoint": "sst-1",
+      "render": {
+        "status": 200,
+        "durationMs": 3799.43,
+        "bytes": 236738,
+        "syntheticSha256": "3a7aaae6525c0ac1e9a0f6a9bf9f8667870483942ba16913734698e9537c1f45"
+      },
+      "generate": {
+        "status": 200,
+        "durationMs": 3097.19,
+        "bytes": 4224444,
+        "lambdaProxyPayloadBytes": 5632968,
+        "syntheticSha256": "8691c6a0bc40b165af55b1bb5ac5cc9e19d92d1ad950157ddd7c965b54278378",
+        "pageCount": 24,
+        "pageDimensionsPoints": [
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          },
+          {
+            "width": 595.28,
+            "height": 841.89
+          }
+        ]
+      }
+    }
+  ],
+  "comparisons": [
+    {
+      "iteration": 1,
+      "render": {
+        "bytes": {
+          "legacyStable": true,
+          "exactComparisonRequired": true,
+          "passed": true
+        },
+        "visual": {
+          "selfVariance": 0,
+          "candidateMismatch": 0,
+          "threshold": 0.005,
+          "calibrationPassed": true,
+          "passed": true
+        },
+        "selfMismatchedPixels": 0,
+        "candidateMismatchedPixels": 0,
+        "comparedPixels": 27016896
+      },
+      "generate": {
+        "bytes": {
+          "legacyStable": false,
+          "exactComparisonRequired": false,
+          "passed": true
+        },
+        "visual": {
+          "selfVariance": 0,
+          "candidateMismatch": 0,
+          "threshold": 0.005,
+          "calibrationPassed": true,
+          "passed": true
+        },
+        "selfMismatchedPixels": 0,
+        "candidateMismatchedPixels": 0,
+        "comparedPixels": 27016896
+      }
+    }
+  ],
+  "passed": true
+}

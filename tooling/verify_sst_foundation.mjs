@@ -192,7 +192,7 @@ function verifyContract(contract, stage) {
       contract.pdf.corsOriginPolicy === "router-origin-exact" &&
       contract.pdf.apiCors === false &&
       contract.pdf.routerPrefix === "/pdf" &&
-      contract.pdf.routerPattern === "/pdf/*" &&
+      contract.pdf.routerPattern === "/pdf" &&
       contract.pdf.rewritePattern === "^/pdf/(.*)$" &&
       contract.pdf.rewriteReplacement === "/$1" &&
       JSON.stringify(contract.pdf.routes) ===
@@ -406,6 +406,45 @@ export function assertBrowserCorsExact(
       rule.MaxAgeSeconds === 3600,
     `${logicalName} browser CORS configuration has drifted.`,
   );
+}
+
+export function notificationFilterRulesByName(rules) {
+  return Object.fromEntries(
+    rules.map(({ Name, Value }) => [Name.toLowerCase(), Value]),
+  );
+}
+
+export function hasApiGatewayCorsConfiguration(configuration) {
+  return Boolean(configuration && Object.keys(configuration).length > 0);
+}
+
+export function pdfRoutesTargetSingleFunction(
+  routes,
+  integrations,
+  functionName,
+) {
+  const integrationById = new Map(
+    integrations.map((integration) => [integration.IntegrationId, integration]),
+  );
+  const integrationUris = new Set();
+
+  for (const route of routes) {
+    const integrationId = route.Target?.replace(/^integrations\//, "");
+    const integration = integrationById.get(integrationId);
+    if (
+      route.AuthorizationType !== "NONE" ||
+      !integration ||
+      integration.IntegrationType !== "AWS_PROXY" ||
+      integration.IntegrationMethod !== "POST" ||
+      integration.PayloadFormatVersion !== "2.0" ||
+      !integration.IntegrationUri?.endsWith(`:function:${functionName}`)
+    ) {
+      return false;
+    }
+    integrationUris.add(integration.IntegrationUri);
+  }
+
+  return integrationUris.size === 1;
 }
 
 function assertHttpsUrl(value, label, hostSuffix, expectedPath) {
@@ -655,9 +694,7 @@ async function verifyLive(contract, stage, outputsPath) {
   const { Key: notificationFilterKey } = zipNotification?.Filter ?? {};
   const { FilterRules: notificationFilterRules = [] } =
     notificationFilterKey ?? {};
-  const filterRules = Object.fromEntries(
-    notificationFilterRules.map(({ Name, Value }) => [Name, Value]),
-  );
+  const filterRules = notificationFilterRulesByName(notificationFilterRules);
   const { notification: zipNotificationContract } = contract.zipWorker;
   assert(
     lambdaNotifications.length === 1 &&
@@ -829,12 +866,19 @@ async function verifyLive(contract, stage, outputsPath) {
     outputs.pdfApiId,
   ]).value;
   assert(
-    pdfApi.ProtocolType === "HTTP" && !pdfApi.CorsConfiguration,
+    pdfApi.ProtocolType === "HTTP" &&
+      !hasApiGatewayCorsConfiguration(pdfApi.CorsConfiguration),
     "PDF API must be an HTTP API with handler-owned CORS.",
   );
   const pdfRoutes = runAws([
     "apigatewayv2",
     "get-routes",
+    "--api-id",
+    outputs.pdfApiId,
+  ]).value.Items;
+  const pdfIntegrations = runAws([
+    "apigatewayv2",
+    "get-integrations",
     "--api-id",
     outputs.pdfApiId,
   ]).value.Items;
@@ -844,9 +888,10 @@ async function verifyLive(contract, stage, outputsPath) {
     "PDF API route inventory has drifted.",
   );
   assert(
-    pdfRoutes.every(
-      ({ AuthorizationType, Target }) =>
-        AuthorizationType === "NONE" && Target === pdfRoutes[0]?.Target,
+    pdfRoutesTargetSingleFunction(
+      pdfRoutes,
+      pdfIntegrations,
+      outputs.pdfFunctionName,
     ),
     "PDF API routes must be public and target one dedicated function.",
   );
@@ -1044,6 +1089,31 @@ async function verifyLive(contract, stage, outputsPath) {
       return statement.Sid === "GlobalDiscoveryOnly" || statement.Condition;
     }),
     "A service mutation retains unconditioned global resource scope.",
+  );
+  const stageLogTags = findPolicyStatement(
+    inlinePolicy,
+    "InspectStageLogTags",
+  );
+  assert(
+    stageLogTags?.Action === "logs:ListTagsForResource" &&
+      asArray(stageLogTags.Resource).length === 2 &&
+      asArray(stageLogTags.Resource).every(
+        (resource) =>
+          resource.startsWith(
+            `arn:aws:logs:il-central-1:${accountId}:log-group:/aws/`,
+          ) && resource.includes("auditflow-test-"),
+      ),
+    "Test deploy role cannot inspect only AuditFlow test log-group tags.",
+  );
+  const apiTags = findPolicyStatement(inlinePolicy, "TagStageApis");
+  assert(
+    apiTags?.Action === "apigateway:POST" &&
+      apiTags.Resource ===
+        "arn:aws:apigateway:il-central-1::/tags/arn%3Aaws%3Aapigateway%3Ail-central-1%3A%3A%2Fv2%2Fapis%2F*" &&
+      apiTags.Condition?.StringEquals?.["aws:RequestTag/sst:app"] ===
+        "auditflow" &&
+      apiTags.Condition?.StringEquals?.["aws:RequestTag/sst:stage"] === "test",
+    "Test deploy role cannot create tags only for tagged AuditFlow test APIs.",
   );
 
   const policyFindings = runAws([

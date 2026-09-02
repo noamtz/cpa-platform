@@ -121,6 +121,31 @@ describe("test deployment IAM policy", () => {
     });
   });
 
+  it("permits only stage log inspection and tagged API v2 tag creation required by the provider", () => {
+    const logTags = policy.Statement.find(
+      ({ Sid }) => Sid === "InspectStageLogTags",
+    );
+    const apiTags = policy.Statement.find(({ Sid }) => Sid === "TagStageApis");
+
+    expect(logTags).toEqual({
+      Sid: "InspectStageLogTags",
+      Effect: "Allow",
+      Action: "logs:ListTagsForResource",
+      Resource: [
+        "arn:aws:logs:il-central-1:123456789012:log-group:/aws/lambda/auditflow-test-*",
+        "arn:aws:logs:il-central-1:123456789012:log-group:/aws/vendedlogs/apis/auditflow-test-*",
+      ],
+    });
+    expect(apiTags).toEqual({
+      Sid: "TagStageApis",
+      Effect: "Allow",
+      Action: "apigateway:POST",
+      Resource:
+        "arn:aws:apigateway:il-central-1::/tags/arn%3Aaws%3Aapigateway%3Ail-central-1%3A%3A%2Fv2%2Fapis%2F*",
+      Condition: deploymentPolicyContracts.requestTagCondition,
+    });
+  });
+
   it("restricts mutable SST state to the AuditFlow test stage", () => {
     const state = policy.Statement.find(
       ({ Sid }) => Sid === "UseSstStageState",

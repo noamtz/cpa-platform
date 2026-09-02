@@ -353,7 +353,7 @@ export const pdfContract = {
   corsOriginPolicy: "router-origin-exact",
   apiCors: false,
   routerPrefix: "/pdf",
-  routerPattern: "/pdf/*",
+  routerPattern: "/pdf",
   rewritePattern: "^/pdf/(.*)$",
   rewriteReplacement: "/$1",
   routes: [

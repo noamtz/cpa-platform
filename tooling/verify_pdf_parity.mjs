@@ -264,13 +264,14 @@ export async function buildProfilePayload(fixture, profileName) {
     schemas.push(copied.fields);
     inputs.push(copied.input);
   }
-  const templateJson = { basePdf: null, schemas };
-  const body = { templateJson, basePdfUrl, inputs };
+  const template = { basePdf: null, schemas };
+  const body = { templateJson: JSON.stringify(template), basePdfUrl, inputs };
   let encoded = JSON.stringify(body);
   if (Buffer.byteLength(encoded) < profile.targetRequestBytes.minimum) {
-    templateJson.parityPadding = "x".repeat(
+    template.parityPadding = "x".repeat(
       profile.targetRequestBytes.minimum - Buffer.byteLength(encoded) + 64,
     );
+    body.templateJson = JSON.stringify(template);
     encoded = JSON.stringify(body);
   }
   const requestBytes = Buffer.byteLength(encoded);
@@ -367,13 +368,13 @@ async function probeEndpoint(base, limits) {
   };
 }
 
-async function invokeEndpoint(base, payload, limits, fixture) {
+async function invokeEndpoint(label, base, payload, limits, fixture) {
   const render = await boundedFetch(
     endpointUrl(base, "render-pages"),
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload.renderBody) },
     limits,
   );
-  assert(render.status === 200, `Render request returned status ${render.status}.`);
+  assert(render.status === 200, `${label} render request returned status ${render.status}.`);
   assert(
     render.headers.get("content-type")?.includes("application/json") &&
       Boolean(render.headers.get("access-control-allow-origin")),
@@ -388,7 +389,7 @@ async function invokeEndpoint(base, payload, limits, fixture) {
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload.generateBody) },
     limits,
   );
-  assert(generated.status === 200, `Generate request returned status ${generated.status}.`);
+  assert(generated.status === 200, `${label} generate request returned status ${generated.status}.`);
   assert(
     generated.headers.get("content-type")?.includes("application/pdf") &&
       generated.headers.get("content-disposition") ===
@@ -493,9 +494,9 @@ export async function runParity({ legacyUrl, sstUrl, fixture, profile, iteration
     // Cross a PDF metadata clock tick so two coincidentally equal responses do
     // not misclassify a timestamp-bearing generator as byte-stable.
     if (index === 1) await new Promise((resolveDelay) => setTimeout(resolveDelay, 1_100));
-    legacy.push(await invokeEndpoint(legacyUrl, payload, limits, fixture));
+    legacy.push(await invokeEndpoint("legacy", legacyUrl, payload, limits, fixture));
   }
-  for (let index = 0; index < iterations; index += 1) sst.push(await invokeEndpoint(sstUrl, payload, limits, fixture));
+  for (let index = 0; index < iterations; index += 1) sst.push(await invokeEndpoint("sst", sstUrl, payload, limits, fixture));
   const comparisons = sst.map((candidate, index) => ({
     iteration: index + 1,
     render: compareArtifact(legacy.map((run) => run.render), candidate.render, fixture),
