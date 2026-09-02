@@ -15,6 +15,25 @@ import {
   tableContracts,
   zipWorkerContract,
 } from "../contracts";
+import { resolveSitePdfApiUrl } from "../application";
+import type { StageSettings } from "../stage";
+
+const testStage: StageSettings = {
+  name: "test",
+  isProduction: false,
+  protect: false,
+  removal: "remove",
+  logRetentionDays: 14,
+};
+
+const productionStage: StageSettings = {
+  ...testStage,
+  name: "production",
+  isProduction: true,
+  protect: true,
+  removal: "retain",
+  logRetentionDays: 30,
+};
 
 describe("foundation resource contract", () => {
   it("keeps the dependency-free verifier contract in sync", () => {
@@ -333,9 +352,27 @@ describe("foundation resource contract", () => {
     expect(applicationSource).toContain(
       "router.route(pdfContract.routerPattern, pdf.api.url",
     );
-    expect(applicationSource).toContain(
-      "VITE_PDF_API_URL: pdfContract.routerPrefix",
-    );
+    expect(applicationSource).toContain("VITE_PDF_API_URL: sitePdfApiUrl");
+  });
+
+  it("allows only an explicit test-stage API Gateway PDF rollback base", () => {
+    expect(resolveSitePdfApiUrl(testStage, undefined)).toBe("/pdf");
+    expect(resolveSitePdfApiUrl(testStage, " /pdf ")).toBe("/pdf");
+    expect(
+      resolveSitePdfApiUrl(
+        testStage,
+        " https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com/ ",
+      ),
+    ).toBe("https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com");
+    expect(() =>
+      resolveSitePdfApiUrl(testStage, "https://example.test"),
+    ).toThrow("HTTPS API Gateway");
+    expect(() =>
+      resolveSitePdfApiUrl(
+        productionStage,
+        "https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com",
+      ),
+    ).toThrow("restricted to the test stage");
   });
 
   it("uses an exact GitHub environment subject without legacy or wildcard trust", () => {

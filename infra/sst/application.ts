@@ -15,6 +15,37 @@ export function createApplicationRouter() {
   return new sst.aws.Router(routerContract.logicalName);
 }
 
+export function resolveSitePdfApiUrl(
+  stage: StageSettings,
+  configured: string | undefined,
+) {
+  const candidate = configured?.trim();
+  if (!candidate || candidate === pdfContract.routerPrefix) {
+    return pdfContract.routerPrefix;
+  }
+  if (stage.isProduction) {
+    throw new Error("VITE_PDF_API_URL overrides are restricted to the test stage.");
+  }
+  let url: URL;
+  try {
+    url = new URL(candidate);
+  } catch {
+    throw new Error("VITE_PDF_API_URL must be an HTTPS API Gateway base URL.");
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    (url.pathname !== "/" && url.pathname !== "") ||
+    !/^[a-z0-9]+\.execute-api\.il-central-1\.amazonaws\.com$/.test(url.hostname)
+  ) {
+    throw new Error("VITE_PDF_API_URL must be an HTTPS API Gateway base URL.");
+  }
+  return url.origin;
+}
+
 export function createApplication(
   stage: StageSettings,
   storage: FoundationStorage,
@@ -160,6 +191,10 @@ export function createApplication(
     },
   });
 
+  const sitePdfApiUrl = resolveSitePdfApiUrl(
+    stage,
+    process.env.VITE_PDF_API_URL,
+  );
   const site = new sst.aws.StaticSite(routerContract.staticSiteLogicalName, {
     path: ".",
     build: {
@@ -169,7 +204,7 @@ export function createApplication(
     errorPage: routerContract.spaFallback,
     environment: {
       VITE_API_BASE_URL: routerContract.apiPrefix,
-      VITE_PDF_API_URL: pdfContract.routerPrefix,
+      VITE_PDF_API_URL: sitePdfApiUrl,
       VITE_COGNITO_AUTHORITY: authentication.authority,
       VITE_COGNITO_CLIENT_ID: authentication.userPoolClient.id,
       VITE_COGNITO_CALLBACK_URL: authentication.callbackUrl,
