@@ -58,9 +58,11 @@ export interface FileServiceOptions {
   readonly presign: (
     command: PutObjectCommand | GetObjectCommand,
     expiresIn: number,
+    unhoistableHeaders?: Set<string>,
   ) => Promise<string>;
   readonly filesBucketName: string;
   readonly temporaryOutputsBucketName: string;
+  readonly legacyFileReadsEnabled: boolean;
   readonly clients: ClientRepository;
   readonly submissions: SubmissionRepository;
   readonly questionnaireTemplates: QuestionnaireTemplateRepository;
@@ -361,6 +363,12 @@ export class FileService {
     this.idGenerator = options.idGenerator ?? randomUUID;
   }
 
+  private assertReadableReferenceKind(kind: "owned" | "legacy") {
+    if (kind === "legacy" && !this.options.legacyFileReadsEnabled) {
+      throw notFound("File not found");
+    }
+  }
+
   private async publicSubmissionOwner(
     input: PublicClientCredentials & { readonly submission_id: string },
     purpose?: "questionnaire_document" | "signed_pdf",
@@ -420,6 +428,9 @@ export class FileService {
       purpose,
       "declared-size": String(size),
     };
+    const metadataHeaders = new Set(
+      Object.keys(metadata).map((name) => `x-amz-meta-${name}`),
+    );
     const command = new PutObjectCommand({
       Bucket: this.options.filesBucketName,
       Key: key,
@@ -427,7 +438,11 @@ export class FileService {
       IfNoneMatch: "*",
       Metadata: metadata,
     });
-    const uploadUrl = await this.options.presign(command, UPLOAD_URL_TTL_SECONDS);
+    const uploadUrl = await this.options.presign(
+      command,
+      UPLOAD_URL_TTL_SECONDS,
+      metadataHeaders,
+    );
     return {
       upload_id: fileUri,
       upload_url: uploadUrl,
@@ -563,6 +578,7 @@ export class FileService {
     } catch {
       throw notFound("File not found");
     }
+    this.assertReadableReferenceKind(kind);
     if (
       kind === "owned" &&
       !ownedPrefixes.some((prefix) => key.startsWith(prefix))
@@ -662,6 +678,7 @@ export class FileService {
     requestId: string,
   ) {
     const { key, kind } = resolveStoredFileReference(input.file_reference);
+    this.assertReadableReferenceKind(kind);
     if (kind === "owned") {
       const receiptKey = createHash("sha256")
         .update(`create:${input.file_reference}`)
@@ -829,6 +846,9 @@ export class FileService {
     if (entries.length === 0) throw badRequest("No files available");
     const allowedOwnedPrefix = submissionPrefix(client.id, submission.id, "");
     for (const { key: sourceKey } of entries) {
+      this.assertReadableReferenceKind(
+        sourceKey.startsWith("legacy/") ? "legacy" : "owned",
+      );
       if (
         !sourceKey.startsWith("legacy/") &&
         !sourceKey.startsWith(allowedOwnedPrefix)

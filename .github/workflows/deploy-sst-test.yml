@@ -8,6 +8,15 @@ on:
       - "sst.config.ts"
       - "infra/sst/**"
       - "backend/api/**"
+      - "lambda/pdf-generator/**"
+      - "src/lib/pdf-api.js"
+      - "src/lib/__tests__/pdf-api.test.js"
+      - "src/pages/PdfSignIframeOverlay.jsx"
+      - "tooling/verify_pdf_bundle.mjs"
+      - "tooling/verify_pdf_bundle.test.mjs"
+      - "tooling/verify_pdf_parity.mjs"
+      - "tooling/verify_pdf_parity.test.mjs"
+      - "docs/migration/pdf-parity-runbook.md"
       - "tooling/verify_sst_foundation.mjs"
       - "tooling/verify_private_file_cutover.mjs"
       - "docs/migration/private-file-import-verification.json"
@@ -20,6 +29,15 @@ on:
       - "sst.config.ts"
       - "infra/sst/**"
       - "backend/api/**"
+      - "lambda/pdf-generator/**"
+      - "src/lib/pdf-api.js"
+      - "src/lib/__tests__/pdf-api.test.js"
+      - "src/pages/PdfSignIframeOverlay.jsx"
+      - "tooling/verify_pdf_bundle.mjs"
+      - "tooling/verify_pdf_bundle.test.mjs"
+      - "tooling/verify_pdf_parity.mjs"
+      - "tooling/verify_pdf_parity.test.mjs"
+      - "docs/migration/pdf-parity-runbook.md"
       - "tooling/verify_sst_foundation.mjs"
       - "tooling/verify_private_file_cutover.mjs"
       - "docs/migration/private-file-import-verification.json"
@@ -103,6 +121,7 @@ jobs:
 
       - name: Validate foundation
         run: |
+          npm run test:pdf
           npm run test:foundation
           npm run typecheck:foundation
           npm run lint:foundation
@@ -112,7 +131,13 @@ jobs:
       - name: Preview test deployment
         run: npx sst diff --stage test --print-logs
 
-      - name: Check private-file import cutover evidence
+      - name: Verify staged PDF runtime assets
+        run: >-
+          npm run verify:pdf-bundle --
+          --artifacts .sst/artifacts
+          --function PdfRendererFunction
+
+      - name: Report private-file import evidence
         id: private-file-cutover
         shell: bash
         run: |
@@ -120,15 +145,13 @@ jobs:
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Deployment skipped until issue #11 publishes verified private-file import evidence."
+            echo "::notice::Deploying synthetic-only mode. Legacy file reads remain disabled until issue #11 publishes verified import evidence."
           fi
 
-      - name: Deploy test stage
-        if: steps.private-file-cutover.outputs.ready == 'true'
+      - name: Deploy synthetic-only test stage
         run: npm run sst:deploy:test
 
       - name: Verify live test foundation
-        if: steps.private-file-cutover.outputs.ready == 'true'
         run: >-
           node tooling/verify_sst_foundation.mjs
           --mode live

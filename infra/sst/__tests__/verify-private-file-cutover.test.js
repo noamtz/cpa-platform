@@ -33,8 +33,8 @@ afterEach(() => {
   }
 });
 
-describe("private-file deployment cutover gate", () => {
-  it("blocks deployment when issue #11 evidence is absent", () => {
+describe("private-file legacy-read enablement gate", () => {
+  it("blocks legacy reads when issue #11 evidence is absent", () => {
     const root = mkdtempSync(join(tmpdir(), "auditflow-cutover-"));
     temporaryRoots.push(root);
 

@@ -6,11 +6,12 @@ import { Button as UntypedButton } from "@/components/ui/button";
 import UntypedLightweightSignaturePad from "@/components/questionnaire/LightweightSignaturePad";
 import { invokePublicFunction, loadPublicPdfTemplate } from "@/api/function-client";
 import { fileClient } from "@/api/file-client";
+import { generatePdf, renderPdfPages, resolvePdfApiUrl } from "@/lib/pdf-api";
 
-const PDF_API_PROD = "https://hickopn9f0.execute-api.il-central-1.amazonaws.com";
-const PDF_API_TEST = "https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com";
-const PDF_API = import.meta.env.VITE_PDF_API_URL
-  || (window.location.hostname === "app.ddcpa.co.il" ? PDF_API_PROD : PDF_API_TEST);
+const PDF_API = resolvePdfApiUrl({
+  configured: import.meta.env.VITE_PDF_API_URL,
+  hostname: window.location.hostname,
+});
 
 const Button = /** @type {React.ComponentType<any>} */ (UntypedButton);
 const LightweightSignaturePad = /** @type {React.ComponentType<any>} */ (UntypedLightweightSignaturePad);
@@ -323,16 +324,10 @@ export default function PdfSignIframeOverlay() {
       // Request server-rendered page images (zero client-side PDF rendering)
       if (pdfSignedUrl) {
         setLoadingMsg("מכין תצוגה מקדימה של המסמך...");
-        const renderRes = await fetch(`${PDF_API}/render-pages`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ basePdfUrl: pdfSignedUrl }),
+        const renderData = await renderPdfPages({
+          baseUrl: PDF_API,
+          basePdfUrl: pdfSignedUrl,
         });
-        if (!renderRes.ok) {
-          const errData = await renderRes.json().catch(() => ({}));
-          throw new Error(errData.error || "שגיאה בהכנת תצוגה מקדימה");
-        }
-        const renderData = await renderRes.json();
         setPageImages(renderData.pages.map(b64 => `data:image/jpeg;base64,${b64}`));
         setPageCount(renderData.pageCount);
       } else if (parsedTemplate.schemas) {
@@ -465,33 +460,12 @@ export default function PdfSignIframeOverlay() {
       const processedTemplateJson = JSON.stringify(parsedTemplate);
 
       console.log("[PdfSignIframeOverlay] Sending to PDF API...");
-      const genRes = await fetch(`${PDF_API}/generate-pdf`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          templateJson: processedTemplateJson,
-          basePdfUrl,
-          inputs: [mergedInputs],
-        }),
+      const pdfBlob = await generatePdf({
+        baseUrl: PDF_API,
+        templateJson: processedTemplateJson,
+        basePdfUrl,
+        inputs: [mergedInputs],
       });
-
-      if (!genRes.ok) {
-        const errData = await genRes.json().catch(() => ({}));
-        throw new Error(errData.error || `Server error: ${genRes.status}`);
-      }
-
-      // Lambda returns base64-encoded PDF; local poc-server returns raw blob
-      let pdfBlob;
-      const contentType = genRes.headers.get("content-type") || "";
-      if (contentType.includes("application/pdf")) {
-        pdfBlob = await genRes.blob();
-      } else {
-        // API Gateway may return base64 as JSON or raw base64 text
-        const text = await genRes.text();
-        const base64 = text.replace(/^"|"$/g, "");
-        const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-        pdfBlob = new Blob([bytes], { type: "application/pdf" });
-      }
       console.log(`[PdfSignIframeOverlay] PDF generated: ${pdfBlob.size} bytes`);
 
       let pdfFileUrl = null;

@@ -17,6 +17,7 @@ interface GetResult {
 
 interface QueryResult {
   readonly Items?: Record<string, unknown>[];
+  readonly ScannedCount?: number;
   readonly LastEvaluatedKey?: Record<string, unknown>;
 }
 
@@ -57,6 +58,7 @@ export interface QueryRecordsInput<T> {
   readonly ascending: boolean;
   readonly limit: number;
   readonly exhaustBeforeSort?: boolean;
+  readonly recordType?: string;
 }
 
 export async function queryRecords<T extends Record<string, unknown>>({
@@ -71,6 +73,7 @@ export async function queryRecords<T extends Record<string, unknown>>({
   ascending,
   limit,
   exhaustBeforeSort = false,
+  recordType,
 }: QueryRecordsInput<T>): Promise<T[]> {
   const records: T[] = [];
   let cursor: Record<string, unknown> | undefined;
@@ -82,14 +85,28 @@ export async function queryRecords<T extends Record<string, unknown>>({
       KeyConditionExpression: keyExpression,
       ExpressionAttributeNames: { ...expressionNames },
       ExpressionAttributeValues: { ...expressionValues },
+      ...(recordType
+        ? {
+            FilterExpression: "#query_record_type = :query_record_type",
+            ExpressionAttributeNames: {
+              ...expressionNames,
+              "#query_record_type": "record_type",
+            },
+            ExpressionAttributeValues: {
+              ...expressionValues,
+              ":query_record_type": recordType,
+            },
+          }
+        : {}),
       ScanIndexForward: ascending,
       Limit: Math.min(200, Math.max(limit, 25)),
       ExclusiveStartKey: cursor,
     };
     const result = (await client.send(new QueryCommand(input))) as QueryResult;
     const page = result.Items ?? [];
-    evaluated += page.length;
+    evaluated += result.ScannedCount ?? page.length;
     for (const item of page) {
+      if (recordType && item.record_type !== recordType) continue;
       const parsed = parseRecord(schema, item);
       if (matchesFilter(parsed, filter)) records.push(parsed);
       if (!exhaustBeforeSort && records.length >= limit) break;

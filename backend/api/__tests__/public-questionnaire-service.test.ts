@@ -182,6 +182,12 @@ describe("PublicQuestionnaireService templates", () => {
     const result = await service.getActiveTemplate(credentials, "request-1");
     expect(result.template).toMatchObject({ version: 1 });
     expect(result.template.steps).toHaveLength(6);
+    expect(result.template.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ enabled: true }),
+      ]),
+    );
+    expect(result.template.steps.every((step) => step.enabled === true)).toBe(true);
     expect(commit).toHaveBeenCalledOnce();
     const input = commit.mock.calls[0][0];
     expect(input.actorId).toBe("public-client:client-1");

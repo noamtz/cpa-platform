@@ -82,6 +82,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     presign,
     filesBucketName: "FilesBucket.test",
     temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
+    legacyFileReadsEnabled: true,
     clients: clients as unknown as ClientRepository,
     submissions: submissions as unknown as SubmissionRepository,
     questionnaireTemplates:
@@ -134,6 +135,13 @@ describe("FileService uploads", () => {
       },
     });
     expect(presign.mock.calls[0][1]).toBe(900);
+    expect(presign.mock.calls[0][2]).toEqual(
+      new Set([
+        "x-amz-meta-owner-hash",
+        "x-amz-meta-purpose",
+        "x-amz-meta-declared-size",
+      ]),
+    );
     expect(result.upload_id).toBe(ownedReference());
     expect(result.headers["if-none-match"]).toBe("*");
     expect(send).not.toHaveBeenCalled();
@@ -307,6 +315,108 @@ describe("FileService scoped reads and deletion", () => {
     const { Key: objectKey } = getCommand.input;
     expect(objectKey).toMatch(/^legacy\/[a-f0-9]{64}$/);
     expect(objectKey).not.toContain("synthetic");
+  });
+
+  it("fails closed for legacy signed-PDF and submission reads before S3", async () => {
+    const legacyReference = "private://synthetic/signed.pdf";
+    const submissions = {
+      get: vi.fn().mockResolvedValue({
+        ...submission,
+        responses: JSON.stringify({
+          "step-test": { files: [legacyReference] },
+        }),
+      }),
+    } as unknown as SubmissionRepository;
+    const { service, send, presign, publicAuthorizer } = setup({
+      legacyFileReadsEnabled: false,
+      submissions,
+    });
+    publicAuthorizer.authorizeActiveSubmission.mockResolvedValue({
+      client,
+      submission: {
+        ...submission,
+        signed_pdfs: JSON.stringify([
+          { step_id: "step-test", pdf_file_url: legacyReference },
+        ]),
+      },
+    });
+
+    await expect(
+      service.getPublicSignedPdfUrl({
+        client_id: client.id,
+        ["\u0074oken"]: "synthetic-link-value",
+        step_id: "step-test",
+      }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(
+      service.getCpaSubmissionFileUrl(
+        {
+          submission_id: submission.id,
+          source: "response",
+          step_id: "step-test",
+          file_index: 0,
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(send).not.toHaveBeenCalled();
+    expect(presign).not.toHaveBeenCalled();
+  });
+
+  it("fails closed for legacy template reads and mirroring before side effects", async () => {
+    const legacyReference = "private://synthetic/template.pdf";
+    const {
+      service,
+      send,
+      presign,
+      journal,
+      questionnaireTemplates,
+      pdfTemplates,
+      publicAuthorizer,
+    } = setup({ legacyFileReadsEnabled: false });
+    questionnaireTemplates.get.mockResolvedValue({
+      id: "questionnaire-test",
+      steps: JSON.stringify([
+        { id: "step-test", config: { pdf_template_id: "template-test" } },
+      ]),
+    });
+    publicAuthorizer.authorizeActiveSubmission.mockResolvedValue({
+      client,
+      submission: { ...submission, template_id: "questionnaire-test" },
+    });
+    pdfTemplates.get.mockResolvedValue({
+      id: "template-test",
+      name: "Synthetic template",
+      template_json: "{}",
+      file_reference: legacyReference,
+    });
+
+    await expect(
+      service.getPublicTemplateFileUrl({
+        client_id: client.id,
+        ["\u0074oken"]: "synthetic-link-value",
+        template_id: "template-test",
+      }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(
+      service.getCpaTemplateFileUrl("template-test", actor),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(
+      service.mirrorCpaTemplateFile(
+        {
+          template_id: "template-test",
+          file_reference: legacyReference,
+          name: "Synthetic template",
+          is_active: true,
+          source_version: 1,
+        },
+        actor,
+        "request-disabled-legacy-mirror",
+      ),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(send).not.toHaveBeenCalled();
+    expect(presign).not.toHaveBeenCalled();
+    expect(journal.commit).not.toHaveBeenCalled();
   });
 
   it("rejects a valid owned reference from another resource before S3", async () => {
@@ -790,6 +900,34 @@ describe("FileService ZIP jobs", () => {
     expect(written.entries).toEqual([
       { key: expect.stringMatching(/^legacy\/[a-f0-9]{64}$/), name: "Document_1.pdf" },
     ]);
+  });
+
+  it("rejects legacy ZIP inventory before writing a job", async () => {
+    const submissions = {
+      get: vi.fn().mockResolvedValue({
+        ...submission,
+        responses: JSON.stringify({
+          "step-test": {
+            answer: true,
+            files: ["private://synthetic/source.pdf"],
+            file_names: ["source.pdf"],
+          },
+        }),
+      }),
+    } as unknown as SubmissionRepository;
+    const { service, send, questionnaireTemplates } = setup({
+      legacyFileReadsEnabled: false,
+      submissions,
+    });
+    questionnaireTemplates.latestActive.mockResolvedValue({
+      id: "questionnaire-test",
+      steps: JSON.stringify([{ id: "step-test", title: "Document" }]),
+    });
+
+    await expect(
+      service.requestZipDownload(submission.id, actor),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(send).not.toHaveBeenCalled();
   });
 
   it("returns a short-lived result only for the requesting actor and submission", async () => {

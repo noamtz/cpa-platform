@@ -43,7 +43,7 @@ export default function CpaDashboard() {
       const [c, s, tpl] = await Promise.all([
         base44.entities.Client.list("-created_date", 200),
         base44.entities.Submission.list("-created_date", 200),
-        base44.functions.invoke("getActiveTemplate", {}),
+        base44.functions.invoke("getActiveTemplate", {}).catch(() => null),
       ]);
       setClients(c || []);
       setSubmissions(s || []);

@@ -2,12 +2,17 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { inspectPdfBundle } from "./verify_pdf_bundle.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
 const contractPath = resolve(
   repositoryRoot,
   "infra/sst/foundation-contract.json",
+);
+const pdfFixturePath = resolve(
+  repositoryRoot,
+  "lambda/pdf-generator/__fixtures__/rtl-multipage-case.json",
 );
 
 function fail(message) {
@@ -38,7 +43,7 @@ function parseArguments(argv) {
 }
 
 function verifyContract(contract, stage) {
-  assert(contract.schemaVersion === 2, "Unsupported contract schema version.");
+  assert(contract.schemaVersion === 3, "Unsupported contract schema version.");
   assert(contract.app === "auditflow", "Unexpected SST application name.");
   assert(contract.sstVersion === "3.19.3", "SST version must be 3.19.3.");
   assert(contract.region === "il-central-1", "Unexpected AWS region.");
@@ -175,6 +180,44 @@ function verifyContract(contract, stage) {
       contract.router.rewriteReplacement === "/$1",
     "Same-origin Router rewrite contract has drifted.",
   );
+  assert(
+    contract.pdf.apiLogicalName === "PdfApi" &&
+      contract.pdf.functionLogicalName === "PdfRendererFunction" &&
+      contract.pdf.handler === "lambda/pdf-generator/index.handler" &&
+      contract.pdf.runtime === "nodejs20.x" &&
+      contract.pdf.architecture === "arm64" &&
+      contract.pdf.memoryMb === 1024 &&
+      contract.pdf.timeoutSeconds === 60 &&
+      contract.pdf.storageMb === 512 &&
+      contract.pdf.corsOriginPolicy === "router-origin-exact" &&
+      contract.pdf.apiCors === false &&
+      contract.pdf.routerPrefix === "/pdf" &&
+      contract.pdf.routerPattern === "/pdf" &&
+      contract.pdf.rewritePattern === "^/pdf/(.*)$" &&
+      contract.pdf.rewriteReplacement === "/$1" &&
+      contract.pdf.legacyTestBaseUrl ===
+        "https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com" &&
+      JSON.stringify(contract.pdf.routes) ===
+        JSON.stringify([
+          { route: "GET /health" },
+          { route: "POST /render-pages" },
+          { route: "POST /generate-pdf" },
+          { route: "OPTIONS /{proxy+}" },
+        ]) &&
+      JSON.stringify(contract.pdf.nodejsInstall) ===
+        JSON.stringify([
+          "@napi-rs/canvas",
+          "@napi-rs/canvas-linux-arm64-gnu",
+          "pdfjs-dist",
+        ]) &&
+      contract.pdf.font.destination === "fonts/Heebo-Regular.ttf" &&
+      contract.pdf.font.bytes === 122012 &&
+      contract.pdf.font.sha256 ===
+        "18F930B583FA8FE6B40B2F8263B7AC6AFBAC07ADC91A12467874E7467D3ACE30" &&
+      contract.pdf.resourceLinks.length === 0 &&
+      contract.pdf.permissions.length === 0,
+    "Dedicated PDF API/function contract has drifted.",
+  );
   const { notification: zipNotificationContract } = contract.zipWorker;
   assert(
     contract.zipWorker.logicalName === "ZipDownloadWorker" &&
@@ -217,10 +260,14 @@ function verifyContract(contract, stage) {
       contract.deploymentGates.privateFilesImport.verifier ===
         "tooling/verify_private_file_cutover.mjs" &&
       contract.deploymentGates.privateFilesImport.requiredBefore ===
-        "sst-deploy" &&
+        "legacy-file-read-enablement" &&
       contract.deploymentGates.privateFilesImport.resolverContract ===
-        "legacy-sha256-v1",
-    "Private-file deployment must remain gated on issue #11 import evidence.",
+        "legacy-sha256-v1" &&
+      contract.deploymentGates.privateFilesImport.environmentVariable ===
+        "LEGACY_FILE_READS_ENABLED" &&
+      contract.deploymentGates.privateFilesImport.syntheticOnlyValue === "false" &&
+      contract.deploymentGates.privateFilesImport.enablementIssue === 11,
+    "Legacy file reads must remain gated on issue #11 import evidence.",
   );
   assert(
     contract.oidc.audience === "sts.amazonaws.com" &&
@@ -363,6 +410,45 @@ export function assertBrowserCorsExact(
   );
 }
 
+export function notificationFilterRulesByName(rules) {
+  return Object.fromEntries(
+    rules.map(({ Name, Value }) => [Name.toLowerCase(), Value]),
+  );
+}
+
+export function hasApiGatewayCorsConfiguration(configuration) {
+  return Boolean(configuration && Object.keys(configuration).length > 0);
+}
+
+export function pdfRoutesTargetSingleFunction(
+  routes,
+  integrations,
+  functionName,
+) {
+  const integrationById = new Map(
+    integrations.map((integration) => [integration.IntegrationId, integration]),
+  );
+  const integrationUris = new Set();
+
+  for (const route of routes) {
+    const integrationId = route.Target?.replace(/^integrations\//, "");
+    const integration = integrationById.get(integrationId);
+    if (
+      route.AuthorizationType !== "NONE" ||
+      !integration ||
+      integration.IntegrationType !== "AWS_PROXY" ||
+      integration.IntegrationMethod !== "POST" ||
+      integration.PayloadFormatVersion !== "2.0" ||
+      !integration.IntegrationUri?.endsWith(`:function:${functionName}`)
+    ) {
+      return false;
+    }
+    integrationUris.add(integration.IntegrationUri);
+  }
+
+  return integrationUris.size === 1;
+}
+
 function assertHttpsUrl(value, label, hostSuffix, expectedPath) {
   const url = new URL(value);
   assert(url.protocol === "https:", `${label} must use HTTPS.`);
@@ -428,6 +514,11 @@ async function verifyLive(contract, stage, outputsPath) {
     "API URL",
     ".execute-api.il-central-1.amazonaws.com",
   );
+  const pdfApiUrl = assertHttpsUrl(
+    outputs.pdfApiUrl,
+    "PDF API URL",
+    ".execute-api.il-central-1.amazonaws.com",
+  );
   const authAuthority = assertHttpsUrl(
     outputs.authAuthority,
     "Cognito authority",
@@ -453,6 +544,16 @@ async function verifyLive(contract, stage, outputsPath) {
     "Protected health URL",
     routerUrl.hostname,
     "/api/auth/health",
+  );
+  assert(
+    outputs.pdfBaseUrl === `${outputs.routerUrl}${contract.pdf.routerPrefix}`,
+    "PDF base URL does not use the same-origin Router path.",
+  );
+  assertHttpsUrl(
+    outputs.pdfHealthUrl,
+    "PDF health URL",
+    routerUrl.hostname,
+    "/pdf/health",
   );
 
   const expectedTableNames = contract.tables.map(({ logicalName }) => logicalName);
@@ -578,6 +679,12 @@ async function verifyLive(contract, stage, outputsPath) {
       JSON.stringify(zipWorker.Architectures) === JSON.stringify(["arm64"]),
     "ZIP worker runtime limits have drifted.",
   );
+  assert(
+    zipWorker.Environment?.Variables?.[
+      contract.deploymentGates.privateFilesImport.environmentVariable
+    ] === contract.deploymentGates.privateFilesImport.syntheticOnlyValue,
+    "ZIP worker legacy file reads are not pinned to synthetic-only mode.",
+  );
   const notification = runAws([
     "s3api",
     "get-bucket-notification-configuration",
@@ -589,9 +696,7 @@ async function verifyLive(contract, stage, outputsPath) {
   const { Key: notificationFilterKey } = zipNotification?.Filter ?? {};
   const { FilterRules: notificationFilterRules = [] } =
     notificationFilterKey ?? {};
-  const filterRules = Object.fromEntries(
-    notificationFilterRules.map(({ Name, Value }) => [Name, Value]),
-  );
+  const filterRules = notificationFilterRulesByName(notificationFilterRules);
   const { notification: zipNotificationContract } = contract.zipWorker;
   assert(
     lambdaNotifications.length === 1 &&
@@ -749,6 +854,138 @@ async function verifyLive(contract, stage, outputsPath) {
   ]).value;
   assert(lambda.Runtime === "nodejs20.x", "API Lambda runtime has drifted.");
   assert(lambda.Architectures?.includes("arm64"), "API Lambda is not arm64.");
+  assert(
+    lambda.Environment?.Variables?.[
+      contract.deploymentGates.privateFilesImport.environmentVariable
+    ] === contract.deploymentGates.privateFilesImport.syntheticOnlyValue,
+    "API Lambda legacy file reads are not pinned to synthetic-only mode.",
+  );
+
+  const pdfApi = runAws([
+    "apigatewayv2",
+    "get-api",
+    "--api-id",
+    outputs.pdfApiId,
+  ]).value;
+  assert(
+    pdfApi.ProtocolType === "HTTP" &&
+      !hasApiGatewayCorsConfiguration(pdfApi.CorsConfiguration),
+    "PDF API must be an HTTP API with handler-owned CORS.",
+  );
+  const pdfRoutes = runAws([
+    "apigatewayv2",
+    "get-routes",
+    "--api-id",
+    outputs.pdfApiId,
+  ]).value.Items;
+  const pdfIntegrations = runAws([
+    "apigatewayv2",
+    "get-integrations",
+    "--api-id",
+    outputs.pdfApiId,
+  ]).value.Items;
+  assert(
+    JSON.stringify(pdfRoutes.map(({ RouteKey }) => RouteKey).sort()) ===
+      JSON.stringify(contract.pdf.routes.map(({ route }) => route).sort()),
+    "PDF API route inventory has drifted.",
+  );
+  assert(
+    pdfRoutesTargetSingleFunction(
+      pdfRoutes,
+      pdfIntegrations,
+      outputs.pdfFunctionName,
+    ),
+    "PDF API routes must be public and target one dedicated function.",
+  );
+
+  const pdfDeployment = runAws([
+    "lambda",
+    "get-function",
+    "--function-name",
+    outputs.pdfFunctionName,
+  ]).value;
+  const pdfFunction = pdfDeployment.Configuration;
+  assert(
+    pdfFunction.Runtime === contract.pdf.runtime &&
+      pdfFunction.MemorySize === contract.pdf.memoryMb &&
+      pdfFunction.Timeout === contract.pdf.timeoutSeconds &&
+      pdfFunction.EphemeralStorage?.Size === contract.pdf.storageMb &&
+      JSON.stringify(pdfFunction.Architectures) ===
+        JSON.stringify([contract.pdf.architecture]),
+    "PDF function runtime limits have drifted.",
+  );
+  assert(
+    pdfFunction.Environment?.Variables?.CORS_ORIGIN === outputs.routerUrl,
+    "PDF function CORS origin is not the exact Router origin.",
+  );
+  const pdfCodeLocation = pdfDeployment.Code?.Location;
+  assert(pdfCodeLocation, "PDF function deployment archive URL is missing.");
+  const pdfCodeUrl = new URL(pdfCodeLocation);
+  assert(
+    pdfCodeUrl.protocol === "https:" &&
+      pdfCodeUrl.hostname.endsWith(".amazonaws.com"),
+    "PDF function deployment archive URL has an unexpected origin.",
+  );
+  const pdfCodeResponse = await fetch(pdfCodeUrl);
+  assert(pdfCodeResponse.ok, "PDF function deployment archive could not be read.");
+  const pdfBundle = await inspectPdfBundle(
+    Buffer.from(await pdfCodeResponse.arrayBuffer()),
+  );
+  assert(
+    pdfBundle.fontBytes === contract.pdf.font.bytes &&
+      pdfBundle.fontSha256 === contract.pdf.font.sha256 &&
+      pdfBundle.nativeArm64BinaryCount > 0,
+    "PDF deployment archive runtime assets have drifted.",
+  );
+  const pdfRoleArn = pdfFunction.Role;
+  const pdfRoleName = pdfRoleArn?.slice(pdfRoleArn.lastIndexOf("/") + 1);
+  assert(pdfRoleName, "PDF function execution role is missing.");
+  const pdfRole = runAws(["iam", "get-role", "--role-name", pdfRoleName]).value
+    .Role;
+  assert(
+    pdfRole.PermissionsBoundary?.PermissionsBoundaryArn?.endsWith(
+      ":policy/auditflow-test-workload-boundary",
+    ),
+    "PDF function does not use the test workload permissions boundary.",
+  );
+  const pdfAttachedPolicies = runAws([
+    "iam",
+    "list-attached-role-policies",
+    "--role-name",
+    pdfRoleName,
+  ]).value.AttachedPolicies;
+  const pdfInlinePolicies = runAws([
+    "iam",
+    "list-role-policies",
+    "--role-name",
+    pdfRoleName,
+  ]).value.PolicyNames;
+  assert(
+    !pdfAttachedPolicies.some(({ PolicyName, PolicyArn }) =>
+      /administrator|poweruser/i.test(`${PolicyName} ${PolicyArn}`),
+    ) &&
+      !pdfInlinePolicies.some((name) => /administrator|poweruser/i.test(name)),
+    "PDF function execution role has an elevated attached policy.",
+  );
+  const accountId = /^arn:aws:iam::(\d{12}):role\//.exec(pdfRoleArn)?.[1];
+  assert(accountId, "PDF function role ARN has an unexpected shape.");
+  const forbiddenPdfActions = [
+    ["s3:GetObject", "arn:aws:s3:::auditflow-policy-probe/object"],
+    [
+      "dynamodb:GetItem",
+      `arn:aws:dynamodb:il-central-1:${accountId}:table/auditflow-policy-probe`,
+    ],
+    [
+      "cognito-idp:AdminGetUser",
+      `arn:aws:cognito-idp:il-central-1:${accountId}:userpool/il-central-1_policyprobe`,
+    ],
+  ];
+  for (const [action, resourceArn] of forbiddenPdfActions) {
+    assert(
+      simulatePrincipalAction(pdfRoleArn, action, resourceArn) !== "allowed",
+      `PDF function execution role unexpectedly allows ${action}.`,
+    );
+  }
   const distribution = runAws([
     "cloudfront",
     "get-distribution",
@@ -854,6 +1091,36 @@ async function verifyLive(contract, stage, outputsPath) {
       return statement.Sid === "GlobalDiscoveryOnly" || statement.Condition;
     }),
     "A service mutation retains unconditioned global resource scope.",
+  );
+  const stageLogTags = findPolicyStatement(
+    inlinePolicy,
+    "InspectStageLogTags",
+  );
+  assert(
+    stageLogTags?.Action === "logs:ListTagsForResource" &&
+      asArray(stageLogTags.Resource).length === 2 &&
+      asArray(stageLogTags.Resource).every(
+        (resource) =>
+          resource.startsWith(
+            `arn:aws:logs:il-central-1:${accountId}:log-group:/aws/`,
+          ) && resource.includes("auditflow-test-"),
+      ),
+    "Test deploy role cannot inspect only AuditFlow test log-group tags.",
+  );
+  const apiTags = findPolicyStatement(inlinePolicy, "TagStageApis");
+  assert(
+    apiTags?.Action === "apigateway:POST" &&
+      apiTags.Resource ===
+        "arn:aws:apigateway:il-central-1::/tags/arn%3Aaws%3Aapigateway%3Ail-central-1%3A%3A%2Fv2%2Fapis%2F*" &&
+      apiTags.Condition?.StringEquals?.["aws:RequestTag/sst:app"] ===
+        "auditflow" &&
+      apiTags.Condition?.StringEquals?.["aws:RequestTag/sst:stage"] ===
+        "test" &&
+      apiTags.Condition?.StringEquals?.["aws:ResourceTag/sst:app"] ===
+        "auditflow" &&
+      apiTags.Condition?.StringEquals?.["aws:ResourceTag/sst:stage"] ===
+        "test",
+    "Test deploy role cannot update tags only on existing tagged AuditFlow test APIs.",
   );
 
   const policyFindings = runAws([
@@ -980,6 +1247,18 @@ async function verifyLive(contract, stage, outputsPath) {
     ) !== "allowed",
     "Policy simulation allowed mutation of an unrelated Lambda function.",
   );
+  assert(
+    simulatePrincipalAction(
+      roleArn,
+      "apigateway:POST",
+      "arn:aws:apigateway:il-central-1::/tags/arn%3Aaws%3Aapigateway%3Ail-central-1%3A%3A%2Fv2%2Fapis%2Funrelated-policy-probe",
+      [
+        "ContextKeyName=aws:RequestTag/sst:app,ContextKeyValues=auditflow,ContextKeyType=string",
+        "ContextKeyName=aws:RequestTag/sst:stage,ContextKeyValues=test,ContextKeyType=string",
+      ],
+    ) !== "allowed",
+    "Policy simulation allowed an unrelated API to adopt AuditFlow stage tags.",
+  );
 
   const root = await fetchText(outputs.routerUrl, 200);
   const deepLink = await fetchText(`${outputs.routerUrl}/clients`, 200);
@@ -1006,6 +1285,61 @@ async function verifyLive(contract, stage, outputsPath) {
     "Protected health route accepted an unauthenticated request.",
   );
 
+  const rawPdfHealth = await fetchText(
+    `${pdfApiUrl.href.replace(/\/$/, "")}/health`,
+    200,
+  );
+  const routerPdfHealth = await fetchText(outputs.pdfHealthUrl, 200);
+  for (const healthResult of [rawPdfHealth, routerPdfHealth]) {
+    assert(
+      healthResult.response.headers
+        .get("content-type")
+        ?.includes("application/json") &&
+        healthResult.response.headers.get("access-control-allow-origin") ===
+          outputs.routerUrl,
+      "PDF health response headers have drifted.",
+    );
+    assert(
+      JSON.stringify(JSON.parse(healthResult.text)) ===
+        JSON.stringify({ ok: true, heeboLoaded: true }),
+      "PDF health response did not prove the Heebo asset loaded.",
+    );
+  }
+  const preflight = await fetch(
+    `${pdfApiUrl.href.replace(/\/$/, "")}/render-pages`,
+    {
+      method: "OPTIONS",
+      headers: {
+        Origin: outputs.routerUrl,
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type",
+      },
+    },
+  );
+  assert(
+    preflight.status === 200 &&
+      preflight.headers.get("access-control-allow-origin") === outputs.routerUrl &&
+      preflight.headers.get("access-control-allow-methods") === "POST, OPTIONS",
+    "PDF API preflight contract has drifted.",
+  );
+
+  const pdfFixture = readJson(pdfFixturePath);
+  const renderResponse = await fetch(`${outputs.pdfBaseUrl}/render-pages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ basePdfUrl: pdfFixture.basePdfUrl }),
+  });
+  assert(renderResponse.status === 200, "PDF native render smoke request failed.");
+  const renderBody = await renderResponse.json();
+  assert(
+    renderBody.pageCount === pdfFixture.expected.pageCount &&
+      renderBody.pages?.length === pdfFixture.expected.pageCount &&
+      renderBody.pages.every(
+        (page) => typeof page === "string" && page.length > 100,
+      ),
+    "PDF native render smoke response has drifted.",
+  );
+
   return {
     mode: "live",
     stage,
@@ -1019,6 +1353,17 @@ async function verifyLive(contract, stage, outputsPath) {
       temporaryExpirationDays: 1,
       apiHttp: true,
       lambdaNode20Arm64: true,
+      pdfLambdaNode20Arm64: true,
+      pdfRuntimeLimitsExact: true,
+      pdfCorsExact: true,
+      pdfHeeboLoaded: true,
+      pdfNativeRenderPassed: true,
+      pdfBundleFontExact:
+        pdfBundle.fontBytes === contract.pdf.font.bytes &&
+        pdfBundle.fontSha256 === contract.pdf.font.sha256,
+      pdfBundleAarch64Exact: pdfBundle.nativeArm64BinaryCount > 0,
+      pdfWorkloadBoundaryAttached: true,
+      pdfDataActionsDenied: forbiddenPdfActions.length,
       routerDeployed: true,
       managedLoginConfigured: true,
       refreshRotationEnabled: true,

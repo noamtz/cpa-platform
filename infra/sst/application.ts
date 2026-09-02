@@ -1,15 +1,54 @@
 import {
   apiRoutes,
   authContract,
+  deploymentGateContract,
+  pdfContract,
   routerContract,
   zipWorkerContract,
 } from "./contracts";
 import type { FoundationAuthentication } from "./auth";
 import type { StageSettings } from "./stage";
 import type { FoundationStorage } from "./storage";
+import type { FoundationPdf } from "./pdf";
 
 export function createApplicationRouter() {
   return new sst.aws.Router(routerContract.logicalName);
+}
+
+export function resolveSitePdfApiUrl(
+  stage: StageSettings,
+  configured: string | undefined,
+) {
+  const candidate = configured?.trim();
+  if (!candidate || candidate === pdfContract.routerPrefix) {
+    return pdfContract.routerPrefix;
+  }
+  if (stage.isProduction) {
+    throw new Error("VITE_PDF_API_URL overrides are restricted to the test stage.");
+  }
+  let url: URL;
+  try {
+    url = new URL(candidate);
+  } catch {
+    throw new Error("VITE_PDF_API_URL must be an HTTPS API Gateway base URL.");
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash ||
+    (url.pathname !== "/" && url.pathname !== "") ||
+    !/^[a-z0-9]+\.execute-api\.il-central-1\.amazonaws\.com$/.test(url.hostname)
+  ) {
+    throw new Error("VITE_PDF_API_URL must be an HTTPS API Gateway base URL.");
+  }
+  if (url.origin !== pdfContract.legacyTestBaseUrl) {
+    throw new Error(
+      "VITE_PDF_API_URL must match the retained legacy test PDF API.",
+    );
+  }
+  return url.origin;
 }
 
 export function createApplication(
@@ -18,6 +57,7 @@ export function createApplication(
   authentication: FoundationAuthentication,
   workloadBoundaryArn: $util.Input<string>,
   router: ReturnType<typeof createApplicationRouter>,
+  pdf: FoundationPdf,
 ) {
   const api = new sst.aws.ApiGatewayV2("ApplicationApi", {
     cors: false,
@@ -50,6 +90,8 @@ export function createApplication(
       FILES_BUCKET_NAME: storage.buckets.FilesBucket.name,
       TEMPORARY_OUTPUTS_BUCKET_NAME:
         storage.buckets.TemporaryOutputsBucket.name,
+      [deploymentGateContract.privateFilesImport.environmentVariable]:
+        deploymentGateContract.privateFilesImport.syntheticOnlyValue,
     },
     link: [
       ...storage.tableList,
@@ -78,6 +120,8 @@ export function createApplication(
       FILES_BUCKET_NAME: storage.buckets.FilesBucket.name,
       TEMPORARY_OUTPUTS_BUCKET_NAME:
         storage.buckets.TemporaryOutputsBucket.name,
+      [deploymentGateContract.privateFilesImport.environmentVariable]:
+        deploymentGateContract.privateFilesImport.syntheticOnlyValue,
     },
     permissions: [
       {
@@ -145,6 +189,17 @@ export function createApplication(
     },
   });
 
+  router.route(pdfContract.routerPattern, pdf.api.url, {
+    rewrite: {
+      regex: pdfContract.rewritePattern,
+      to: pdfContract.rewriteReplacement,
+    },
+  });
+
+  const sitePdfApiUrl = resolveSitePdfApiUrl(
+    stage,
+    process.env.VITE_PDF_API_URL,
+  );
   const site = new sst.aws.StaticSite(routerContract.staticSiteLogicalName, {
     path: ".",
     build: {
@@ -154,6 +209,7 @@ export function createApplication(
     errorPage: routerContract.spaFallback,
     environment: {
       VITE_API_BASE_URL: routerContract.apiPrefix,
+      VITE_PDF_API_URL: sitePdfApiUrl,
       VITE_COGNITO_AUTHORITY: authentication.authority,
       VITE_COGNITO_CLIENT_ID: authentication.userPoolClient.id,
       VITE_COGNITO_CALLBACK_URL: authentication.callbackUrl,
@@ -166,5 +222,5 @@ export function createApplication(
     },
   });
 
-  return { router, api, apiFunction, zipWorker, authorizer, site };
+  return { router, api, apiFunction, zipWorker, authorizer, site, pdf };
 }

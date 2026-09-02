@@ -208,7 +208,14 @@ export function buildTestDeploymentPolicy({
   const deployRoleArn = `arn:aws:iam::${accountId}:role/${resourcePrefix}github-deploy`;
   const workloadRoleArn = `arn:aws:iam::${accountId}:role/${resourcePrefix}*`;
   const apiArn = `arn:aws:apigateway:${region}::/apis/*`;
+  const apiTagArn =
+    `arn:aws:apigateway:${region}::/tags/` +
+    `arn%3Aaws%3Aapigateway%3A${region}%3A%3A%2Fv2%2Fapis%2F*`;
   const cognitoArn = `arn:aws:cognito-idp:${region}:${accountId}:userpool/*`;
+  const stageLogGroupArns = [
+    `arn:aws:logs:${region}:${accountId}:log-group:/aws/lambda/${resourcePrefix}*`,
+    `arn:aws:logs:${region}:${accountId}:log-group:/aws/vendedlogs/apis/${resourcePrefix}*`,
+  ];
   const cloudFrontResources = [
     `arn:aws:cloudfront::${accountId}:distribution/*`,
     `arn:aws:cloudfront::${accountId}:function/${resourcePrefix}*`,
@@ -336,10 +343,13 @@ export function buildTestDeploymentPolicy({
         Sid: "ManageStageLogs",
         Effect: "Allow",
         Action: "logs:*",
-        Resource: [
-          `arn:aws:logs:${region}:${accountId}:log-group:/aws/lambda/${resourcePrefix}*:*`,
-          `arn:aws:logs:${region}:${accountId}:log-group:/aws/vendedlogs/apis/${resourcePrefix}*:*`,
-        ],
+        Resource: stageLogGroupArns.map((arn) => `${arn}:*`),
+      },
+      {
+        Sid: "InspectStageLogTags",
+        Effect: "Allow",
+        Action: "logs:ListTagsForResource",
+        Resource: stageLogGroupArns,
       },
       {
         Sid: "CreateTaggedStageApi",
@@ -365,6 +375,18 @@ export function buildTestDeploymentPolicy({
         ],
         Resource: apiArn,
         Condition: resourceTagCondition,
+      },
+      {
+        Sid: "TagStageApis",
+        Effect: "Allow",
+        Action: "apigateway:POST",
+        Resource: apiTagArn,
+        Condition: {
+          StringEquals: {
+            ...resourceTagCondition.StringEquals,
+            ...requestTagCondition.StringEquals,
+          },
+        },
       },
       {
         Sid: "CreateTaggedStageUserPool",

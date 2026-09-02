@@ -10,10 +10,30 @@ import {
   deploymentGateContract,
   expectedInventory,
   expectedOutputKeys,
+  pdfContract,
   routerContract,
   tableContracts,
   zipWorkerContract,
 } from "../contracts";
+import { resolveSitePdfApiUrl } from "../application";
+import type { StageSettings } from "../stage";
+
+const testStage: StageSettings = {
+  name: "test",
+  isProduction: false,
+  protect: false,
+  removal: "remove",
+  logRetentionDays: 14,
+};
+
+const productionStage: StageSettings = {
+  ...testStage,
+  name: "production",
+  isProduction: true,
+  protect: true,
+  removal: "retain",
+  logRetentionDays: 30,
+};
 
 describe("foundation resource contract", () => {
   it("keeps the dependency-free verifier contract in sync", () => {
@@ -73,6 +93,7 @@ describe("foundation resource contract", () => {
       rewriteReplacement: routerContract.rewriteReplacement,
       spaFallback: routerContract.spaFallback,
     });
+    expect(verifierContract.pdf).toEqual(pdfContract);
     expect(verifierContract.zipWorker).toEqual(zipWorkerContract);
     expect(verifierContract.deploymentGates).toEqual(deploymentGateContract);
     expect(verifierContract.oidc).toEqual({
@@ -93,7 +114,9 @@ describe("foundation resource contract", () => {
       routers: 1,
       staticSites: 1,
       apis: 1,
+      pdfApis: 1,
       apiFunctions: 1,
+      pdfFunctions: 1,
       workerFunctions: 1,
       userPools: 1,
       userPoolClients: 1,
@@ -276,6 +299,90 @@ describe("foundation resource contract", () => {
     });
   });
 
+  it("defines a separate compute-only PDF API and exact package contract", () => {
+    expect(pdfContract).toEqual({
+      apiLogicalName: "PdfApi",
+      functionLogicalName: "PdfRendererFunction",
+      handler: "lambda/pdf-generator/index.handler",
+      runtime: "nodejs20.x",
+      architecture: "arm64",
+      memoryMb: 1024,
+      timeoutSeconds: 60,
+      storageMb: 512,
+      corsOriginPolicy: "router-origin-exact",
+      apiCors: false,
+      routerPrefix: "/pdf",
+      routerPattern: "/pdf",
+      rewritePattern: "^/pdf/(.*)$",
+      rewriteReplacement: "/$1",
+      legacyTestBaseUrl:
+        "https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com",
+      routes: [
+        { route: "GET /health" },
+        { route: "POST /render-pages" },
+        { route: "POST /generate-pdf" },
+        { route: "OPTIONS /{proxy+}" },
+      ],
+      nodejsInstall: [
+        "@napi-rs/canvas",
+        "@napi-rs/canvas-linux-arm64-gnu",
+        "pdfjs-dist",
+      ],
+      font: {
+        source: "lambda/pdf-generator/fonts/Heebo-Regular.ttf",
+        destination: "fonts/Heebo-Regular.ttf",
+        bytes: 122012,
+        sha256:
+          "18F930B583FA8FE6B40B2F8263B7AC6AFBAC07ADC91A12467874E7467D3ACE30",
+      },
+      resourceLinks: [],
+      permissions: [],
+    });
+
+    const pdfSource = readFileSync(new URL("../pdf.ts", import.meta.url), "utf8");
+    const applicationSource = readFileSync(
+      new URL("../application.ts", import.meta.url),
+      "utf8",
+    );
+    expect(pdfSource).toContain("CORS_ORIGIN: routerOrigin");
+    expect(pdfSource).toContain("install: [...pdfContract.nodejsInstall]");
+    expect(pdfSource).toContain("copyFiles:");
+    expect(pdfSource).toContain("link: [...pdfContract.resourceLinks]");
+    expect(pdfSource).toContain("permissions: [...pdfContract.permissions]");
+    expect(pdfSource).toContain("args.permissionsBoundary = workloadBoundaryArn");
+    expect(pdfSource).toContain("args.corsConfiguration = undefined");
+    expect(applicationSource).toContain(
+      "router.route(pdfContract.routerPattern, pdf.api.url",
+    );
+    expect(applicationSource).toContain("VITE_PDF_API_URL: sitePdfApiUrl");
+  });
+
+  it("allows only an explicit test-stage API Gateway PDF rollback base", () => {
+    expect(resolveSitePdfApiUrl(testStage, undefined)).toBe("/pdf");
+    expect(resolveSitePdfApiUrl(testStage, " /pdf ")).toBe("/pdf");
+    expect(
+      resolveSitePdfApiUrl(
+        testStage,
+        " https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com/ ",
+      ),
+    ).toBe("https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com");
+    expect(() =>
+      resolveSitePdfApiUrl(testStage, "https://example.test"),
+    ).toThrow("HTTPS API Gateway");
+    expect(() =>
+      resolveSitePdfApiUrl(
+        testStage,
+        "https://notauditflow.execute-api.il-central-1.amazonaws.com",
+      ),
+    ).toThrow("retained legacy test PDF API");
+    expect(() =>
+      resolveSitePdfApiUrl(
+        productionStage,
+        "https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com",
+      ),
+    ).toThrow("restricted to the test stage");
+  });
+
   it("uses an exact GitHub environment subject without legacy or wildcard trust", () => {
     expect(deploymentContract.providerUrl).toBe(
       "token.actions.githubusercontent.com",
@@ -286,6 +393,24 @@ describe("foundation resource contract", () => {
     );
     expect(deploymentContract.subject).not.toContain("*");
     expect(deploymentContract.subject).not.toContain("noamtz/auditflow");
+  });
+
+  it("pins test deployments to synthetic-only file access", () => {
+    expect(deploymentGateContract.privateFilesImport).toEqual({
+      issue: 11,
+      evidencePath: "docs/migration/private-file-import-verification.json",
+      verifier: "tooling/verify_private_file_cutover.mjs",
+      requiredBefore: "legacy-file-read-enablement",
+      resolverContract: "legacy-sha256-v1",
+      environmentVariable: "LEGACY_FILE_READS_ENABLED",
+      syntheticOnlyValue: "false",
+      enablementIssue: 11,
+    });
+    const applicationSource = readFileSync(
+      new URL("../application.ts", import.meta.url),
+      "utf8",
+    );
+    expect(applicationSource.match(/syntheticOnlyValue/g)).toHaveLength(2);
   });
 
   it("defines an alert-only production budget and safe outputs", () => {

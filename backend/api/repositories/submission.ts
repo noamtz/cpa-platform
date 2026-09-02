@@ -50,6 +50,7 @@ export class SubmissionRepository {
         ascending: sort === "created_date",
         limit,
         exhaustBeforeSort: true,
+        recordType: "Submission",
       });
     }
     return queryRecords<SubmissionRecord>({

@@ -1,0 +1,52 @@
+{
+  "fixtureVersion": 1,
+  "name": "synthetic-rtl-multipage",
+  "basePdfUrl": "data:application/pdf;base64,JVBERi0xLjQKJVN5bnRoZXRpYwoxIDAgb2JqCjw8IC9UeXBlIC9DYXRhbG9nIC9QYWdlcyAyIDAgUiA+PgplbmRvYmoKMiAwIG9iago8PCAvVHlwZSAvUGFnZXMgL0tpZHMgWzMgMCBSIDQgMCBSXSAvQ291bnQgMiA+PgplbmRvYmoKMyAwIG9iago8PCAvVHlwZSAvUGFnZSAvUGFyZW50IDIgMCBSIC9NZWRpYUJveCBbMCAwIDU5NS4yOCA4NDEuODldIC9SZXNvdXJjZXMgPDwgPj4gL0NvbnRlbnRzIDUgMCBSID4+CmVuZG9iago0IDAgb2JqCjw8IC9UeXBlIC9QYWdlIC9QYXJlbnQgMiAwIFIgL01lZGlhQm94IFswIDAgNTk1LjI4IDg0MS44OV0gL1Jlc291cmNlcyA8PCA+PiAvQ29udGVudHMgNSAwIFIgPj4KZW5kb2JqCjUgMCBvYmoKPDwgL0xlbmd0aCAwID4+CnN0cmVhbQoKZW5kc3RyZWFtCmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMjAgMDAwMDAgbiAKMDAwMDAwMDA2OSAwMDAwMCBuIAowMDAwMDAwMTMyIDAwMDAwIG4gCjAwMDAwMDAyNDIgMDAwMDAgbiAKMDAwMDAwMDM1MiAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjQwMQolJUVPRgo=",
+  "templateJson": {
+    "basePdf": null,
+    "schemas": [
+      [
+        { "name": "sys:שם_מלא", "type": "text", "position": { "x": 125, "y": 24 }, "width": 65, "height": 10, "fontName": "Heebo", "fontSize": 12, "alignment": "right", "verticalAlignment": "middle", "readOnly": true, "required": false, "content": "ישראל ישראלי" },
+        { "name": "rtl_text", "type": "text", "position": { "x": 75, "y": 58 }, "width": 115, "height": 14, "fontName": "Heebo", "fontSize": 11, "alignment": "right", "verticalAlignment": "middle", "readOnly": false, "required": true, "content": "" },
+        { "name": "approved_checkbox", "type": "checkbox", "position": { "x": 172, "y": 91 }, "width": 7, "height": 7, "readOnly": false, "required": true }
+      ],
+      [
+        { "name": "mixed_rtl_numbers", "type": "text", "position": { "x": 60, "y": 36 }, "width": 130, "height": 12, "fontName": "Heebo", "fontSize": 11, "alignment": "right", "verticalAlignment": "middle", "readOnly": false, "required": false, "content": "" },
+        { "name": "client_signature", "type": "signature", "position": { "x": 105, "y": 82 }, "width": 78, "height": 28, "readOnly": false, "required": true }
+      ]
+    ]
+  },
+  "inputs": [
+    { "sys:שם_מלא": "ישראל ישראלי", "rtl_text": "בדיקת עברית מימין לשמאל", "approved_checkbox": "true" },
+    { "mixed_rtl_numbers": "שנת מס 2025 — טופס 101", "client_signature": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAMCAYAAAAQw/9NAAAABHNCSVQICAgIfAhkiAAAAAFzUkdCAK7OHOkAAAFkSURBVDiN7ZC9SgNBFIXP3ZEtA3Nn2LAhaCU+wFrYiYrYCCJiY2XlE1jLCtrZ5SVsfAEN2ApxC5vUqSTikIgBjZKda6MQIWJ+EJt85RzmnI8LTBkda22itT4AgJlJy4wxqyIyB+C51WpdjCOT53lCRImIJACSPM8zIsoAgCaR01pfE9EDgBcATkQOlVInURSd1Ov190F/SqWS7Xa7p18yADIiykQkU0plzrlsEqd+uTdmXu9/ExEyxux/Zsdpmgb9eRzHi1rrR631gbU2GWZn4AWjKNrp9XqzADphGN41m83aV2at3fTenxUKhaVGo/H0UzEzHwHYAPBKRJcisisi9+12e2uoCwwSZOZ1ETknomoQBDXv/YKIhES0DaBDRDfe+1Apteec6/xWnqZpUKlUVohoHsCtc+52FLlvWGuXmfmqXC7zD3kpjuO5sQcmwRizxszVfxn/jWKxGDHzw397TPkrPgCaG32YE2UYYAAAAABJRU5ErkJggg==" }
+  ],
+  "expected": {
+    "pageCount": 2,
+    "pageOrder": [1, 2],
+    "pageDimensionsPoints": [{ "width": 595.28, "height": 841.89 }, { "width": 595.28, "height": 841.89 }],
+    "defaultRender": { "scale": 1.5, "quality": 0.8, "pixelDimensions": [{ "width": 892, "height": 1262 }, { "width": 892, "height": 1262 }] },
+    "contentType": "application/pdf",
+    "attachmentFilename": "signed-document.pdf"
+  },
+  "visual": {
+    "renderer": "pdfjs-dist",
+    "rendererVersion": "3.11.174",
+    "canvas": "@napi-rs/canvas",
+    "canvasVersion": "0.1.100",
+    "scale": 1.5,
+    "background": "opaque-white",
+    "colorSpace": "srgb-rgba8",
+    "alphaPolicy": "compare-rgb-after-white-composite",
+    "pageOrder": [1, 2],
+    "perChannelDelta": 8,
+    "mismatchDenominator": "pixels",
+    "minimumMismatchRatio": 0.005,
+    "selfVarianceMargin": 0.001,
+    "maximumMismatchRatio": 0.01
+  },
+  "profiles": {
+    "compact": { "repeatedPages": 2, "fieldCopies": 1, "targetRequestBytes": { "minimum": 1000, "maximum": 50000 }, "targetOutputBytes": { "minimum": 500, "maximum": 1000000 }, "responseReadCeilingBytes": 6291456, "timeoutMs": 10000 },
+    "representative": { "repeatedPages": 8, "fieldCopies": 3, "targetRequestBytes": { "minimum": 10000, "maximum": 1000000 }, "targetOutputBytes": { "minimum": 1000, "maximum": 4000000 }, "responseReadCeilingBytes": 6291456, "timeoutMs": 25000 },
+    "boundary": { "repeatedPages": 24, "fieldCopies": 12, "hiddenJpegPixels": 350, "targetRequestBytes": { "minimum": 5500000, "maximum": 5900000 }, "targetOutputBytes": { "minimum": 4000000, "maximum": 4400000 }, "targetLambdaProxyPayloadBytes": { "minimum": 5300000, "maximum": 6000000 }, "responseReadCeilingBytes": 6291456, "timeoutMs": 29000 }
+  }
+}

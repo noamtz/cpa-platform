@@ -61,10 +61,11 @@ Evidence paths below are relative to this repository. The external production-so
   mutations are deployed to the SST test stage and the live foundation plus managed-login redirect are verified.
   The first synthetic admin and its linked User fixture are bootstrapped. Private S3 upload/read, journaled file
   evidence, and asynchronous complete-ZIP contracts are implemented and locally validated but are not yet deployed
-  or acceptance-tested. Test deployment now fails closed until issue #11 publishes aggregate-only evidence that all
-  legacy file references were imported with zero unresolved entries. The facade retains only the Wiki-approved
-  temporary PDF-template/readiness allowlist; snapshot file mirroring, authenticated acceptance, broader data
-  seeding, and every production action still require explicit authorization.
+  or acceptance-tested. The owner-approved issue #9 path may deploy the complete SST test stage with disposable
+  synthetic data while application and ZIP-worker legacy file reads are pinned off. Issue #11 owns aggregate-only
+  zero-unresolved import evidence and the later explicit transition that enables legacy reads. The facade retains
+  only the Wiki-approved temporary PDF-template/readiness allowlist; snapshot import, broader data seeding, and every
+  production action still require explicit authorization.
 - **Source integrity:** Make rewrite changes here; treat `C:\Users\ntzur\workspace-antigravity\auditflow` as read-only unless the user explicitly requests changes there. Reproduce and verify the imported baseline through `tooling/import_auditflow_source.py` and `docs/migration/auditflow-source-manifest.json`. Evidence: rewrite/input boundary in `.agents/references/auditflow-rewrite-target.md`.
 - **Parity:** Add evidence before replacing behavior, and keep the working Base44 path until its AWS replacement has verified parity and a rollback-safe cutover. Evidence: rewrite-workspace `.agents/references/auditflow-rewrite-target.md` and source `.agents/AGENTS.md`.
 - **Git:** Use feature branches for major work, reserve direct `main` changes for hotfixes, and prefix commits with `feat:`, `fix:`, `refactor:`, `infra:`, `test:`, or `docs:`. Evidence: source `.agents/AGENTS.md` and this repository's accepted documentation history.
