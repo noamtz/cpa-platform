@@ -43,6 +43,11 @@ export function resolveSitePdfApiUrl(
   ) {
     throw new Error("VITE_PDF_API_URL must be an HTTPS API Gateway base URL.");
   }
+  if (url.origin !== pdfContract.legacyTestBaseUrl) {
+    throw new Error(
+      "VITE_PDF_API_URL must match the retained legacy test PDF API.",
+    );
+  }
   return url.origin;
 }
 

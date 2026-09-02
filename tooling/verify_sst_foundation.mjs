@@ -195,6 +195,8 @@ function verifyContract(contract, stage) {
       contract.pdf.routerPattern === "/pdf" &&
       contract.pdf.rewritePattern === "^/pdf/(.*)$" &&
       contract.pdf.rewriteReplacement === "/$1" &&
+      contract.pdf.legacyTestBaseUrl ===
+        "https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com" &&
       JSON.stringify(contract.pdf.routes) ===
         JSON.stringify([
           { route: "GET /health" },

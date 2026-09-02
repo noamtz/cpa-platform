@@ -315,6 +315,8 @@ describe("foundation resource contract", () => {
       routerPattern: "/pdf",
       rewritePattern: "^/pdf/(.*)$",
       rewriteReplacement: "/$1",
+      legacyTestBaseUrl:
+        "https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com",
       routes: [
         { route: "GET /health" },
         { route: "POST /render-pages" },
@@ -367,6 +369,12 @@ describe("foundation resource contract", () => {
     expect(() =>
       resolveSitePdfApiUrl(testStage, "https://example.test"),
     ).toThrow("HTTPS API Gateway");
+    expect(() =>
+      resolveSitePdfApiUrl(
+        testStage,
+        "https://notauditflow.execute-api.il-central-1.amazonaws.com",
+      ),
+    ).toThrow("retained legacy test PDF API");
     expect(() =>
       resolveSitePdfApiUrl(
         productionStage,

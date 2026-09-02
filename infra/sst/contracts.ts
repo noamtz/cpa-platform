@@ -356,6 +356,8 @@ export const pdfContract = {
   routerPattern: "/pdf",
   rewritePattern: "^/pdf/(.*)$",
   rewriteReplacement: "/$1",
+  legacyTestBaseUrl:
+    "https://mr8yrlc9ic.execute-api.il-central-1.amazonaws.com",
   routes: [
     { route: "GET /health" },
     { route: "POST /render-pages" },
