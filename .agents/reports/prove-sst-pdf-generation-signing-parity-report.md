@@ -6,7 +6,7 @@
 
 **PR**: [#27](https://github.com/noamtz/cpa-platform/pull/27)
 
-**Status**: LIVE VALIDATED; DESKTOP, NEGATIVE-PROBE, AND ROLLBACK PASS; OWNER MOBILE CELL PENDING
+**Status**: ACCEPTANCE COMPLETE; READY FOR HUMAN APPROVAL
 
 ## Summary
 
@@ -18,9 +18,10 @@ base64-bearing Lambda proxy envelope and makes staged/native verification a mand
 Tasks 1–13 are complete under the owner-approved synthetic-only exception, with application and ZIP-worker legacy
 reads pinned off. The test deployment, live foundation verifier, raw and same-origin PDF routes, compact,
 representative, and boundary parity profiles, aggregate CloudWatch measurements, authenticated desktop journey,
-negative legacy-reference probe, and legacy-test rollback smoke all pass. Live acceptance exposed five integration
-defects; each was fixed and regression-tested. The sole remaining acceptance cell is touch signing in a real
-WhatsApp/WKWebView session on the owner's mobile device.
+negative legacy-reference probe, legacy-test rollback smoke, and owner-run Pixel 10 touch-signing journey all pass.
+Live acceptance exposed five integration defects; each was fixed and regression-tested. WhatsApp delegated the
+mobile link to external Chrome rather than an embedded WKWebView; the owner explicitly accepted that observed
+WhatsApp-to-Chrome path as sufficient for issue #9's AWS migration scope, without claiming WKWebView coverage.
 
 ## Tasks completed
 
@@ -126,16 +127,24 @@ WhatsApp/WKWebView session on the owner's mobile device.
   renderer, completed the re-sign/generate/upload/save/refresh/resume/reopen journey, and returned a valid PDF. The
   site was then rebuilt without the override; a fresh same-origin `/pdf/render-pages` request returned 200 and the
   final live foundation verifier passed.
-- Mobile WhatsApp/WKWebView touch signing: PENDING — requires the owner's physical device. The clearly named,
-  disposable synthetic client/template/submission remain isolated in the test stage only to support this final cell.
+- Mobile WhatsApp-to-Chrome touch signing, 2026-09-02 Asia/Jerusalem: PASS — the owner opened the questionnaire link
+  from WhatsApp on a Pixel 10; WhatsApp launched external Chrome. The owner confirmed touch signing, save,
+  refresh/resume, and signed-PDF reopen all worked. Android and Chrome versions were not supplied. This proves the
+  actual device's WhatsApp handoff plus mobile Chrome path, not embedded WKWebView behavior; the owner accepted that
+  limitation for issue #9's AWS migration scope. Sentry remained unavailable and no result is inferred.
+- Synthetic cleanup: PASS — the exact test submission and client were journal-archived, the synthetic signing step
+  was removed from the active questionnaire, and its PdfTemplate record was removed in one scoped journaled test
+  transaction. Associated versioned private objects remain isolated and are no longer reachable through an active
+  client/submission/template authorization path.
 
 ## Deviations from the plan
 
 - The owner approved the Wiki-recorded synthetic-only exception: issue #11 aggregate import evidence is not required
   for issue #9 acceptance while both legacy-read switches remain pinned off and only disposable synthetic data is
   used. The ordinary issue #11 gate still blocks enabling either legacy reader and remains an expected failure.
-- Task 14 cannot be completed solely through automation: authentication, desktop acceptance, and rollback are now
-  complete, but real WhatsApp/WKWebView touch behavior still requires an owner-controlled mobile device.
+- Task 14's owner-run mobile attempt completed on a Pixel 10, but WhatsApp opened external Chrome instead of an
+  embedded WKWebView. The owner accepted the observed WhatsApp-to-Chrome path as the supported mobile cell for this
+  AWS migration ticket. WKWebView-specific behavior remains explicitly unproven rather than inferred.
 - SST preview does not materialize the final PDF `code.zip` for a new function. The verifier therefore proves the
   preview's exact native staging plus font copy source before deployment, then the live verifier inspects the actual
   AWS deployment archive after an authorized deploy rather than manufacturing a local archive and presenting it as
@@ -192,6 +201,6 @@ WhatsApp/WKWebView session on the owner's mobile device.
 
 ## Ready for the next step
 
-PR #27 now contains live deployment and parity proof, including desktop acceptance, negative legacy-access evidence,
-and a restored legacy rollback smoke. Complete the single owner-run mobile WhatsApp/WKWebView touch-signing cell,
-record its dated result and exact Sentry availability, then mark the PR ready for final human approval.
+PR #27 now contains live deployment and parity proof, including desktop and owner-run mobile Chrome acceptance,
+negative legacy-access evidence, restored legacy rollback, and scoped synthetic cleanup. After the final CI run for
+this evidence-only update passes, mark the PR ready for final human approval and merge.

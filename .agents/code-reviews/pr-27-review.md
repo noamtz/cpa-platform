@@ -11,8 +11,9 @@
 Advisory verdict: the implementation and live evidence are ready for the final mobile acceptance cell, with no
 unresolved Critical, High, Medium, or Low code findings. The dedicated PDF runtime, same-origin routing, exact
 handler CORS, native ARM64/font bundle, bounded parity verifier, compute-only role, private upload, negative legacy
-access, and rollback boundary are coherent and validated. The PR remains a draft only because real
-WhatsApp/WKWebView touch signing requires the owner's physical mobile device.
+access, and rollback boundary are coherent and validated. The owner-run Pixel 10 path passed when WhatsApp delegated
+to external Chrome. The owner accepted that actual device behavior for issue #9's AWS migration scope; embedded
+WKWebView coverage is explicitly not claimed.
 
 ## Issue counts
 
@@ -44,7 +45,8 @@ None.
 
 ### HUMAN TESTS
 
-- `docs/migration/pdf-parity-runbook.md:108` — complete the WhatsApp/WKWebView touch signing path.
+None remain for issue #9. The owner accepted the observed Pixel 10 WhatsApp-to-Chrome path; WKWebView was not
+exercised and is not represented as passing.
 
 ### FYI
 
@@ -99,7 +101,9 @@ None.
 | Negative legacy-reference probe | PASS — 404 on public read and ZIP request; no signed URL, ZIP job, or worker request; fixture cleaned up |
 | Desktop SST journey | PASS — authenticated Hebrew/RTL signing, upload/save, refresh/resume, and visual reopen |
 | Legacy rollback journey | PASS — legacy test render/generate and complete save/resume/reopen; SST `/pdf` restored |
-| Owner browser matrix | PENDING — mobile WhatsApp/WKWebView touch-signing cell only |
+| Mobile owner journey | PASS — Pixel 10 touch signing, save, refresh/resume, and reopen in external Chrome launched from WhatsApp; OS/browser versions not supplied |
+| Owner browser matrix | PASS WITH ACCEPTED DEVIATION — actual WhatsApp-to-Chrome path passed; WKWebView not exercised or inferred |
+| Synthetic cleanup | PASS — exact client/submission archived; active synthetic step and PdfTemplate record removed through journaled test-stage mutations |
 
 ## What is good
 
@@ -115,6 +119,5 @@ None.
 
 ## Recommendation
 
-Keep PR #27 as a draft until the single mobile HUMAN TEST is recorded. After it passes, update the implementation
-report, mark the PR ready, and hand it to a human for final approval and merge. No additional code remediation is
-currently recommended.
+After the evidence update passes CI, mark PR #27 ready and hand it to a human for final approval and merge. No
+additional code remediation or issue #9 acceptance test is recommended. Do not describe WKWebView as validated.
