@@ -1112,8 +1112,13 @@ async function verifyLive(contract, stage, outputsPath) {
         "arn:aws:apigateway:il-central-1::/tags/arn%3Aaws%3Aapigateway%3Ail-central-1%3A%3A%2Fv2%2Fapis%2F*" &&
       apiTags.Condition?.StringEquals?.["aws:RequestTag/sst:app"] ===
         "auditflow" &&
-      apiTags.Condition?.StringEquals?.["aws:RequestTag/sst:stage"] === "test",
-    "Test deploy role cannot create tags only for tagged AuditFlow test APIs.",
+      apiTags.Condition?.StringEquals?.["aws:RequestTag/sst:stage"] ===
+        "test" &&
+      apiTags.Condition?.StringEquals?.["aws:ResourceTag/sst:app"] ===
+        "auditflow" &&
+      apiTags.Condition?.StringEquals?.["aws:ResourceTag/sst:stage"] ===
+        "test",
+    "Test deploy role cannot update tags only on existing tagged AuditFlow test APIs.",
   );
 
   const policyFindings = runAws([
@@ -1239,6 +1244,18 @@ async function verifyLive(contract, stage, outputsPath) {
       ),
     ) !== "allowed",
     "Policy simulation allowed mutation of an unrelated Lambda function.",
+  );
+  assert(
+    simulatePrincipalAction(
+      roleArn,
+      "apigateway:POST",
+      "arn:aws:apigateway:il-central-1::/tags/arn%3Aaws%3Aapigateway%3Ail-central-1%3A%3A%2Fv2%2Fapis%2Funrelated-policy-probe",
+      [
+        "ContextKeyName=aws:RequestTag/sst:app,ContextKeyValues=auditflow,ContextKeyType=string",
+        "ContextKeyName=aws:RequestTag/sst:stage,ContextKeyValues=test,ContextKeyType=string",
+      ],
+    ) !== "allowed",
+    "Policy simulation allowed an unrelated API to adopt AuditFlow stage tags.",
   );
 
   const root = await fetchText(outputs.routerUrl, 200);

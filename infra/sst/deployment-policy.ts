@@ -381,7 +381,12 @@ export function buildTestDeploymentPolicy({
         Effect: "Allow",
         Action: "apigateway:POST",
         Resource: apiTagArn,
-        Condition: requestTagCondition,
+        Condition: {
+          StringEquals: {
+            ...resourceTagCondition.StringEquals,
+            ...requestTagCondition.StringEquals,
+          },
+        },
       },
       {
         Sid: "CreateTaggedStageUserPool",

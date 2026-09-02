@@ -147,7 +147,10 @@ matrix remains pending authentication plus the mobile/in-app-browser and legacy 
   PDF.js's optional canvas dependency during each preview.
 - The first CI deployment attempt exposed two missing least-privilege actions used by SST: CloudWatch Logs
   `ListTagsForResource` and API Gateway v2 tag `POST`. Narrow stage-scoped statements and regression/live assertions
-  were added; no broad resource or action wildcard was introduced for either operation.
+  were added; no broad resource or action wildcard was introduced for either operation. A final fresh-eyes review
+  then identified that request-tag conditions alone could let an unrelated API adopt the stage tags. The deployed
+  statement now also requires the target API's existing AuditFlow test resource tags, and a negative IAM simulation
+  proves request tags alone are denied.
 - SST 3.19.3 normalizes `cors: false` to an empty API Gateway CORS object, which suppressed the handler-owned CORS
   headers. The PDF API transform now removes that object entirely; live raw and Router responses prove exact CORS.
 - Live API Gateway created one integration per route even though all four target the same Lambda. The live verifier

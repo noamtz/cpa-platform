@@ -142,7 +142,12 @@ describe("test deployment IAM policy", () => {
       Action: "apigateway:POST",
       Resource:
         "arn:aws:apigateway:il-central-1::/tags/arn%3Aaws%3Aapigateway%3Ail-central-1%3A%3A%2Fv2%2Fapis%2F*",
-      Condition: deploymentPolicyContracts.requestTagCondition,
+      Condition: {
+        StringEquals: {
+          ...deploymentPolicyContracts.resourceTagCondition.StringEquals,
+          ...deploymentPolicyContracts.requestTagCondition.StringEquals,
+        },
+      },
     });
   });
 
