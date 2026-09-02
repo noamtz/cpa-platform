@@ -17,6 +17,7 @@ interface GetResult {
 
 interface QueryResult {
   readonly Items?: Record<string, unknown>[];
+  readonly ScannedCount?: number;
   readonly LastEvaluatedKey?: Record<string, unknown>;
 }
 
@@ -103,7 +104,7 @@ export async function queryRecords<T extends Record<string, unknown>>({
     };
     const result = (await client.send(new QueryCommand(input))) as QueryResult;
     const page = result.Items ?? [];
-    evaluated += page.length;
+    evaluated += result.ScannedCount ?? page.length;
     for (const item of page) {
       if (recordType && item.record_type !== recordType) continue;
       const parsed = parseRecord(schema, item);
