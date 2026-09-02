@@ -771,3 +771,103 @@ an explicit executable check rather than an implicit assumption.
 ## AMENDMENTS
 
 <!-- Append-only after initial approval/execution. -->
+
+### 2026-08-26 — Owner-approved synthetic-only SST test acceptance
+
+**Decision status:** Approved by the owner on 2026-08-26 and published in the canonical Wiki architecture at
+`Architecture-AuditFlow-Platform-Migration#synthetic-only-test-acceptance-before-legacy-file-import` (Wiki commit
+`e4fec60`). GitHub issue #11 and master epic #1 now record the same sequencing.
+
+**Why this amendment exists:** The original plan made every full SST test deployment depend on issue #11. The owner
+has instead approved full issue #9 acceptance with disposable AWS test-stage data, provided every legacy file read
+fails closed. A targeted PDF-only deployment cannot prove the active signing journey because it also needs the SST
+site, public signing routes, DynamoDB persistence, private S3 upload, and signed retrieval.
+
+**Superseded statements:** This amendment replaces every earlier statement that (a) issue #11 evidence is required
+before any full SST test deployment, (b) CI must skip all deployments until that evidence exists, or (c) issue #11 is
+a live-acceptance dependency of issue #9. It specifically supersedes the relevant Out of Scope bullet, Feature
+Metadata dependency, issue #11 forward-reference, Tasks 11 and 13 gate wording, Validation Level 4 prerequisite,
+AC #1 gate wording, Completion Checklist gate items, Critical deployment gate open question, and confidence note.
+All production, DNS, Base44, Terraform, security, manual-acceptance, and rollback restrictions remain unchanged.
+
+#### Revised safety contract
+
+- The application API receives an explicit `legacyFileReadsEnabled` boolean. The default and the value deployed by
+  issue #9 are `false`; absence, an unrecognized value, or configuration drift must never enable legacy reads.
+- When disabled, every reference resolved as `kind: "legacy"` returns the existing non-disclosing 404 contract
+  before S3 `HeadObject`, `GetObject`, presigning, copy/mirror, ZIP-manifest creation, or worker invocation. Owned
+  `private://files/...` references remain usable only after their existing owner-prefix, receipt, metadata, and token
+  checks pass.
+- The guard applies to public signed-PDF retrieval, public/CPA template retrieval, CPA submission retrieval,
+  template mirroring, and ZIP requests. Tests must prove the rejection happens before any storage or signing call.
+- The issue #9 deployment pins the Lambda environment to disabled in `infra/sst/application.ts`; it does not add a
+  user-controlled runtime toggle. Issue #11 owns the later evidence-backed, auditable mechanism that can set it true.
+- `tooling/verify_private_file_cutover.mjs` remains the aggregate-evidence verifier. Its contract changes from
+  `requiredBefore: "sst-deploy"` to `requiredBefore: "legacy-file-read-enablement"`; missing or failed evidence still
+  exits nonzero and blocks issue #11 and production cutover.
+- The complete existing `test` stage may deploy in synthetic-only mode. Production preview/deploy, DNS, Terraform,
+  Base44 mutation/import, and use of production client data remain prohibited.
+
+#### Additional implementation tasks (insert before original Task 12 validation)
+
+### 11A. IMPLEMENT the fail-closed legacy-reference read boundary
+
+- **UPDATE** `backend/api/services/files.ts` so `FileServiceOptions` requires `legacyFileReadsEnabled`. Centralize the
+  legacy-kind rejection and invoke it from `signedUrlFor`, `mirrorCpaTemplateFile`, and `requestZipDownload` before
+  any S3, presign, journal mutation, ZIP request write, or worker notification. Preserve the existing 404 body and
+  all owned-reference authorization behavior.
+- **UPDATE** `backend/api/handler.ts` to parse one exact runtime value (`"true"`) and default every other/missing value
+  to disabled. Pass the resulting boolean to `FileService`; never log its surrounding environment or request data.
+- **UPDATE** `infra/sst/application.ts` to set `LEGACY_FILE_READS_ENABLED: "false"` for the issue #9 deployment.
+  Add the disabled value and issue #11 enablement ownership to `infra/sst/contracts.ts` and
+  `infra/sst/foundation-contract.json` so a synthesized function cannot drift silently.
+- **TEST** in `backend/api/__tests__/files-service.test.ts` and the foundation contract tests: reject legacy public
+  signed PDFs, template URLs, CPA submission/template URLs, legacy template mirror, and legacy ZIP entries; assert
+  no S3/presign/journal/ZIP write occurs. Retain passing owned-reference upload/read/mirror/ZIP coverage.
+- **VALIDATE** `npm run test:foundation; npm run typecheck:foundation; npm run lint:foundation`.
+
+### 11B. CHANGE the deployment gate from all-deployments to legacy-read enablement
+
+- **UPDATE** `package.json`, `.github/workflows/deploy-sst-test.yml`, `tooling/verify_sst_foundation.mjs`, and the
+  foundation contract/tests. The PR/push/manual test workflow must always validate the private-file evidence status,
+  but it may deploy when evidence is missing only after contract tests and `sst diff` prove
+  `LEGACY_FILE_READS_ENABLED=false`. Keep the evidence verifier as a hard failure for any future request to enable
+  legacy reads.
+- **DO NOT** introduce `--target`, a second SST stage, a generic bypass flag, or a browser/runtime switch. Use the
+  repository's full `npm run sst:deploy:test` wrapper for the complete test stack, with the Lambda pinned fail-closed.
+- **UPDATE** `docs/migration/pdf-parity-runbook.md`, `README.md`, `AGENTS.md`, and the issue #9 implementation report
+  to distinguish synthetic-only deployment from issue #11's later legacy-read enablement. Document disposable test
+  fixture cleanup and the continuing production/Terraform prohibition.
+- **TEST** the workflow/contract policy so missing issue #11 evidence permits only the disabled synthetic path,
+  malformed/failed evidence never enables legacy reads, and the verifier still accepts a valid aggregate fixture in
+  its isolated tests.
+- **VALIDATE** `npm run verify:file-cutover:test` must still fail before #11 (expected safety evidence), while
+  `npm run sst:diff:test` and the contract verifier prove the deployable application remains synthetic-only.
+
+#### Revised original Task 13 — deploy and verify synthetic-only SST test path
+
+- With the already granted test-only authorization and a verified AuditFlow AWS identity, run the full repository
+  deploy wrapper after Tasks 11A/11B and all local validation pass. Do not treat the expected missing #11 evidence as
+  a failed deployment prerequisite; instead require executable proof that the application Lambda environment is
+  disabled before and after deployment.
+- Create only disposable synthetic client, submission, questionnaire-template, PDF-template, and owned S3 objects in
+  the test stage. Exercise render → generate → private upload → save → refresh/resume → authorized retrieval. Add a
+  negative live probe showing a synthetic record containing a legacy-shaped reference returns 404 without a signed
+  URL or ZIP job. Keep identifiers, URLs, tokens, signatures, templates, and payloads out of committed evidence.
+- Run the existing raw/SST Router PDF verifier, cross-endpoint parity verifier, resource/latency checks, and owner
+  desktop/mobile matrix. Delete or clearly isolate disposable fixtures after evidence capture using a scoped,
+  reviewed cleanup command; do not touch production or Base44.
+- **REVISED VALIDATE:** `npm run sst:deploy:test`; live foundation verification; legacy-read-disabled live proof;
+  `npm run verify:pdf-parity -- --legacy-url <secret test value> --sst-url <secret test value> --fixture
+  lambda/pdf-generator/__fixtures__/rtl-multipage-case.json --output docs/migration/pdf-parity-evidence.json`; then
+  the original Task 14 owner matrix. Environment values must not be printed or committed.
+
+#### Revised acceptance and completion
+
+- Issue #9 can close when original AC #1–#9 pass under synthetic-only test acceptance, the deployed application is
+  proven to reject legacy references, the owner browser matrix passes, PR #27 is approved/merged, and issue #9's
+  tracker evidence is updated.
+- Issue #11 is not required to close #9 and is not a dependency of issue #10. It remains required before legacy
+  rehearsal reads and production cutover, and now owns the guarded transition out of synthetic-only mode.
+- The implementation report must cite Wiki commit `e4fec60`, record the deployed legacy-read-disabled proof, and
+  state explicitly that no production, DNS, Terraform, Base44 data, or legacy-file enablement action occurred.

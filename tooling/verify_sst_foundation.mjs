@@ -258,10 +258,14 @@ function verifyContract(contract, stage) {
       contract.deploymentGates.privateFilesImport.verifier ===
         "tooling/verify_private_file_cutover.mjs" &&
       contract.deploymentGates.privateFilesImport.requiredBefore ===
-        "sst-deploy" &&
+        "legacy-file-read-enablement" &&
       contract.deploymentGates.privateFilesImport.resolverContract ===
-        "legacy-sha256-v1",
-    "Private-file deployment must remain gated on issue #11 import evidence.",
+        "legacy-sha256-v1" &&
+      contract.deploymentGates.privateFilesImport.environmentVariable ===
+        "LEGACY_FILE_READS_ENABLED" &&
+      contract.deploymentGates.privateFilesImport.syntheticOnlyValue === "false" &&
+      contract.deploymentGates.privateFilesImport.enablementIssue === 11,
+    "Legacy file reads must remain gated on issue #11 import evidence.",
   );
   assert(
     contract.oidc.audience === "sts.amazonaws.com" &&
@@ -634,6 +638,12 @@ async function verifyLive(contract, stage, outputsPath) {
       JSON.stringify(zipWorker.Architectures) === JSON.stringify(["arm64"]),
     "ZIP worker runtime limits have drifted.",
   );
+  assert(
+    zipWorker.Environment?.Variables?.[
+      contract.deploymentGates.privateFilesImport.environmentVariable
+    ] === contract.deploymentGates.privateFilesImport.syntheticOnlyValue,
+    "ZIP worker legacy file reads are not pinned to synthetic-only mode.",
+  );
   const notification = runAws([
     "s3api",
     "get-bucket-notification-configuration",
@@ -805,6 +815,12 @@ async function verifyLive(contract, stage, outputsPath) {
   ]).value;
   assert(lambda.Runtime === "nodejs20.x", "API Lambda runtime has drifted.");
   assert(lambda.Architectures?.includes("arm64"), "API Lambda is not arm64.");
+  assert(
+    lambda.Environment?.Variables?.[
+      contract.deploymentGates.privateFilesImport.environmentVariable
+    ] === contract.deploymentGates.privateFilesImport.syntheticOnlyValue,
+    "API Lambda legacy file reads are not pinned to synthetic-only mode.",
+  );
 
   const pdfApi = runAws([
     "apigatewayv2",

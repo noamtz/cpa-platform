@@ -98,7 +98,7 @@ function main() {
   process.stdout.write(`${JSON.stringify(result)}\n`);
   if (arguments_.mode === "require" && !result.ready) {
     throw new Error(
-      `Private-file deployment is blocked (${result.reason}); issue #11 must publish verified import evidence.`,
+      `Legacy file-read enablement is blocked (${result.reason}); issue #11 must publish verified import evidence.`,
     );
   }
 }
@@ -108,7 +108,7 @@ if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
     main();
   } catch (error) {
     process.stderr.write(
-      `${error instanceof Error ? error.message : "Private-file deployment is blocked."}\n`,
+      `${error instanceof Error ? error.message : "Legacy file-read enablement is blocked."}\n`,
     );
     process.exitCode = 1;
   }

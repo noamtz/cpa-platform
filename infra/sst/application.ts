@@ -1,6 +1,7 @@
 import {
   apiRoutes,
   authContract,
+  deploymentGateContract,
   pdfContract,
   routerContract,
   zipWorkerContract,
@@ -53,6 +54,8 @@ export function createApplication(
       FILES_BUCKET_NAME: storage.buckets.FilesBucket.name,
       TEMPORARY_OUTPUTS_BUCKET_NAME:
         storage.buckets.TemporaryOutputsBucket.name,
+      [deploymentGateContract.privateFilesImport.environmentVariable]:
+        deploymentGateContract.privateFilesImport.syntheticOnlyValue,
     },
     link: [
       ...storage.tableList,
@@ -81,6 +84,8 @@ export function createApplication(
       FILES_BUCKET_NAME: storage.buckets.FilesBucket.name,
       TEMPORARY_OUTPUTS_BUCKET_NAME:
         storage.buckets.TemporaryOutputsBucket.name,
+      [deploymentGateContract.privateFilesImport.environmentVariable]:
+        deploymentGateContract.privateFilesImport.syntheticOnlyValue,
     },
     permissions: [
       {

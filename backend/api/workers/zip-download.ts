@@ -52,10 +52,18 @@ class SourceUnavailableError extends Error {}
 class LeaseLostError extends Error {}
 class ZipWorkerRetryError extends Error {}
 
+export function isZipSourceReadable(
+  sourceKey: string,
+  legacyFileReadsEnabled: boolean,
+) {
+  return legacyFileReadsEnabled || !sourceKey.startsWith("legacy/");
+}
+
 export interface ZipWorkerOptions {
   readonly s3: S3CommandClient;
   readonly filesBucketName: string;
   readonly temporaryOutputsBucketName: string;
+  readonly legacyFileReadsEnabled: boolean;
   readonly createUpload: (
     key: string,
     body: NodeJS.ReadableStream,
@@ -337,6 +345,9 @@ async function processJob(
     const zip = new JSZip();
     for (const entry of manifest.entries) {
       const { key: sourceKey, name } = entry;
+      if (!isZipSourceReadable(sourceKey, options.legacyFileReadsEnabled)) {
+        throw new InvalidZipJobError();
+      }
       const source = (await options.s3.send(
         new GetObjectCommand({
           Bucket: options.filesBucketName,
@@ -443,6 +454,7 @@ function createRuntimeHandler() {
     s3: { send: (command) => sdkS3.send(command as never) },
     filesBucketName: requiredEnvironment("FILES_BUCKET_NAME"),
     temporaryOutputsBucketName,
+    legacyFileReadsEnabled: process.env.LEGACY_FILE_READS_ENABLED === "true",
     createUpload(key, body) {
       const upload = new Upload({
         client: sdkS3,

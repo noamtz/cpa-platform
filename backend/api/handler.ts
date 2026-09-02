@@ -145,6 +145,7 @@ export function createRuntimeDependencies(): ApiDependencies {
     },
     filesBucketName: requiredEnvironment("FILES_BUCKET_NAME"),
     temporaryOutputsBucketName: requiredEnvironment("TEMPORARY_OUTPUTS_BUCKET_NAME"),
+    legacyFileReadsEnabled: process.env.LEGACY_FILE_READS_ENABLED === "true",
     clients,
     submissions,
     questionnaireTemplates: templates,

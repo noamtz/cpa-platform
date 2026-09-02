@@ -459,8 +459,11 @@ export const deploymentGateContract = {
     issue: 11,
     evidencePath: "docs/migration/private-file-import-verification.json",
     verifier: "tooling/verify_private_file_cutover.mjs",
-    requiredBefore: "sst-deploy",
+    requiredBefore: "legacy-file-read-enablement",
     resolverContract: "legacy-sha256-v1",
+    environmentVariable: "LEGACY_FILE_READS_ENABLED",
+    syntheticOnlyValue: "false",
+    enablementIssue: 11,
   },
 } as const;
 

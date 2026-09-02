@@ -10,7 +10,10 @@ import JSZip from "jszip";
 import { describe, expect, it, vi } from "vitest";
 
 import { deriveSubmissionFileEntries } from "../services/files";
-import { createZipDownloadHandler } from "../workers/zip-download";
+import {
+  createZipDownloadHandler,
+  isZipSourceReadable,
+} from "../workers/zip-download";
 
 const jobId = "123e4567-e89b-12d3-a456-426614174000";
 const firstOwnerId = "223e4567-e89b-12d3-a456-426614174000";
@@ -167,6 +170,12 @@ describe("ZIP inventory", () => {
 });
 
 describe("ZIP worker", () => {
+  it("fails closed for legacy sources while keeping owned sources readable", () => {
+    expect(isZipSourceReadable(`legacy/${"a".repeat(64)}`, false)).toBe(false);
+    expect(isZipSourceReadable("firms/ddcpa/owned.pdf", false)).toBe(true);
+    expect(isZipSourceReadable(`legacy/${"a".repeat(64)}`, true)).toBe(true);
+  });
+
   it("does not repeat a terminal job", async () => {
     const send = vi.fn().mockResolvedValue(
       textObject({
@@ -188,6 +197,7 @@ describe("ZIP worker", () => {
       s3: { send },
       filesBucketName: "FilesBucket.test",
       temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
+      legacyFileReadsEnabled: true,
       createUpload,
       clock: () => new Date(now),
     });
@@ -226,6 +236,7 @@ describe("ZIP worker", () => {
       s3: { send },
       filesBucketName: "FilesBucket.test",
       temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
+      legacyFileReadsEnabled: true,
       createUpload,
       clock: () => new Date(now),
       ...leaseOptions(),
@@ -264,6 +275,7 @@ describe("ZIP worker", () => {
       s3: { send },
       filesBucketName: "FilesBucket.test",
       temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
+      legacyFileReadsEnabled: true,
       createUpload,
       clock: () => new Date(now),
       ...leaseOptions(),
@@ -337,6 +349,7 @@ describe("ZIP worker", () => {
       s3: { send },
       filesBucketName: "FilesBucket.test",
       temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
+      legacyFileReadsEnabled: true,
       createUpload,
       clock: () => new Date(now),
       ownerId: nextOwner,
@@ -389,6 +402,7 @@ describe("ZIP worker", () => {
       s3: { send },
       filesBucketName: "FilesBucket.test",
       temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
+      legacyFileReadsEnabled: true,
       createUpload,
       clock: () => new Date("2026-01-01T00:02:00.000Z"),
       ...leaseOptions(secondOwnerId),
@@ -462,6 +476,7 @@ describe("ZIP worker", () => {
       s3: { send },
       filesBucketName: "FilesBucket.test",
       temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
+      legacyFileReadsEnabled: true,
       createUpload,
       clock: () => currentTime,
       ownerId: nextOwner,
@@ -529,6 +544,7 @@ describe("ZIP worker", () => {
       s3: { send },
       filesBucketName: "FilesBucket.test",
       temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
+      legacyFileReadsEnabled: true,
       createUpload,
       clock: () => new Date(now),
       ownerId: nextOwner,

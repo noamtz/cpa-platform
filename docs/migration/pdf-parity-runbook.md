@@ -8,8 +8,10 @@ templates, field values, signatures, tokens, or client data in committed evidenc
 ## Safety boundary and prerequisites
 
 - Use Node 20.17.0 and region `il-central-1` with an independently verified AuditFlow AWS identity.
-- `sst diff` is read-only review, not deployment approval. Test deployment additionally requires explicit owner
-  authorization and `npm run verify:file-cutover:test` to accept issue #11's aggregate evidence.
+- `sst diff` is read-only review, not deployment approval. The owner has authorized issue #9's full SST `test`
+  deployment only in synthetic-only mode, with application and ZIP-worker legacy file reads pinned to `false`.
+- `npm run verify:file-cutover:test` remains the hard gate for issue #11's later legacy-read enablement. A missing or
+  failing artifact is expected before #11 and does not block synthetic-only issue #9 acceptance.
 - Production deployment, production preview, DNS, Terraform, and the imported legacy Lambda workflows are outside
   this procedure and remain prohibited without separate authorization.
 - Lambda's complete synchronous proxy response must remain below 6 MB; because generated PDFs are base64-encoded
@@ -51,8 +53,13 @@ The SST site contract sets `VITE_PDF_API_URL=/pdf`; CloudFront routes `/pdf/*` t
 raw API and the same-origin Router path expose exactly `GET /health`, `POST /render-pages`,
 `POST /generate-pdf`, and `OPTIONS /{proxy+}`.
 
-For an authorized test cutover, deploy through `npm run sst:deploy:test` only, then verify the live raw and Router
-paths with `tooling/verify_sst_foundation.mjs`. To prove rollback, rebuild the test site with
+For the authorized synthetic-only test acceptance, deploy through `npm run sst:deploy:test` only, then verify the
+live foundation reports `LEGACY_FILE_READS_ENABLED=false` for both the application API and ZIP worker. Use only
+disposable synthetic clients, submissions, templates, generated PDFs, signatures, and owned uploads. A negative
+probe containing a legacy-shaped reference must return 404 without a signed URL, source-object read, or ZIP job.
+Delete or clearly isolate the exact disposable fixtures after evidence capture; review resolved identifiers before
+cleanup and do not target a stage, table, bucket, or prefix broadly. Verify the live raw and Router PDF paths with
+`tooling/verify_sst_foundation.mjs`. To prove rollback, rebuild the test site with
 `VITE_PDF_API_URL` set to the retained legacy **test** base URL and repeat the smoke journey. To restore SST, rebuild
 with `/pdf`. Do not add a browser-persisted toggle and never select the production legacy URL in a test exercise.
 

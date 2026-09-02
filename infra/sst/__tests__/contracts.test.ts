@@ -349,6 +349,24 @@ describe("foundation resource contract", () => {
     expect(deploymentContract.subject).not.toContain("noamtz/auditflow");
   });
 
+  it("pins test deployments to synthetic-only file access", () => {
+    expect(deploymentGateContract.privateFilesImport).toEqual({
+      issue: 11,
+      evidencePath: "docs/migration/private-file-import-verification.json",
+      verifier: "tooling/verify_private_file_cutover.mjs",
+      requiredBefore: "legacy-file-read-enablement",
+      resolverContract: "legacy-sha256-v1",
+      environmentVariable: "LEGACY_FILE_READS_ENABLED",
+      syntheticOnlyValue: "false",
+      enablementIssue: 11,
+    });
+    const applicationSource = readFileSync(
+      new URL("../application.ts", import.meta.url),
+      "utf8",
+    );
+    expect(applicationSource.match(/syntheticOnlyValue/g)).toHaveLength(2);
+  });
+
   it("defines an alert-only production budget and safe outputs", () => {
     expect(costContract).toMatchObject({
       stage: "production",
