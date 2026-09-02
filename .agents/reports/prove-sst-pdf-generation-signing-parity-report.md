@@ -6,7 +6,7 @@
 
 **PR**: [#27](https://github.com/noamtz/cpa-platform/pull/27)
 
-**Status**: LIVE VALIDATED; OWNER BROWSER MATRIX PENDING
+**Status**: LIVE VALIDATED; DESKTOP, NEGATIVE-PROBE, AND ROLLBACK PASS; OWNER MOBILE CELL PENDING
 
 ## Summary
 
@@ -17,8 +17,10 @@ operational runbook/workflow gate. Post-review remediation now makes the size-bo
 base64-bearing Lambda proxy envelope and makes staged/native verification a mandatory pre-deploy workflow step.
 Tasks 1–13 are complete under the owner-approved synthetic-only exception, with application and ZIP-worker legacy
 reads pinned off. The test deployment, live foundation verifier, raw and same-origin PDF routes, compact,
-representative, and boundary parity profiles, and aggregate CloudWatch measurements pass. The final owner browser
-matrix remains pending authentication plus the mobile/in-app-browser and legacy rollback cells.
+representative, and boundary parity profiles, aggregate CloudWatch measurements, authenticated desktop journey,
+negative legacy-reference probe, and legacy-test rollback smoke all pass. Live acceptance exposed five integration
+defects; each was fixed and regression-tested. The sole remaining acceptance cell is touch signing in a real
+WhatsApp/WKWebView session on the owner's mobile device.
 
 ## Tasks completed
 
@@ -66,13 +68,14 @@ matrix remains pending authentication plus the mobile/in-app-browser and legacy 
 - Dependency tree: PASS — direct `@napi-rs/canvas@0.1.100`, PDFme `6.1.1`, and
   `pdfjs-dist@3.11.174` resolved as pinned. PDFme UI retains its own `pdfjs-dist@5.7.284` transitive dependency.
 - Focused PDF tests: PASS — 3 files / 22 tests.
-- Foundation/backend/tooling tests: PASS — 31 files / 234 tests.
+- Foundation/backend/tooling tests: PASS — 31 files / 235 tests.
 - Full browser-facing tests: PASS — 12 files / 108 tests.
 - Focused frontend characterization: PASS — 4 files / 40 tests.
 - Foundation typecheck/lint: PASS — zero diagnostics.
 - Touched frontend/helper lint: PASS — zero diagnostics.
 - Full application typecheck: inherited failure — exit 2 / 150 diagnostics (latest report: 151; pinned import
-  baseline: 233), with zero diagnostics in touched paths.
+  baseline: 233). Five diagnostics are in `CpaDashboard.jsx`, all on pre-existing UI primitive calls outside the
+  changed optional-template request line; no new diagnostic was introduced by this work.
 - Full application lint: inherited/generated failure — exit 1 / 19 errors, 0 warnings: 16 inherited source errors
   plus three generated `.sst/artifacts` rule-metadata errors, with zero diagnostics in touched source paths.
 - Vite build: PASS.
@@ -112,16 +115,27 @@ matrix remains pending authentication plus the mobile/in-app-browser and legacy 
   1,001 billed ms and 166 MB. No request content or endpoint URL is retained in committed evidence.
 - Failure behavior: PASS — live health/OPTIONS/malformed-JSON probes return 200/200/400; focused handler tests cover
   upstream fetch, render, and generation failures; verifier timeout/read/proxy limits fail closed.
-- Desktop browser smoke: PENDING — deployed site and managed login were opened successfully; authenticated signing
-  flow awaits owner completion of Cognito login. Mobile WhatsApp/WKWebView and legacy rollback cells remain owner-run.
+- Negative legacy-reference probe: PASS — a temporary journaled legacy-shaped signed-file reference returned 404
+  from both the public signed-file URL and CPA ZIP request paths, produced neither a signed URL nor a ZIP job, and
+  left the ZIP-worker request prefix unchanged. The probe record was removed through the journaled cleanup path.
+- Desktop browser smoke, 2026-09-02 15:00–15:24 Asia/Jerusalem: PASS — Windows 11 / Chrome 152 completed the SST
+  same-origin render, Hebrew and mixed RTL/numeric fields, checkbox, mouse signature, generation, private upload,
+  journaled save, return, refresh/resume, and reopened-PDF journey. Both pages and field/signature placement were
+  visually checked. No browser runtime errors were observed; Sentry inspection was unavailable and is not inferred.
+- Legacy rollback smoke, same observation window/device: PASS — a test-only build selected the retained legacy test
+  renderer, completed the re-sign/generate/upload/save/refresh/resume/reopen journey, and returned a valid PDF. The
+  site was then rebuilt without the override; a fresh same-origin `/pdf/render-pages` request returned 200 and the
+  final live foundation verifier passed.
+- Mobile WhatsApp/WKWebView touch signing: PENDING — requires the owner's physical device. The clearly named,
+  disposable synthetic client/template/submission remain isolated in the test stage only to support this final cell.
 
 ## Deviations from the plan
 
 - The owner approved the Wiki-recorded synthetic-only exception: issue #11 aggregate import evidence is not required
   for issue #9 acceptance while both legacy-read switches remain pinned off and only disposable synthetic data is
   used. The ordinary issue #11 gate still blocks enabling either legacy reader and remains an expected failure.
-- Task 14 cannot be completed solely through headless automation: the desktop flow requires the owner's Cognito
-  authentication, and WhatsApp/WKWebView touch behavior requires an owner-controlled mobile device.
+- Task 14 cannot be completed solely through automation: authentication, desktop acceptance, and rollback are now
+  complete, but real WhatsApp/WKWebView touch behavior still requires an owner-controlled mobile device.
 - SST preview does not materialize the final PDF `code.zip` for a new function. The verifier therefore proves the
   preview's exact native staging plus font copy source before deployment, then the live verifier inspects the actual
   AWS deployment archive after an authorized deploy rather than manufacturing a local archive and presenting it as
@@ -159,9 +173,25 @@ matrix remains pending authentication plus the mobile/in-app-browser and legacy 
   same-origin `/pdf/health`, render, and generation paths passed.
 - The first live parity request revealed that the Terraform legacy Lambda requires `templateJson` as a JSON string,
   matching the product client. The verifier now sends that exact contract and reports safe endpoint labels in errors.
+- The first live private upload showed that hoisted `x-amz-meta-*` query parameters did not satisfy S3's required
+  signed-header contract. Upload metadata headers are now explicitly unhoistable and signed; the live upload and
+  compatibility mirror then passed.
+- The shared submission index also returns the active-submission guard row. The indexed repository now applies a
+  DynamoDB record-type filter, skips nonmatching rows before schema parsing, and preserves its evaluated-item cap via
+  `ScannedCount`; live dashboard refresh and repository regression tests pass.
+- Default backend questionnaire steps exposed `is_active` without the frontend's `enabled` compatibility field, and
+  the seeded year placeholder used `{TAX_YEAR}`. Defaults now expose `enabled: true`, the resolver accepts both year
+  spellings, and tests cover both contracts.
+- The CPA dashboard treated the optional not-yet-migrated active-template endpoint as a required dependency, hiding
+  otherwise valid clients. That probe now fails independently without clearing the client/submission results.
+- The runbook's rollback instruction was not executable because the SST site always forced `/pdf`. The site now
+  accepts an explicit build-time override only for the test stage and only for the exact retained legacy test PDF
+  origin; production rejects every override. A final security review caught and removed the earlier broader
+  same-region API Gateway allowance. Contract tests cover the default, exact allowed test URL, a different
+  valid-looking API Gateway host, malformed hosts, and the production guard.
 
 ## Ready for the next step
 
-PR #27 now contains live deployment and automated parity proof. Before it is ready for final human approval, complete
-the authenticated desktop signing/reopen/resume path, the owner-run mobile WhatsApp/WKWebView cell, and one legacy
-rollback smoke; record the dated results and Sentry observation, then rerun the final PR review gate.
+PR #27 now contains live deployment and parity proof, including desktop acceptance, negative legacy-access evidence,
+and a restored legacy rollback smoke. Complete the single owner-run mobile WhatsApp/WKWebView touch-signing cell,
+record its dated result and exact Sentry availability, then mark the PR ready for final human approval.

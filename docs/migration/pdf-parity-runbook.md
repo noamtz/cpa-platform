@@ -104,9 +104,9 @@ legacy test override to prove rollback.
 
 | Date/time (Asia/Jerusalem) | Device | OS/version | Browser or in-app browser/version | Endpoint label | Actions completed | Expected/actual signed-record facts | Reopened artifact | Resume result | Sentry observation | Verdict |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| _owner entry_ | Desktop | _version_ | Chromium or Edge / _version_ | SST test | _facts only_ | _facts only_ | _pass/fail_ | _pass/fail_ | No relevant new event / unavailable / sampling-inconclusive | _pass/fail_ |
+| 2026-09-02 15:00–15:24 | Desktop | Windows 11 | Chrome 152 | SST test | Hebrew and mixed RTL/numeric fields, checkbox, mouse signature, generate, private upload, save | Synthetic signed record persisted and remained retrievable | PASS; two pages and placement visually checked | PASS after refresh | Unavailable; not inferred | PASS |
 | _owner entry_ | Mobile | _version_ | WhatsApp in-app browser or WKWebView / _version_ | SST test | _facts only_ | _facts only_ | _pass/fail_ | _pass/fail_ | No relevant new event / unavailable / sampling-inconclusive | _pass/fail_ |
-| _owner entry_ | Smoke device | _version_ | _browser/version_ | Legacy test rollback | _facts only_ | _facts only_ | _pass/fail_ | _pass/fail_ | No relevant new event / unavailable / sampling-inconclusive | _pass/fail_ |
+| 2026-09-02 15:00–15:24 | Desktop | Windows 11 | Chrome 152 | Legacy test rollback | Hebrew and mixed fields, checkbox, mouse signature, generate, private upload, save | Synthetic replacement signed record persisted and remained retrievable | PASS | PASS after refresh; SST `/pdf` build restored afterward | Unavailable; not inferred | PASS |
 
 Do not infer a Sentry result: record the exact observation window and whether it was unavailable or inconclusive.
 Any failed selected cell, new relevant crash, misplaced field, output over 6 MB, request over 30 seconds, or inability

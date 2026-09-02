@@ -8,11 +8,11 @@
 
 ## Summary
 
-Advisory verdict: the implementation and automated live evidence are ready for human acceptance, with no unresolved
-Critical, High, Medium, or Low code findings. The dedicated PDF runtime, same-origin routing, exact handler CORS,
-native ARM64/font bundle, bounded parity verifier, compute-only role, and legacy rollback boundary are coherent and
-validated locally and in CI. The PR remains a draft because the required authenticated desktop, mobile in-app
-browser, legacy rollback, and negative legacy-reference acceptance cells are not complete.
+Advisory verdict: the implementation and live evidence are ready for the final mobile acceptance cell, with no
+unresolved Critical, High, Medium, or Low code findings. The dedicated PDF runtime, same-origin routing, exact
+handler CORS, native ARM64/font bundle, bounded parity verifier, compute-only role, private upload, negative legacy
+access, and rollback boundary are coherent and validated. The PR remains a draft only because real
+WhatsApp/WKWebView touch signing requires the owner's physical mobile device.
 
 ## Issue counts
 
@@ -44,18 +44,16 @@ None.
 
 ### HUMAN TESTS
 
-- `docs/migration/pdf-parity-runbook.md:58` — run the synthetic negative legacy-reference probe and confirm 404 with
-  no signed URL, source read, or ZIP job.
-- `docs/migration/pdf-parity-runbook.md:107` — complete authenticated desktop signing, reopen/resume, and the dated
-  Sentry observation.
 - `docs/migration/pdf-parity-runbook.md:108` — complete the WhatsApp/WKWebView touch signing path.
-- `docs/migration/pdf-parity-runbook.md:109` — complete one legacy-test rollback smoke path.
 
 ### FYI
 
 - `tooling/verify_sst_foundation.mjs:1249` — the final review initially found an API-tag adoption path. Commit
   `f95c1cf` fixed it, and both live IAM simulation and the fresh-eyes re-review confirmed request tags alone are
   denied while an existing correctly tagged AuditFlow API remains manageable.
+- `infra/sst/application.ts:18` — the final acceptance review found that the first rollback guard accepted any clean
+  same-region API Gateway origin. It now accepts only the exact retained legacy test PDF origin, rejects another
+  syntactically valid API Gateway host, and continues to reject every production-stage override.
 
 ## Findings by severity
 
@@ -69,7 +67,8 @@ None unresolved. The API-tag adoption finding was fixed and independently rechec
 
 ### Medium
 
-None.
+None unresolved. The rollback-origin allowlist finding was fixed and focused contract, typecheck, lint, verifier,
+and diff checks passed before this verdict.
 
 ### Low
 
@@ -83,10 +82,10 @@ None.
 | `npm ci` | PASS — inherited peer/engine/deprecation warnings; 36 audit findings |
 | `npm test` | PASS — 12 files / 108 tests |
 | `npm run test:pdf` | PASS — 3 files / 22 tests |
-| `npm run test:foundation` | PASS — 31 files / 234 tests |
+| `npm run test:foundation` | PASS — 31 files / 235 tests |
 | `npm run typecheck:foundation` | PASS |
 | `npm run lint:foundation` | PASS |
-| `npm run typecheck` | KNOWN BASELINE — 150 diagnostics, zero touched-path matches |
+| `npm run typecheck` | KNOWN BASELINE — 150 diagnostics; no new diagnostics from changed lines |
 | `npm run lint` | KNOWN BASELINE/GENERATED — 19 errors; zero touched-source errors |
 | `npm run build` | PASS |
 | Foundation contract verifier | PASS — distinct application/PDF APIs and functions |
@@ -97,7 +96,10 @@ None.
 | `git diff --check origin/main...HEAD` | PASS |
 | GitHub Actions run 33620970616 | PASS — validation, preview, bundle, deploy, and live verification |
 | Private-file import gate | EXPECTED BLOCK — still required before either legacy reader may be enabled |
-| Owner browser matrix | PENDING — four HUMAN TESTS above |
+| Negative legacy-reference probe | PASS — 404 on public read and ZIP request; no signed URL, ZIP job, or worker request; fixture cleaned up |
+| Desktop SST journey | PASS — authenticated Hebrew/RTL signing, upload/save, refresh/resume, and visual reopen |
+| Legacy rollback journey | PASS — legacy test render/generate and complete save/resume/reopen; SST `/pdf` restored |
+| Owner browser matrix | PENDING — mobile WhatsApp/WKWebView touch-signing cell only |
 
 ## What is good
 
@@ -113,6 +115,6 @@ None.
 
 ## Recommendation
 
-Keep PR #27 as a draft until the four HUMAN TESTS are recorded. After they pass, update the implementation report,
-mark the PR ready, and hand it to a human for final approval and merge. No additional code remediation is currently
-recommended.
+Keep PR #27 as a draft until the single mobile HUMAN TEST is recorded. After it passes, update the implementation
+report, mark the PR ready, and hand it to a human for final approval and merge. No additional code remediation is
+currently recommended.
