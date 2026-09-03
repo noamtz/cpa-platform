@@ -65,6 +65,7 @@ jobs:
       AWS_REGION: il-central-1
       AWS_DEFAULT_REGION: il-central-1
       SST_STAGE: test
+      AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
       EXPECTED_OIDC_AUDIENCE: sts.amazonaws.com
       EXPECTED_OIDC_SUBJECT: repo:noamtz@2631641/cpa-platform@1332935468:environment:test
 
@@ -115,6 +116,12 @@ jobs:
         run: |
           test "${AWS_REGION}" = "il-central-1"
           aws sts get-caller-identity --output json >/dev/null
+
+      - name: Verify deployer permissions before stage mutation
+        run: >-
+          node tooling/verify_sst_foundation.mjs
+          --mode deployer
+          --stage test
 
       - name: Install SST platform types
         run: npm run sst:install

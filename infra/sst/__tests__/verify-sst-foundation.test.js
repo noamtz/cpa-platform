@@ -5,14 +5,77 @@ import { describe, expect, it, vi } from "vitest";
 import {
   assertBrowserCorsAbsent,
   assertBrowserCorsExact,
+  hasScopedCloudFrontKeyValueStorePermissions,
   hasApiGatewayCorsConfiguration,
   isRetryableAwsCliFailure,
   notificationFilterRulesByName,
   parseAwsCliErrorCode,
   pdfRoutesTargetSingleFunction,
   retryAwsCliCommand,
+  requiredCloudFrontKeyValueStoreActions,
   scopedCpaRouteCount,
 } from "../../../tooling/verify_sst_foundation.mjs";
+
+describe("test deployer permission verification", () => {
+  const accountId = "123456789012";
+  const expectedStatement = {
+    Sid: "ManageCloudFrontKeyValues",
+    Effect: "Allow",
+    Action: requiredCloudFrontKeyValueStoreActions,
+    Resource: `arn:aws:cloudfront::${accountId}:key-value-store/*`,
+  };
+
+  it("accepts only the explicit account-scoped KeyValueStore grant", () => {
+    expect(
+      hasScopedCloudFrontKeyValueStorePermissions(
+        { Statement: [expectedStatement] },
+        accountId,
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects the ineffective resource-tag condition and broad resources", () => {
+    expect(
+      hasScopedCloudFrontKeyValueStorePermissions(
+        {
+          Statement: [
+            {
+              ...expectedStatement,
+              Condition: {
+                StringEquals: {
+                  "aws:ResourceTag/sst:app": "auditflow",
+                },
+              },
+            },
+          ],
+        },
+        accountId,
+      ),
+    ).toBe(false);
+    expect(
+      hasScopedCloudFrontKeyValueStorePermissions(
+        {
+          Statement: [{ ...expectedStatement, Resource: "*" }],
+        },
+        accountId,
+      ),
+    ).toBe(false);
+  });
+
+  it("runs the deployed-role preflight before every SST preview or deployment", () => {
+    const workflow = readFileSync(
+      new URL("../../../.github/workflows/deploy-sst-test.yml", import.meta.url),
+      "utf8",
+    );
+    const preflight = workflow.indexOf("--mode deployer");
+    const preview = workflow.indexOf("npx sst diff --stage test");
+    const deployment = workflow.indexOf("npm run sst:deploy:test");
+
+    expect(preflight).toBeGreaterThan(-1);
+    expect(preflight).toBeLessThan(preview);
+    expect(preflight).toBeLessThan(deployment);
+  });
+});
 
 describe("live verifier evidence", () => {
   it("reports the CPA route count derived from the enforced contract", () => {

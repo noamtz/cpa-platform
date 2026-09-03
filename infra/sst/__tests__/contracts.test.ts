@@ -96,6 +96,10 @@ describe("foundation resource contract", () => {
     expect(verifierContract.pdf).toEqual(pdfContract);
     expect(verifierContract.zipWorker).toEqual(zipWorkerContract);
     expect(verifierContract.deploymentGates).toEqual(deploymentGateContract);
+    expect(verifierContract.deployerPolicy).toEqual({
+      cloudFrontKeyValueStoreActions:
+        deploymentContract.cloudFrontKeyValueStoreActions,
+    });
     expect(verifierContract.oidc).toEqual({
       providerUrl: deploymentContract.providerUrl,
       audience: deploymentContract.audience,

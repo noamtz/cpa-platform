@@ -170,6 +170,16 @@
       "enablementIssue": 11
     }
   },
+  "deployerPolicy": {
+    "cloudFrontKeyValueStoreActions": [
+      "cloudfront-keyvaluestore:DeleteKey",
+      "cloudfront-keyvaluestore:DescribeKeyValueStore",
+      "cloudfront-keyvaluestore:GetKey",
+      "cloudfront-keyvaluestore:ListKeys",
+      "cloudfront-keyvaluestore:PutKey",
+      "cloudfront-keyvaluestore:UpdateKeys"
+    ]
+  },
   "oidc": {
     "providerUrl": "token.actions.githubusercontent.com",
     "audience": "sts.amazonaws.com",

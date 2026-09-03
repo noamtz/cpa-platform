@@ -28,4 +28,11 @@ can resolve it. A production preview is allowed only with explicit scope; produc
 requires separate authorization. When production has never been deployed, SST 3.19.3 returns `Stage not found` for
 `sst diff`; that is not authority to initialize it with `sst deploy`.
 
+Before any test-stage preview or deployment, run the deployer-permission verifier against the actual role. When a PR
+changes or newly exercises an AWS capability, inspect its required GitHub checks and failed logs before issuing a
+review verdict. If deployed-role drift blocks the workflow, the agent handling the PR owns the least-privilege policy
+change, regression coverage, owner-authenticated bootstrap, read-back verification, and green rerun; do not hand an
+unfinished permissions prerequisite back as an ordinary human follow-up. The preflight must fail before stage
+mutation when an effective permission is missing.
+
 Deployment, Terraform apply, production data migration, and Base44 retirement require explicit task scope. Base44 paths may be retired only after AWS parity evidence and a rollback-safe cutover; the final runtime must contain no Base44 dependency. See `.agents/references/auditflow-rewrite-target.md`.

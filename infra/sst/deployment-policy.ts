@@ -1,4 +1,5 @@
 import { APP_NAME, AWS_REGION, type StageName } from "./stage";
+import { deploymentContract } from "./contracts";
 
 export interface IamPolicyStatement {
   readonly Sid: string;
@@ -458,11 +459,10 @@ export function buildTestDeploymentPolicy({
         Condition: resourceTagCondition,
       },
       {
-        Sid: "ManageTaggedCloudFrontKeyValues",
+        Sid: "ManageCloudFrontKeyValues",
         Effect: "Allow",
-        Action: "cloudfront-keyvaluestore:*",
+        Action: deploymentContract.cloudFrontKeyValueStoreActions,
         Resource: `arn:aws:cloudfront::${accountId}:key-value-store/*`,
-        Condition: resourceTagCondition,
       },
       {
         Sid: "InspectDeploymentAndWorkloadRoles",
@@ -533,6 +533,8 @@ export function buildTestDeploymentPolicy({
 }
 
 export const deploymentPolicyContracts = {
+  cloudFrontKeyValueStoreActions:
+    deploymentContract.cloudFrontKeyValueStoreActions,
   deployRoleSelfMutationActions,
   globalDiscoveryActions,
   requestTagCondition,

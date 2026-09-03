@@ -544,6 +544,14 @@ export const deploymentContract = {
     "repo:noamtz@2631641/cpa-platform@1332935468:environment:test",
   repository: "noamtz/cpa-platform",
   environment: "test",
+  cloudFrontKeyValueStoreActions: [
+    "cloudfront-keyvaluestore:DeleteKey",
+    "cloudfront-keyvaluestore:DescribeKeyValueStore",
+    "cloudfront-keyvaluestore:GetKey",
+    "cloudfront-keyvaluestore:ListKeys",
+    "cloudfront-keyvaluestore:PutKey",
+    "cloudfront-keyvaluestore:UpdateKeys",
+  ] as const,
 } as const;
 
 export const deploymentGateContract = {
