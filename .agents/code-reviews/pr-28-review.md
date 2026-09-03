@@ -1,33 +1,29 @@
-# PR #28 re-review — Complete CPA workflow and template parity
+# PR #28 final re-review — Complete CPA workflow and template parity
 
 **PR:** https://github.com/noamtz/cpa-platform/pull/28
 
-**Head:** `206d896636e617c1da41a10bdab20f4fcc6d29ec`
+**Head:** `478110846fe1bffd65771de6cd118e09d4ec5ecd`
 
 **State:** Open
 
-**Reviewed:** 2026-09-02
+**Reviewed:** 2026-09-03
 
 ## Remediation status
 
-Resolved on 2026-09-03. Edit Client now sends one revision-aware request containing the profile changes and optional
-tax-year change. The server validates the complete input, preserves status when the year is unchanged, derives status
-when it changes, and commits one conditional Client update with one journal change. Failed validation, stale browser
-revisions, active-submission conflicts, and conditional-write conflicts therefore produce no partial profile/tax-year
-mutation; the modal also clears its saving state and presents a Hebrew retry message on failure.
+Resolved on 2026-09-03. `src/lib/cpa-fill.js` now requests only `is_archived:false` submissions and defensively
+selects the first non-archived result. `src/pages/CpaFillQuestionnaire.jsx` uses that helper instead of taking index
+zero from unfiltered year history. The archived-first-plus-active regression and all-active-missing case both pass.
 
-Post-fix validation passes 108 application tests, 263 foundation tests, 22 PDF tests, foundation typecheck/lint, the
+Post-fix validation passes 110 application tests, 263 foundation tests, 22 PDF tests, foundation typecheck/lint, the
 production build, SST contract verification, Codex-layer validation, runtime Base44 scanning, and diff hygiene. The
 documented frontend baselines remain unchanged at 145 type diagnostics and five lint errors. Nothing was deferred;
-the PR is ready for a fresh review, while the human simultaneous-editor and authorized live checks remain outstanding.
+the PR is ready for a fresh review, while the human and owner-authorized live checks remain outstanding.
 
 ## Summary
 
-Initial verdict: request changes. The four findings from the initial review are resolved, and the protected route,
-concurrency, validation, and verifier contracts are synchronized. One new Medium-severity acceptance mismatch remains:
-the Edit Client form splits one logical save across two independent mutations, so a failure in the second request can
-leave a partially applied edit. This conflicts with the plan's lifecycle guarantee that a logical action cannot
-partially succeed.
+Initial verdict: request changes. The atomic Client-details remediation is correct and all earlier findings remain
+resolved. The Medium-severity CPA-assisted questionnaire selection defect found in this review is also resolved by
+filtering for active submissions and defensively rejecting archived results.
 
 ## Initial issue counts
 
@@ -42,9 +38,11 @@ partially succeed.
 
 ### AGENT FIXES
 
-1. **Resolved — atomic Edit Client save.** `src/components/dashboard/EditClientModal.jsx:27` now sends one combined
-   request to `backend/api/services/cpa-workflows.ts:484`, which validates the browser revision and commits the profile,
-   optional tax year, derived status, and journal evidence as one conditional mutation.
+1. **Resolved — select only the active Submission for CPA fill.**
+   `src/pages/CpaFillQuestionnaire.jsx:76` queries by client/year without `is_archived:false`, then line 77 selects
+   the first result. If an archived row sorts first, `backend/api/services/cpa-workflows.ts:235` rejects the next save
+   as archived and reload repeats the same selection. Filter the query to active records, choose defensively, and add
+   a regression test containing archived and active submissions for the same client/year.
 
 ### HUMAN DECIDES
 
@@ -52,27 +50,27 @@ None.
 
 ### HUMAN READS
 
-- `backend/api/services/cpa-workflows.ts:484` — review the combined Client details mutation and its status derivation.
-- `backend/api/contracts/cpa-workflows.ts:41` — review the strict allowed profile, tax-year, and revision contract.
-- `backend/api/contracts/entities.ts:202` — review the additive Client revision projection used for concurrency.
+- `backend/api/services/cpa-workflows.ts:217` — review CPA save ownership, revision, guard, and journal coordination.
+- `backend/api/services/cpa-workflows.ts:484` — review the new atomic Client profile/tax-year mutation.
+- `backend/api/services/files.ts:614` — review public and CPA PDF-template file authorization boundaries.
 
 ### HUMAN TESTS
 
-- `src/components/dashboard/EditClientModal.jsx:27` — edit profile and tax year together, then force a stale revision
-  and confirm the UI requests a refresh without partially changing either value.
-- `src/pages/PdfTemplateEditor.jsx:538` — exercise two simultaneous PDF-template editors and confirm stale update and
-  archive requests do not overwrite newer state.
+- `src/pages/CpaFillQuestionnaire.jsx:76` — after remediation, load a client/year with archived history plus one active
+  Submission and confirm CPA fill resumes and saves the active record.
+- `src/pages/PdfTemplateEditor.jsx:538` — use two simultaneous editors and verify stale update/archive requests return
+  reload conflicts without replacing newer state.
 - `.agents/reports/complete-cpa-workflow-template-parity-report.md:79` — with explicit authorization and valid AWS
   credentials, run the disposable test-stage two-user acceptance matrix.
 
 ### FYI
 
-- `.agents/reports/complete-cpa-workflow-template-parity-report.md:52` — local validation still uses Node 24.13.0
-  because Node 20.17.0 could not be activated in the current Windows shell.
+- `.agents/reports/complete-cpa-workflow-template-parity-report.md:52` — validation used Node 24.13.0 because required
+  Node 20.17.0 could not be activated in the current Windows shell.
 - `.agents/reports/complete-cpa-workflow-template-parity-report.md:64` — the inherited 145 type diagnostics and five
-  lint errors remain unchanged by this remediation.
+  lint errors remain unchanged and are not introduced by this PR.
 - `.agents/reports/complete-cpa-workflow-template-parity-report.md:77` — SST preview remains blocked by invalid cached
-  AWS credentials; no cloud mutation was made.
+  AWS credentials and the Windows SST temp-log path bug; no cloud mutation occurred.
 
 ## Issues by severity
 
@@ -86,15 +84,7 @@ None.
 
 ### Medium
 
-1. **Make Edit Client a single atomic server-owned mutation.**
-   `src/components/dashboard/EditClientModal.jsx:28` commits the tax-year/status workflow before
-   `src/components/dashboard/EditClientModal.jsx:33` sends the profile PATCH. If the first request succeeds and the
-   second fails because of a network interruption, validation error, or concurrent write, the modal reports no
-   successful save while the tax year and derived status have already changed. The error path also leaves `saving`
-   true, and retrying can repeat the workflow against stale component props. Add one server-owned operation that
-   accepts the allowed profile fields and optional tax year, derives status, and commits the complete Client change
-   under one version condition and journal entry. Add a regression test proving a rejected combined edit makes no
-   partial mutation.
+None remaining. The archived Submission selection defect is resolved; see AGENT FIXES item 1.
 
 ### Low
 
@@ -102,12 +92,12 @@ None.
 
 ## Previous findings
 
-All four initial findings are resolved:
+The earlier findings remain resolved:
 
-- PDF-template update and archive require the browser-observed revision and reject stale writes without journaling.
-- Generic Client/Submission PATCH contracts reject workflow-owned fields, and orphan reset is a guarded, journaled
-  CPA operation.
-- Malformed PDF base-file references return 400 before create/update service dispatch.
+- PDF-template update/archive requires caller-observed revisions and rejects stale mutations.
+- Generic lifecycle fields are restricted; orphan reset and Client details use guarded, journaled operations.
+- Edit Client profile and optional tax-year changes now commit as one revision-aware conditional mutation.
+- Malformed PDF base-file references return 400 before service dispatch.
 - Live verifier evidence derives the scoped CPA-route count from the enforced 36-route contract.
 
 ## Validation
@@ -115,9 +105,9 @@ All four initial findings are resolved:
 | Check | Result |
 | --- | --- |
 | Node/npm | DOCUMENTED DEVIATION — Node 24.13.0 / npm 11.6.2; project requires Node 20.17.0 |
-| `npm ci` | PASS — 1,055 packages installed; inherited warnings; 35 audit findings |
-| `npm test` | PASS — 12 files / 108 tests |
-| `npm run test:foundation` | PASS — 35 files / 259 tests |
+| `npm ci` | PASS at current lockfile — 1,055 packages; inherited warnings; 35 audit findings |
+| `npm test` | PASS — 13 files / 110 tests |
+| `npm run test:foundation` | PASS — 35 files / 263 tests |
 | `npm run test:pdf` | PASS — 3 files / 22 tests |
 | `npm run typecheck:foundation` | PASS |
 | `npm run lint:foundation` | PASS |
@@ -128,23 +118,24 @@ All four initial findings are resolved:
 | `git diff --check origin/main...HEAD` | PASS |
 | `npm run typecheck` | KNOWN BASELINE — 145 diagnostics, matching the committed report |
 | `npm run lint` | KNOWN BASELINE/GENERATED — five errors, matching the committed report |
-| `npm run sst:diff:test` | OPERATIONAL BLOCK — invalid cached AWS token and Windows SST temp-log path bug; no cloud mutation |
+| `npm run sst:diff:test` | OPERATIONAL BLOCK — invalid cached AWS token and Windows SST temp-log bug; no cloud mutation |
 | Authorized deploy/live acceptance | NOT RUN — explicit owner authorization and valid credentials required |
 
 ## What is good
 
-- `backend/api/services/templates.ts` now combines caller-observed revisions with conditional DynamoDB writes, so a
-  stale PDF-template editor cannot overwrite or archive newer state.
-- `backend/api/services/cpa-workflows.ts` and the matching route inventories keep workflow-owned state behind guarded,
-  journaled operations, including the new orphan-status reset.
-- `backend/api/contracts/templates.ts` rejects invalid external base-file references at ingress, preserving the 400
-  contract and preventing mutation dispatch.
-- `tooling/verify_sst_foundation.mjs` reports the same protected route count it enforces, with regression coverage.
-- The complete application, foundation, and PDF test suites pass after a clean dependency installation.
+- `backend/api/services/cpa-workflows.ts:484` implements the combined Client edit as one caller-revision-aware,
+  conditional, journaled mutation and preserves status when the year is unchanged.
+- Route allowlists, SST contracts, the foundation JSON, and verifier evidence remain synchronized at 36 protected
+  CPA routes.
+- PDF-template concurrency, malformed reference validation, and workflow-owned field restrictions remain correctly
+  enforced with negative tests.
+- `src/pages/CpaFillQuestionnaire.jsx:109` retains serialized saves and advances the server-issued Submission revision
+  only after successful writes.
+- All executable application, foundation, and PDF tests pass, as do build and task-specific checks.
 
 ## Recommendation
 
-The original recommendation was request changes. The split Edit Client save has now been replaced by one atomic
-server operation with no-partial-mutation coverage and the validation gate has passed. Re-run the PR review; after a
-clean verdict, a human should perform the simultaneous-editor smoke test and the explicitly authorized test-stage
-acceptance before merging.
+The original recommendation was request changes. CPA-fill loading now restricts and defensively selects the active
+Submission, the archived-plus-active regression is covered, and the validation gate passes. Re-run the PR review;
+after a clean verdict, a human should perform the two-editor and owner-authorized test-stage acceptance checks before
+merging.

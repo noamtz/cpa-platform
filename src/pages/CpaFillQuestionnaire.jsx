@@ -6,6 +6,7 @@ import ProgressBar from "@/components/questionnaire/ProgressBar";
 import CompletionScreen from "@/components/questionnaire/CompletionScreen";
 import StepSelector from "@/components/questionnaire/StepSelector";
 import { DEFAULT_STEPS, resolveYearPlaceholders, getActiveSteps, filterStepsByClientConditions } from "@/lib/questionnaire-template";
+import { loadActiveCpaSubmission } from "@/lib/cpa-fill";
 import { getResponses } from "@/lib/submission-compat";
 import { buildSteps, parseSignedPdfs, getResumeStepIndex, deriveStepStatuses } from "@/lib/questionnaire-steps";
 import { AlertTriangle, ArrowRight } from "lucide-react";
@@ -73,8 +74,7 @@ export default function CpaFillQuestionnaire() {
     setClient(c);
 
     const taxYear = c.tax_year || 2024;
-    const subs = await base44.entities.Submission.filter({ client_id: clientId, tax_year: taxYear });
-    const sub = subs?.[0] || null;
+    const sub = await loadActiveCpaSubmission(base44, clientId, taxYear);
     setSubmission(sub);
     submissionIdRef.current = sub?.id || null;
     revisionRef.current = sub?.revision || null;
