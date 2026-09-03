@@ -6,8 +6,9 @@
 
 **Branch**: `feature/complete-cpa-workflow-template-parity`
 
-**Status**: COMPLETE LOCALLY — implementation and local validation are complete; test-stage diff/deployment and
-authenticated synthetic acceptance were not authorized in this run.
+**Status**: COMPLETE AND TEST-STAGE VERIFIED — implementation, local validation, owner-authenticated preview/deploy,
+restricted-deployer CI, and the live foundation verifier pass. The broader disposable two-user exploratory matrix
+remains a human acceptance exercise.
 
 ## Summary
 
@@ -46,13 +47,18 @@ file flow, and the remaining non-migrated agent/integration entry points fail ex
   archive denial, active guards, template pinning, and route protection.
 - Completed a local desktop/mobile Chromium smoke check for routing, RTL/error presentation, and the localized brand
   asset; the isolated temporary profile was deleted after the check.
+- Repaired the test deployer's CloudFront KeyValueStore data-plane grant with an explicit six-action,
+  account-resource-scoped statement; added policy and workflow-order regressions plus an effective-permission
+  preflight that runs before any CI preview or deployment.
+- Used the owner-authenticated profile to preview and deploy the complete synthetic-only test stage, then verified the
+  deployed role and complete live foundation. The required GitHub OIDC workflow subsequently passed end to end.
 
 ## Validation results
 
 - `npm ci`: PASS under the available Node 24.13.0 runtime. Switching to required Node 20.17.0 via nvm failed with a
   Windows access-denied error; no dependency or lockfile drift followed the clean install.
-- Application tests: PASS — 12 files / 108 tests.
-- Foundation/backend/tooling tests: PASS — 35 files / 252 tests.
+- Application tests: PASS — 13 files / 110 tests.
+- Foundation/backend/tooling tests: PASS — 35 files / 267 tests.
 - PDF tests: PASS — 3 files / 22 tests.
 - Foundation typecheck and lint: PASS.
 - Production build: PASS.
@@ -68,16 +74,30 @@ file flow, and the remaining non-migrated agent/integration entry points fail ex
   `.sst` bundle rule-resolution errors; two are unused imports in untouched `CompletionScreen.jsx` and
   `UserManagement.jsx`. All task paths pass focused lint.
 - Local isolated-browser smoke: PASS — localized 1024×1024 brand image loaded; `/questionnaire` rendered the expected
-  Hebrew invalid-link state at 1440×900 and 390×844. Authenticated CPA behavior requires a configured/deployed stage.
+  Hebrew invalid-link state at 1440×900 and 390×844. That smoke did not exercise authenticated CPA browser behavior;
+  deployed authorization is covered by the route/service suites and live foundation verifier.
+- Owner-authenticated `npm run sst:diff:test`: PASS — intended deploy-role and application artifact updates, with no
+  stateful resource replacement.
+- Owner-authenticated `npm run sst:deploy:test`: PASS — test stage deployed and Cognito refresh rotation remained
+  enabled.
+- Deployer verifier: PASS — exactly six required CloudFront KeyValueStore actions are effective on the account-local
+  resource namespace; cross-account access is denied.
+- Live foundation verifier: PASS — deployed inventory, data protection, runtime, PDF rendering, IAM simulations,
+  OIDC trust, managed login, health, and protected-health rejection all satisfy the contract.
+- Required GitHub `Deploy SST test` workflow: PASS at `94b2823` under Node 20.17.0 and the restricted OIDC deployer,
+  including preflight, preview, synthetic-only deployment, and live verification.
+- Private-file cutover verifier: expected `missing_evidence` block — issue #11 has not published import evidence, so
+  legacy reads remain safely disabled.
 
 ## Deviations and limitations
 
-- Node 20.17.0 is installed but nvm could not activate it because Windows denied the symlink update. Validation ran
-  under Node 24.13.0 and this mismatch should be eliminated in CI or an elevated local shell before release.
-- The read-only `npm run sst:diff:test` attempt did not reach a usable preview because the cached AWS credential was
-  invalid; SST also failed to write its Windows temporary diagnostic log. No cloud mutation occurred.
-- Test-stage deployment and live authenticated/synthetic acceptance were skipped because this run did not include the
-  explicit owner authorization required by the plan and repository rules. No fixtures or external state were changed.
+- Node 20.17.0 is installed but nvm could not activate it because Windows denied the symlink update. Local validation
+  used Node 24.13.0; the required GitHub workflow passed under Node 20.17.0.
+- SST still emits a Windows-only temporary diagnostic-log path warning locally, but both authenticated preview and
+  deployment completed successfully and the live verifier passed.
+- The broader disposable two-user browser matrix was not automated in this remediation run. Backend authorization,
+  route, facade, conflict, and ownership cases are covered by the passing suites; a human may still perform that
+  exploratory acceptance before merge.
 - The preferred `agent-browser` CLI was unavailable in the environment. The repository-approved isolated Chromium
   fallback completed the local visual checks instead.
 - Full frontend lint/typecheck remain intentionally outside this ticket's cleanup scope; their remaining failures are
@@ -85,10 +105,9 @@ file flow, and the remaining non-migrated agent/integration entry points fail ex
 
 ## Remaining gates
 
-1. Restore valid `noamtz` AWS credentials and run `npm run sst:diff:test`; confirm no stateful replacement or deletion.
-2. With explicit owner authorization, run `npm run sst:deploy:test`, the live foundation verifier, and the plan's
-   disposable two-user authenticated acceptance matrix.
-3. Repeat the release validation under Node 20.17.0.
+1. A human may perform the plan's disposable two-user authenticated browser matrix as exploratory acceptance before
+   merge; the automated authorization and live-foundation gates pass.
+2. Issue #11 must publish verified import evidence before legacy file reads can be enabled.
 
 ## Related
 
