@@ -24,16 +24,20 @@ export default function EditClientModal({ client, onClose, onSaved }) {
     }
     setSaving(true);
     const { tax_year, ...profile } = form;
-    if (tax_year !== client.tax_year) {
-      await base44.functions.invoke("changeClientTaxYear", {
+    try {
+      await base44.functions.invoke("updateClientDetails", {
         client_id: client.id,
-        tax_year,
+        revision: client.revision,
+        profile,
+        ...(tax_year === client.tax_year ? {} : { tax_year }),
       });
+      onSaved();
+      onClose();
+    } catch {
+      alert("שמירת פרטי הלקוח נכשלה. נא לרענן ולנסות שוב.");
+    } finally {
+      setSaving(false);
     }
-    await base44.entities.Client.update(client.id, profile);
-    setSaving(false);
-    onSaved();
-    onClose();
   };
 
   return (

@@ -113,6 +113,15 @@ export function createAwsClient({ auth, http }) {
             "POST",
             {},
           ],
+          updateClientDetails: [
+            `/cpa/clients/${encodeURIComponent(payload.client_id)}/details`,
+            "PATCH",
+            {
+              revision: payload.revision,
+              profile: payload.profile,
+              ...(payload.tax_year === undefined ? {} : { tax_year: payload.tax_year }),
+            },
+          ],
           restoreSubmission: [
             `/cpa/submissions/${encodeURIComponent(payload.submission_id)}/restore`,
             "POST",

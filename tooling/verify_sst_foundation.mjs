@@ -156,7 +156,7 @@ function verifyContract(contract, stage) {
       authorization === "cognito-jwt" && route !== "GET /auth/health",
   );
   assert(
-    cpaRoutes.length === 35 && scopedCpaRouteCount(contract) === cpaRoutes.length,
+    cpaRoutes.length === 36 && scopedCpaRouteCount(contract) === cpaRoutes.length,
     "The exact CPA route inventory is incomplete.",
   );
   assert(

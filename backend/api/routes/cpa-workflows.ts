@@ -7,6 +7,7 @@ import {
   resetOrphanClientStatusSchema,
   restoreSubmissionSchema,
   transitionSubmissionStatusSchema,
+  updateClientDetailsSchema,
 } from "../contracts/cpa-workflows";
 import { badRequest } from "../core/errors";
 import { jsonResponse, parseJsonBody } from "../core/http";
@@ -71,6 +72,20 @@ export function registerCpaWorkflowRoutes(
         ),
       );
     }),
+  );
+  router.register(
+    "PATCH /cpa/clients/{id}/details",
+    authenticated(async (event, actor) =>
+      jsonResponse(
+        200,
+        await service.updateClientDetails(
+          pathId(event),
+          parseJsonBody(event, updateClientDetailsSchema),
+          actor,
+          event.requestContext.requestId,
+        ),
+      ),
+    ),
   );
   router.register(
     "POST /cpa/submissions/{id}/restore",

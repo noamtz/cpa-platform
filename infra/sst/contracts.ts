@@ -257,6 +257,12 @@ export const apiRoutes = {
     authorization: "cognito-jwt",
     authorizationScopes: ["auditflow-api/cpa"],
   },
+  clientDetailsUpdate: {
+    route: "PATCH /cpa/clients/{id}/details",
+    path: "/cpa/clients/{id}/details",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
   submissionRestore: {
     route: "POST /cpa/submissions/{id}/restore",
     path: "/cpa/submissions/{id}/restore",

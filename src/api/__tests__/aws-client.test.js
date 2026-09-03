@@ -53,12 +53,26 @@ describe("AWS compatibility client", () => {
     await client.functions.invoke("getActiveTemplate", {});
     await client.functions.invoke("cpaSaveSubmission", { client_id: "client-1" });
     await client.functions.invoke("resetOrphanClientStatus", { client_id: "client/1" });
+    await client.functions.invoke("updateClientDetails", {
+      client_id: "client/1",
+      revision: 3,
+      profile: { full_name: "Updated Client" },
+      tax_year: 2025,
+    });
     await client.connectors.connectAppUser("connector-1");
     expect(request.mock.calls).toEqual([
       ["/cpa/integrations/google-drive/sync", { method: "POST", body: { check_connection: true } }],
       ["/cpa/questionnaire-templates/active", { method: "GET" }],
       ["/apps/auditflow/functions/cpaSaveSubmission", { method: "POST", body: { client_id: "client-1" } }],
       ["/cpa/clients/client%2F1/orphan-status-reset", { method: "POST", body: {} }],
+      ["/cpa/clients/client%2F1/details", {
+        method: "PATCH",
+        body: {
+          revision: 3,
+          profile: { full_name: "Updated Client" },
+          tax_year: 2025,
+        },
+      }],
       ["/cpa/integrations/google-drive/connect", { method: "POST", body: { connector_id: "connector-1" } }],
     ]);
   });

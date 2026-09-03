@@ -247,7 +247,7 @@ describe("foundation resource contract", () => {
       ({ route, authorization }) =>
         authorization === "cognito-jwt" && route !== "GET /auth/health",
     );
-    expect(cpaRoutes).toHaveLength(35);
+    expect(cpaRoutes).toHaveLength(36);
     expect(
       cpaRoutes.every(
         (route) =>
@@ -267,6 +267,7 @@ describe("foundation resource contract", () => {
       "POST /apps/{appId}/functions/cpaSaveSubmission",
       "POST /cpa/clients/{id}/tax-year",
       "POST /cpa/clients/{id}/orphan-status-reset",
+      "PATCH /cpa/clients/{id}/details",
       "POST /cpa/submissions/{id}/restore",
       "POST /cpa/submissions/{id}/workflow-status",
       "GET /cpa/questionnaire-templates/active",

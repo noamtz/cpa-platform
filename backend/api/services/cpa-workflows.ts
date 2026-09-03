@@ -9,6 +9,7 @@ import type {
   CpaSaveSubmissionInput,
   RestoreSubmissionInput,
   TransitionSubmissionStatusInput,
+  UpdateClientDetailsInput,
 } from "../contracts/cpa-workflows";
 import { publicRecord, type ClientRecord, type SubmissionRecord } from "../contracts/entities";
 import type { QuestionnaireTemplateGuard } from "../contracts/templates";
@@ -478,6 +479,45 @@ export class CpaWorkflowService {
       "SUBMISSION_RESTORE_CONFLICT",
     );
     return publicRecord(restored);
+  }
+
+  async updateClientDetails(
+    clientId: string,
+    input: UpdateClientDetailsInput,
+    actor: CpaActor,
+    requestId: string,
+  ) {
+    const client = await this.client(clientId);
+    if (client._version !== input.revision) {
+      throw reloadConflict("CLIENT_CONFLICT");
+    }
+    let status = client.status;
+    if (input.tax_year !== undefined && input.tax_year !== client.tax_year) {
+      const target = (await this.activeSubmission(client.id, input.tax_year)).record;
+      status = target?.cpa_status ?? "pending";
+    }
+    const after: ClientRecord = {
+      ...client,
+      ...input.profile,
+      ...(input.tax_year === undefined ? {} : { tax_year: input.tax_year }),
+      ...(status === undefined ? {} : { status }),
+      updated_date: this.clock().toISOString(),
+      _version: client._version + 1,
+    };
+    await this.commit(
+      actor,
+      requestId,
+      [conditionalUpdate(this.options.clients.tableName, after, client._version)],
+      [{
+        entityType: "Client",
+        entityKey: client.id,
+        operationType: "update",
+        before: client,
+        after,
+      }],
+      "CLIENT_CONFLICT",
+    );
+    return publicRecord(after);
   }
 
   async resetOrphanStatus(

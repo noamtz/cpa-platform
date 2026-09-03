@@ -28,6 +28,15 @@ const clientFields = {
   is_archived: z.boolean().optional(),
 };
 
+const clientProfileFields = {
+  full_name: clientFields.full_name,
+  email: clientFields.email,
+  phone: clientFields.phone,
+  osek_type: clientFields.osek_type,
+  pricing: clientFields.pricing,
+  notes: clientFields.notes,
+};
+
 export const clientPersistedSchema = z
   .object({
     id,
@@ -51,14 +60,15 @@ export const clientCreateSchema = z
 
 export const clientUpdateSchema = z
   .object({
-    full_name: clientFields.full_name,
-    email: clientFields.email,
-    phone: clientFields.phone,
-    osek_type: clientFields.osek_type,
-    pricing: clientFields.pricing,
-    notes: clientFields.notes,
+    ...clientProfileFields,
     is_archived: clientFields.is_archived,
   })
+  .partial()
+  .strict()
+  .refine((value) => Object.keys(value).length > 0);
+
+export const clientProfileUpdateSchema = z
+  .object(clientProfileFields)
   .partial()
   .strict()
   .refine((value) => Object.keys(value).length > 0);
@@ -192,7 +202,10 @@ export type EntitySort = z.infer<typeof sort>;
 
 export function publicRecord<T extends Record<string, unknown>>(record: T) {
   const visible: Record<string, unknown> = { ...record };
-  if (record.record_type === "Submission" && typeof record._version === "number") {
+  if (
+    (record.record_type === "Client" || record.record_type === "Submission") &&
+    typeof record._version === "number"
+  ) {
     visible.revision = record._version;
   }
   delete visible.record_type;

@@ -230,6 +230,73 @@ describe("CpaWorkflowService", () => {
     ]);
   });
 
+  it("updates profile and tax year as one revision-aware mutation", async () => {
+    const { service, commit } = setup(null);
+
+    await expect(
+      service.updateClientDetails(
+        "client-1",
+        {
+          revision: 3,
+          profile: { full_name: "Updated Client", pricing: 1800 },
+          tax_year: 2025,
+        },
+        actor,
+        "request-details",
+      ),
+    ).resolves.toMatchObject({
+      full_name: "Updated Client",
+      pricing: 1800,
+      tax_year: 2025,
+      status: "pending",
+      revision: 4,
+    });
+    expect(commit).toHaveBeenCalledOnce();
+    expect(commit.mock.calls[0][0].businessActions).toHaveLength(1);
+    expect(commit.mock.calls[0][0].changes).toHaveLength(1);
+    expect(commit.mock.calls[0][0].changes[0].after).toMatchObject({
+      full_name: "Updated Client",
+      tax_year: 2025,
+      status: "pending",
+    });
+  });
+
+  it("rejects a stale combined client edit without any partial mutation", async () => {
+    const { service, commit } = setup(null);
+
+    await expect(
+      service.updateClientDetails(
+        "client-1",
+        {
+          revision: 2,
+          profile: { full_name: "Stale Client" },
+          tax_year: 2025,
+        },
+        actor,
+        "request-stale-details",
+      ),
+    ).rejects.toMatchObject({ statusCode: 409, details: { reload: true } });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it("preserves workflow status when a profile edit does not change tax year", async () => {
+    const { service, submissions, commit } = setup();
+
+    await service.updateClientDetails(
+      "client-1",
+      { revision: 3, profile: { phone: "050-1234567" } },
+      actor,
+      "request-profile-only",
+    );
+
+    expect(submissions.getActiveForClientYear).not.toHaveBeenCalled();
+    expect(commit.mock.calls[0][0].changes[0].after).toMatchObject({
+      phone: "050-1234567",
+      status: "in_progress",
+      tax_year: 2026,
+    });
+  });
+
   it("resets a completed orphan through a conditional journaled update", async () => {
     const { service, clients, commit } = setup(null);
     vi.mocked(clients.get).mockResolvedValue(client({ status: "completed" }));

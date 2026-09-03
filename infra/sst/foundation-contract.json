@@ -37,6 +37,7 @@
     { "route": "POST /apps/{appId}/functions/cpaSaveSubmission", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/clients/{id}/tax-year", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/clients/{id}/orphan-status-reset", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "PATCH /cpa/clients/{id}/details", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/submissions/{id}/restore", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/submissions/{id}/workflow-status", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "GET /cpa/questionnaire-templates/active", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },

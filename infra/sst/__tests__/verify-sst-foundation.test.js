@@ -20,7 +20,7 @@ describe("live verifier evidence", () => {
       readFileSync(new URL("../foundation-contract.json", import.meta.url), "utf8"),
     );
 
-    expect(scopedCpaRouteCount(contract)).toBe(35);
+    expect(scopedCpaRouteCount(contract)).toBe(36);
   });
 });
 

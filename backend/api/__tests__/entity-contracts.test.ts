@@ -28,6 +28,7 @@ describe("entity compatibility contracts", () => {
     expect(publicRecord(record)).toMatchObject({
       id: "client-1",
       legacy_flat_field: "preserved",
+      revision: 1,
     });
     expect(publicRecord(record)).not.toHaveProperty("record_type");
     expect(publicRecord(record)).not.toHaveProperty("_version");
