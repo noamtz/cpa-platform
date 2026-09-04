@@ -55,12 +55,14 @@ describe("CPA actor resolution", () => {
   it("returns a frozen local admin actor after both token checks", async () => {
     const actor = await resolveCpaActor(event(), verifier, {
       async findByCognitoSubject() {
-        return [{ id: "user-1", role: "admin", cognito_sub: "subject-1" }];
+        return [{ id: "user-1", email: "admin@example.test", full_name: "Invented Admin", role: "admin", cognito_sub: "subject-1" }];
       },
     });
 
     expect(actor).toEqual({
       userId: "user-1",
+      email: "admin@example.test",
+      fullName: "Invented Admin",
       cognitoSubject: "subject-1",
       role: "admin",
     });
@@ -105,12 +107,12 @@ describe("CPA actor resolution", () => {
     { records: [] },
     {
       records: [
-        { id: "user-1", role: "admin", cognito_sub: "subject-1" },
-        { id: "user-2", role: "admin", cognito_sub: "subject-1" },
+        { id: "user-1", email: "one@example.test", role: "admin", cognito_sub: "subject-1" },
+        { id: "user-2", email: "two@example.test", role: "admin", cognito_sub: "subject-1" },
       ],
     },
     {
-      records: [{ id: "user-1", role: "user", cognito_sub: "subject-1" }],
+      records: [{ id: "user-1", email: "user@example.test", role: "user", cognito_sub: "subject-1" }],
     },
   ])("rejects unlinked, duplicate, and non-admin profiles", async ({ records }) => {
     await expect(

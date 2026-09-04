@@ -40,7 +40,7 @@ const dependencies = {
   },
   users: {
     async findByCognitoSubject() {
-      return [{ id: "user-1", role: "admin", cognito_sub: "subject-1" }];
+      return [{ id: "user-1", email: "admin@example.test", role: "admin", cognito_sub: "subject-1" }];
     },
   },
   entities: {},

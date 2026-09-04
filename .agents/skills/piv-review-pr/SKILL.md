@@ -18,7 +18,7 @@ Resolve the input to a PR number (a number, a URL, or a branch via
 `python tooling/github.py pr list --head <branch> --json number -q '.[0].number'`). Then:
 
 ```bash
-python tooling/github.py pr view {N} --json number,title,body,author,headRefName,baseRefName,state,additions,deletions,changedFiles,files
+python tooling/github.py pr view {N} --json number,title,body,author,headRefName,baseRefName,headRefOid,state,isDraft,mergeable,reviewDecision,statusCheckRollup,additions,deletions,changedFiles,files
 python tooling/github.py pr diff {N}
 python tooling/github.py pr checkout {N}
 ```
@@ -37,6 +37,14 @@ State guard: `MERGED`/`CLOSED` → stop ("nothing to review"); `DRAFT` → revie
 
 Run the project's real suite (the **`piv-validate`** skill, or the plan's validation commands) — tests, type-check,
 lint, build. Capture pass/fail + counts. A red suite is a finding in itself.
+
+Inspect `statusCheckRollup` at the reviewed head after local validation. Do not publish a final verdict while a
+relevant required check is pending. For every failed check, open its run and failed logs through
+`python tooling/github.py run view <run-id> --json ...` and `--log-failed`, determine whether it is a code,
+permissions, infrastructure, or external-state failure, and record it in the report. A documented local limitation
+does not excuse a red CI check. For deployment failures, confirm whether any resource changed before failure and
+require reconciliation evidence. Re-read the PR head and check rollup immediately before posting so the verdict
+cannot describe an older commit or overlook a late failure.
 
 ## Phase 4 — Review the diff (dispatch the code-reviewer agent)
 
@@ -58,7 +66,7 @@ Acknowledge what's done well, too — review is constructive, not just a defect 
 
 ## Phase 5 — Decide
 
-- **Approve** — no critical/high issues, validation passes, matches intent.
+- **Approve** — no critical/high issues, local validation and relevant required checks pass, matches intent.
 - **Request changes** — high issues, or fixable validation failures, or undocumented pattern violations.
 - **Block** (request-changes, strongly) — critical security/data issues, or wrong fundamental approach.
 - Honor an explicit `--approve` / `--request-changes` flag, but never approve over an unresolved critical issue.

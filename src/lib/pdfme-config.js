@@ -159,12 +159,10 @@ const resolvedPdfCache = new Map();
  * Fetches the signed URL and returns a Uint8Array. Result is cached in memory.
  * 
  * @param basePdf - The basePdf value from the template
- * @param appId - The app ID from env
  * @param authContext - Required public { client_id, token, template_id } or CPA
  *                      { cpa: true, template_id } locator context.
  */
-export async function resolveBasePdf(basePdf, appId, authContext) {
-  void appId;
+export async function resolveBasePdf(basePdf, authContext) {
   if (!basePdf || typeof basePdf !== "object" || basePdf.__type !== "file_uri") {
     return basePdf;
   }

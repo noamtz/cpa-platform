@@ -7,6 +7,8 @@ import { EntityService } from "../services/entities";
 
 const actor = {
   userId: "user-1",
+  email: "admin@example.test",
+  fullName: "Invented Admin",
   cognitoSubject: "subject-1",
   role: "admin" as const,
 };
@@ -103,7 +105,7 @@ describe("EntityService", () => {
   it("returns 404 without journal activity for a missing record", async () => {
     const { value, commit } = service({});
     await expect(
-      value.updateClient(actor, "request-1", "missing", { status: "reviewed" }),
+      value.updateClient(actor, "request-1", "missing", { notes: "Updated" }),
     ).rejects.toMatchObject({ statusCode: 404 });
     expect(commit).not.toHaveBeenCalled();
   });

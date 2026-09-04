@@ -1,6 +1,7 @@
 import type { z } from "zod";
 
 import {
+  activeSubmissionGuardSchema,
   submissionPersistedSchema,
   type EntitySort,
   type SubmissionFilter,
@@ -21,6 +22,38 @@ export class SubmissionRepository {
 
   get(id: string) {
     return getRecord(this.client, this.tableName, id, submissionPersistedSchema);
+  }
+
+  getActiveGuard(clientId: string, taxYear: number) {
+    return getRecord(
+      this.client,
+      this.tableName,
+      `!ACTIVE#${clientId}#${taxYear}`,
+      activeSubmissionGuardSchema,
+    );
+  }
+
+  async getActiveForClientYear(clientId: string, taxYear: number) {
+    const guard = await this.getActiveGuard(clientId, taxYear);
+    if (guard) {
+      const record = await this.get(guard.submission_id);
+      if (
+        !record ||
+        record.is_archived ||
+        record.client_id !== clientId ||
+        record.tax_year !== taxYear
+      ) {
+        return { conflict: true as const, record: undefined };
+      }
+      return { conflict: false as const, record, guard };
+    }
+    const records = await this.query(
+      { client_id: clientId, tax_year: taxYear, is_archived: false },
+      "-created_date",
+      2,
+    );
+    if (records.length > 1) return { conflict: true as const, record: undefined };
+    return { conflict: false as const, record: records[0], guard: undefined };
   }
 
   async query(filter: SubmissionFilter, sort: EntitySort, limit: number) {

@@ -1,22 +1,12 @@
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { Loader2, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import PdfFormStep from "@/components/questionnaire/PdfFormStep";
+import { fileClient } from "@/api/file-client";
+import { invokePublicFunction, loadPublicPdfTemplate } from "@/api/function-client";
 
-const callFunction = async (name, payload) => {
-  const appId = import.meta.env.VITE_BASE44_APP_ID;
-  const res = await fetch(`/api/apps/${appId}/functions/${name}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error || "Server error");
-  }
-  return res.json();
-};
+const callFunction = invokePublicFunction;
 
 /**
  * PdfSignPage — Standalone page for PDF signing.
@@ -77,14 +67,11 @@ export default function PdfSignPage() {
       }
 
       // Always load PDF template (not available in router state)
-      const appId = import.meta.env.VITE_BASE44_APP_ID;
-      const res = await fetch(`/api/apps/${appId}/functions/getPdfTemplateById`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template_id: templateId }),
+      const data = await loadPublicPdfTemplate({
+        client_id: clientId,
+        token,
+        template_id: templateId,
       });
-      if (!res.ok) throw new Error("Failed to load PDF template");
-      const data = await res.json();
       if (!data?.template) throw new Error("Template not found");
       setPdfTemplate(data.template);
     } catch (e) {
@@ -117,19 +104,19 @@ export default function PdfSignPage() {
     };
 
     // Upload PDF blob if present
-    if (pdfBlob) {
+    if (pdfBlob && submission?.id) {
       try {
-        const appId = import.meta.env.VITE_BASE44_APP_ID;
-        const formData = new FormData();
-        formData.append("file", pdfBlob, `${templateName || "signed-form"}.pdf`);
-        const uploadRes = await fetch(`/api/apps/${appId}/functions/uploadFile?client_id=${encodeURIComponent(clientId)}&token=${encodeURIComponent(token)}`, {
-          method: "POST",
-          body: formData,
+        const file = new File([pdfBlob], `${templateName || "signed-form"}.pdf`, {
+          type: "application/pdf",
         });
-        if (uploadRes.ok) {
-          const { file_uri } = await uploadRes.json();
-          record.pdf_file_url = file_uri;
-        }
+        record.pdf_file_url = await fileClient.uploadPublicFile({
+          file,
+          clientId,
+          token,
+          submissionId: submission.id,
+          purpose: "signed_pdf",
+          stepId,
+        });
       } catch (e) {
         console.error("Failed to upload signed PDF:", e);
       }

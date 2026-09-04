@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import PdfFormStep from "@/components/questionnaire/PdfFormStep";
 import { fileClient } from "@/api/file-client";
+import { loadPublicPdfTemplate } from "@/api/function-client";
+import { base44 } from "@/api/base44Client";
 
 /**
  * PdfSignStepWrapper — Loads a PdfTemplate by ID (from step config),
@@ -28,16 +30,15 @@ export default function PdfSignStepWrapper({ step, client, submission, onComplet
   const loadTemplate = async () => {
     setLoading(true);
     try {
-      const appId = import.meta.env.VITE_BASE44_APP_ID;
-      const res = await fetch(`/api/apps/${appId}/functions/getPdfTemplateById`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template_id: templateId }),
-      });
-      if (!res.ok) throw new Error("Failed to load PDF template");
-      const data = await res.json();
-      if (data?.template) {
-        setPdfTemplate(data.template);
+      const result = isCpaMode
+        ? { template: await base44.entities.PdfTemplate.get(templateId) }
+        : await loadPublicPdfTemplate({
+            client_id: client.id,
+            token: client.token,
+            template_id: templateId,
+          });
+      if (result?.template) {
+        setPdfTemplate(result.template);
       } else {
         throw new Error("Template not found");
       }

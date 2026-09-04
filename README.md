@@ -34,11 +34,10 @@ client secret to browser configuration. `VITE_COGNITO_AUTHORITY` is the regional
 discovery, not the separate managed-login domain. Invited CPA users receive Cognito's temporary-password setup flow and must
 choose a new password at managed login before using the application.
 
-`src/api/base44Client.js` is a temporary hybrid compatibility facade. CPA auth, Client, Submission, User,
-invitation, Drive, and Telegram methods are AWS-only and never fall back when AWS rejects a request. Only the
-explicit PDF-template and readiness-agent allowlist remains on Base44 while its downstream migration
-tickets are incomplete. Direct legacy `/api/apps/...` calls do not pass through this facade and are not provided by
-the SST API.
+`src/api/base44Client.js` preserves the source-facing method names while routing the application runtime entirely
+through AWS. CPA auth, Client, Submission, User, questionnaire/PDF-template, lifecycle, invitation, Drive, and
+Telegram methods never fall back when AWS rejects a request. Public questionnaire and signing calls use the
+same-origin, token-scoped SST compatibility routes; the retained `base44/` tree is migration evidence only.
 
 Document, signed-PDF, and template-file bytes use private S3 references. Browser uploads exchange metadata for a
 short-lived signed PUT, upload directly to `FilesBucket`, and complete through the API before the opaque reference is
@@ -66,6 +65,7 @@ verified against the intended AuditFlow account:
 ```powershell
 $env:AWS_PROFILE = "<profile>"
 $env:AWS_REGION = "il-central-1"
+node tooling/verify_sst_foundation.mjs --mode deployer --stage test
 npm run sst:install
 npm run test:foundation
 npm run typecheck:foundation
@@ -93,9 +93,13 @@ explicit owner authorization for that exact scope.
 
 The active `Deploy SST test` workflow assumes the separate `auditflow-test-github-deploy` role through the GitHub
 `test` Environment. Set only its ARN as the Environment variable `AWS_DEPLOY_ROLE_ARN`; the workflow validates its
-immutable repository OIDC subject before assuming the role. The role cannot mutate itself. SST workload roles
+immutable repository OIDC subject before assuming the role. Before SST preview or deployment, the workflow simulates
+every required CloudFront KeyValueStore action against the deployed role and stops before stage mutation if the
+source and deployed permissions have drifted. The role cannot mutate itself. SST workload roles
 must use the stage permissions boundary, and CI can pass them only to Lambda. Changes to the deploy role or the
-boundary require an owner-authenticated bootstrap deployment; ordinary stage deployments remain OIDC-automated.
+boundary require an owner-authenticated bootstrap deployment; the agent handling the change must run that bootstrap,
+verify the deployed role, and restore the required workflow to green before declaring the PR complete. Ordinary
+stage deployments remain OIDC-automated.
 Mutable objects in the shared SST state bucket are restricted to the exact `auditflow/test` key space.
 The account-level GitHub OIDC provider remains Terraform-owned, while SST owns only this issue-scoped role and the
 new serverless foundation resources.

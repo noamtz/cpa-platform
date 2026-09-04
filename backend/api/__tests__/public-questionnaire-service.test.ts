@@ -85,8 +85,27 @@ function setup(options: {
   } as unknown as SubmissionRepository;
   const templates = {
     tableName: "QuestionnaireTemplateTable.test",
+    client: { send: vi.fn() },
+    getActiveGuard: vi.fn().mockResolvedValue(
+      options.activeTemplate
+        ? {
+            id: "!ACTIVE",
+            record_type: "!ACTIVE_GUARD",
+            active_template_id: options.activeTemplate.id,
+            active_version: options.activeTemplate.version,
+            _version: 1,
+          }
+        : undefined,
+    ),
+    history: vi.fn().mockResolvedValue(
+      options.activeTemplate ? [options.activeTemplate] : [],
+    ),
     latestActive: vi.fn().mockResolvedValue(options.activeTemplate),
-    get: vi.fn().mockResolvedValue(options.exactTemplate),
+    get: vi.fn().mockImplementation(async (id: string) =>
+      id === options.activeTemplate?.id
+        ? options.activeTemplate
+        : options.exactTemplate,
+    ),
   } as unknown as QuestionnaireTemplateRepository;
   const commit = options.commit ?? vi.fn().mockResolvedValue([]);
   const service = new PublicQuestionnaireService({
@@ -206,9 +225,16 @@ describe("PublicQuestionnaireService templates", () => {
       client: clientRecord(),
       commit,
     });
-    vi.mocked(templates.latestActive)
+    vi.mocked(templates.getActiveGuard)
       .mockImplementationOnce(async () => undefined)
-      .mockImplementationOnce(async () => templateRecord());
+      .mockImplementationOnce(async () => ({
+        id: "!ACTIVE",
+        record_type: "!ACTIVE_GUARD",
+        active_template_id: "template-2",
+        active_version: 2,
+        _version: 1,
+      }));
+    vi.mocked(templates.get).mockResolvedValue(templateRecord());
     await expect(
       service.getActiveTemplate(credentials, "request-1"),
     ).resolves.toMatchObject({ template: { id: "template-2" } });

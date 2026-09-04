@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { Loader2, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Check, FileText, Download } from "lucide-react";
+import { Loader2, ChevronRight, ChevronDown, ChevronUp, Check, FileText } from "lucide-react";
 
 import {
   loadPdfme,
@@ -92,7 +92,7 @@ export default function PdfFormStep({
 
       setLoadingStep("מוריד את הטופס...");
       const templateData = JSON.parse(pdfTemplate.template_json);
-      templateData.basePdf = await resolveBasePdf(parseBasePdf(templateData.basePdf), import.meta.env.VITE_BASE44_APP_ID, authContext);
+      templateData.basePdf = await resolveBasePdf(parseBasePdf(templateData.basePdf), authContext);
       setTemplateDataCache(templateData);
 
       // Build initial inputs from client data (auto-fill text fields)

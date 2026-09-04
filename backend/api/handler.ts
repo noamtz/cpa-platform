@@ -26,16 +26,20 @@ import { PdfTemplateRepository } from "./repositories/pdf-template";
 import { SubmissionRepository } from "./repositories/submission";
 import { UserRepository } from "./repositories/user";
 import { registerDeferredIntegrationRoutes } from "./routes/deferred-integrations";
+import { registerCpaWorkflowRoutes } from "./routes/cpa-workflows";
 import { registerEntityRoutes } from "./routes/entities";
 import { registerFileRoutes } from "./routes/files";
 import { healthResponse } from "./routes/health";
 import { registerMeRoutes } from "./routes/me";
 import { registerPublicQuestionnaireRoutes } from "./routes/public-questionnaire";
+import { registerTemplateRoutes } from "./routes/templates";
 import { registerUserRoutes } from "./routes/users";
 import { ChangeJournalService } from "./services/change-journal";
+import { CpaWorkflowService } from "./services/cpa-workflows";
 import { EntityService } from "./services/entities";
 import { FileService } from "./services/files";
 import { PublicQuestionnaireService } from "./services/public-questionnaire";
+import { TemplateService } from "./services/templates";
 import { UserService, type CognitoAdminClient } from "./services/users";
 
 type StageProvider = () => string;
@@ -47,6 +51,8 @@ export interface ApiDependencies {
   readonly publicQuestionnaire: PublicQuestionnaireService;
   readonly files: FileService;
   readonly userService: UserService;
+  readonly templates?: TemplateService;
+  readonly cpaWorkflows?: CpaWorkflowService;
 }
 
 type DependencyProvider = () => ApiDependencies;
@@ -73,6 +79,21 @@ const CPA_ROUTE_KEYS = new Set([
   "POST /cpa/files/template-mirror",
   "POST /cpa/submissions/{id}/zip-downloads",
   "GET /cpa/submissions/{id}/zip-downloads/{jobId}",
+  "GET /cpa/questionnaire-templates/active",
+  "GET /cpa/questionnaire-templates",
+  "GET /cpa/questionnaire-templates/{id}",
+  "POST /cpa/questionnaire-templates",
+  "GET /cpa/pdf-templates",
+  "GET /cpa/pdf-templates/{id}",
+  "POST /cpa/pdf-templates",
+  "PATCH /cpa/pdf-templates/{id}",
+  "POST /cpa/pdf-templates/{id}/archive",
+  "POST /apps/{appId}/functions/cpaSaveSubmission",
+  "POST /cpa/clients/{id}/tax-year",
+  "POST /cpa/clients/{id}/orphan-status-reset",
+  "PATCH /cpa/clients/{id}/details",
+  "POST /cpa/submissions/{id}/restore",
+  "POST /cpa/submissions/{id}/workflow-status",
 ]);
 
 const PUBLIC_FUNCTION_ROUTE_KEYS = new Set([
@@ -174,6 +195,18 @@ export function createRuntimeDependencies(): ApiDependencies {
       cognito: cognitoClient,
       userPoolId: requiredEnvironment("USER_POOL_ID"),
     }),
+    templates: new TemplateService({
+      questionnaireTemplates: templates,
+      pdfTemplates,
+      journal,
+      files,
+    }),
+    cpaWorkflows: new CpaWorkflowService({
+      clients,
+      submissions,
+      templates,
+      journal,
+    }),
   };
   return runtimeDependencies;
 }
@@ -208,6 +241,12 @@ function createApiRouter(dependencies: ApiDependencies) {
   registerDeferredIntegrationRoutes(router, authenticated);
   registerPublicQuestionnaireRoutes(router, dependencies.publicQuestionnaire);
   registerFileRoutes(router, dependencies.files, authenticated);
+  if (dependencies.templates) {
+    registerTemplateRoutes(router, dependencies.templates, authenticated);
+  }
+  if (dependencies.cpaWorkflows) {
+    registerCpaWorkflowRoutes(router, dependencies.cpaWorkflows, authenticated);
+  }
   return router;
 }
 

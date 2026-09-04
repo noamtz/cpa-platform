@@ -38,10 +38,9 @@ export default function AddSubmissionModal({ onClose, onCreated }) {
     if (!selectedClient) return;
     setSaving(true);
 
-    // Update client's active tax year and reset status
-    await base44.entities.Client.update(selectedClient.id, {
+    await base44.functions.invoke("changeClientTaxYear", {
+      client_id: selectedClient.id,
       tax_year: taxYear,
-      status: "pending",
     });
 
     onCreated();

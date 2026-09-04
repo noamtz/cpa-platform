@@ -239,6 +239,96 @@ export const apiRoutes = {
     authorization: "cognito-jwt",
     authorizationScopes: ["auditflow-api/cpa"],
   },
+  cpaSaveSubmission: {
+    route: "POST /apps/{appId}/functions/cpaSaveSubmission",
+    path: "/apps/{appId}/functions/cpaSaveSubmission",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  clientTaxYear: {
+    route: "POST /cpa/clients/{id}/tax-year",
+    path: "/cpa/clients/{id}/tax-year",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  clientOrphanStatusReset: {
+    route: "POST /cpa/clients/{id}/orphan-status-reset",
+    path: "/cpa/clients/{id}/orphan-status-reset",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  clientDetailsUpdate: {
+    route: "PATCH /cpa/clients/{id}/details",
+    path: "/cpa/clients/{id}/details",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  submissionRestore: {
+    route: "POST /cpa/submissions/{id}/restore",
+    path: "/cpa/submissions/{id}/restore",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  submissionWorkflowStatus: {
+    route: "POST /cpa/submissions/{id}/workflow-status",
+    path: "/cpa/submissions/{id}/workflow-status",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  questionnaireTemplateActive: {
+    route: "GET /cpa/questionnaire-templates/active",
+    path: "/cpa/questionnaire-templates/active",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  questionnaireTemplateHistory: {
+    route: "GET /cpa/questionnaire-templates",
+    path: "/cpa/questionnaire-templates",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  questionnaireTemplateGet: {
+    route: "GET /cpa/questionnaire-templates/{id}",
+    path: "/cpa/questionnaire-templates/{id}",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  questionnaireTemplateCreate: {
+    route: "POST /cpa/questionnaire-templates",
+    path: "/cpa/questionnaire-templates",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  pdfTemplateQuery: {
+    route: "GET /cpa/pdf-templates",
+    path: "/cpa/pdf-templates",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  pdfTemplateGet: {
+    route: "GET /cpa/pdf-templates/{id}",
+    path: "/cpa/pdf-templates/{id}",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  pdfTemplateCreate: {
+    route: "POST /cpa/pdf-templates",
+    path: "/cpa/pdf-templates",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  pdfTemplateUpdate: {
+    route: "PATCH /cpa/pdf-templates/{id}",
+    path: "/cpa/pdf-templates/{id}",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
+  pdfTemplateArchive: {
+    route: "POST /cpa/pdf-templates/{id}/archive",
+    path: "/cpa/pdf-templates/{id}/archive",
+    authorization: "cognito-jwt",
+    authorizationScopes: ["auditflow-api/cpa"],
+  },
   fileUploadInitiate: {
     route: "POST /cpa/files/uploads/initiate",
     path: "/cpa/files/uploads/initiate",
@@ -454,6 +544,14 @@ export const deploymentContract = {
     "repo:noamtz@2631641/cpa-platform@1332935468:environment:test",
   repository: "noamtz/cpa-platform",
   environment: "test",
+  cloudFrontKeyValueStoreActions: [
+    "cloudfront-keyvaluestore:DeleteKey",
+    "cloudfront-keyvaluestore:DescribeKeyValueStore",
+    "cloudfront-keyvaluestore:GetKey",
+    "cloudfront-keyvaluestore:ListKeys",
+    "cloudfront-keyvaluestore:PutKey",
+    "cloudfront-keyvaluestore:UpdateKeys",
+  ] as const,
 } as const;
 
 export const deploymentGateContract = {

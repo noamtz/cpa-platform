@@ -22,42 +22,6 @@ import {
 const Button = /** @type {React.ComponentType<any>} */ (UntypedButton);
 const Input = /** @type {React.ComponentType<any>} */ (UntypedInput);
 
-function storedTemplateFileReference(template) {
-  try {
-    const parsed = JSON.parse(template?.template_json || "{}");
-    const basePdf = parsed.basePdf;
-    if (typeof basePdf === "string") return basePdf;
-    if (
-      basePdf?.__type === "file_uri" &&
-      typeof basePdf.value === "string"
-    ) {
-      return basePdf.value;
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-async function mirrorTemplateFile(template) {
-  const fileReference = storedTemplateFileReference(template);
-  if (
-    !fileReference ||
-    !template?.id ||
-    !Number.isSafeInteger(template?._version) ||
-    template._version < 1
-  ) {
-    return;
-  }
-  await fileClient.mirrorCpaTemplateFile({
-    template_id: template.id,
-    file_reference: fileReference,
-    name: template.name || "PDF template",
-    is_active: template.is_active !== false,
-    source_version: template._version,
-  });
-}
-
 export default function PdfTemplateEditor() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -96,17 +60,6 @@ export default function PdfTemplateEditor() {
   const loadTemplates = async () => {
     try {
       const templates = await base44.entities.PdfTemplate.list("-created_date", 50);
-      const mirrorResults = await Promise.allSettled(
-        (templates || []).map(mirrorTemplateFile),
-      );
-      const failedMirrors = mirrorResults.filter(
-        ({ status }) => status === "rejected",
-      ).length;
-      if (failedMirrors > 0) {
-        console.error("Failed to mirror PDF template file records", {
-          count: failedMirrors,
-        });
-      }
       setExistingTemplates(templates || []);
     } catch (e) {
       console.error("Failed to load templates:", e);
@@ -489,7 +442,6 @@ export default function PdfTemplateEditor() {
 
       // Resolve file_uri basePdf reference back to Uint8Array
       if (parsed.basePdf?.__type === "file_uri") {
-        await mirrorTemplateFile(template);
         const { signed_url } = await fileClient.getCpaTemplateFileUrl(template.id);
         const pdfRes = await fetch(signed_url);
         const arrayBuffer = await pdfRes.arrayBuffer();
@@ -556,10 +508,6 @@ export default function PdfTemplateEditor() {
       // Upload basePdf as a file if it's binary data
       let basePdfRef = template.basePdf;
       if (basePdfRef instanceof Uint8Array || basePdfRef instanceof ArrayBuffer) {
-        if (editingId) {
-          const current = existingTemplates.find(({ id }) => id === editingId);
-          if (current) await mirrorTemplateFile(current);
-        }
         const bytes = basePdfRef instanceof ArrayBuffer ? new Uint8Array(basePdfRef) : basePdfRef;
         const fileBytes = Uint8Array.from(bytes).buffer;
         const file = new File([fileBytes], "base.pdf", { type: "application/pdf" });
@@ -586,16 +534,17 @@ export default function PdfTemplateEditor() {
 
       let savedTemplate;
       if (editingId) {
+        const current = existingTemplates.find(({ id }) => id === editingId);
+        if (!current?.revision) throw new Error("Template revision is missing");
         savedTemplate = await base44.entities.PdfTemplate.update(
           editingId,
-          payload,
+          { ...payload, revision: current.revision },
         );
       } else {
         savedTemplate = await base44.entities.PdfTemplate.create(payload);
         setEditingId(savedTemplate.id);
       }
 
-      await mirrorTemplateFile(savedTemplate);
       toast({
         title: "נשמר ✅",
         description: editingId
@@ -611,10 +560,10 @@ export default function PdfTemplateEditor() {
     setSaving(false);
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (template) => {
     if (!confirm("למחוק את התבנית?")) return;
     try {
-      await base44.entities.PdfTemplate.delete(id);
+      await base44.entities.PdfTemplate.delete(template.id, template.revision);
       toast({ title: "נמחק", description: "התבנית נמחקה" });
       await loadTemplates();
     } catch (e) {
@@ -769,7 +718,7 @@ export default function PdfTemplateEditor() {
                       {loadingTemplate === t.id ? "טוען..." : "עריכה"}
                     </Button>
                     <Button
-                      onClick={() => handleDelete(t.id)}
+                      onClick={() => handleDelete(t)}
                       variant="ghost"
                       size="icon"
                       className="text-destructive hover:bg-red-50 rounded-xl"

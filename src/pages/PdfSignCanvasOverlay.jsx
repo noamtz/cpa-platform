@@ -1,25 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
-import { Loader2, ChevronRight, CheckCircle2, AlertCircle, Edit, Trash2, X } from "lucide-react";
+import { Loader2, ChevronRight, CheckCircle2, AlertCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LightweightSignaturePad from "@/components/questionnaire/LightweightSignaturePad";
+import { fileClient } from "@/api/file-client";
+import { invokePublicFunction, loadPublicPdfTemplate } from "@/api/function-client";
 
 const POC_API = "/poc-api";
 
 // ─── Base44 Helpers ─────────────────────────────────────────────────────────
-const callFunction = async (name, payload) => {
-  const appId = import.meta.env.VITE_BASE44_APP_ID;
-  const res = await fetch(`/api/apps/${appId}/functions/${name}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `${name} failed with ${res.status}`);
-  }
-  return res.json();
-};
+const callFunction = invokePublicFunction;
 
 function normalizeFieldName(name) {
   if (!name) return "";
@@ -364,14 +354,11 @@ export default function PdfSignCanvasOverlay() {
       }
 
       setLoadingMsg("טוען תבנית מסמך...");
-      const appId = import.meta.env.VITE_BASE44_APP_ID;
-      const tmplRes = await fetch(`/api/apps/${appId}/functions/getPdfTemplateById`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ template_id: templateId }),
+      const tmplData = await loadPublicPdfTemplate({
+        client_id: clientId,
+        token,
+        template_id: templateId,
       });
-      if (!tmplRes.ok) throw new Error("Failed to load PDF template");
-      const tmplData = await tmplRes.json();
       if (!tmplData?.template) throw new Error("Template not found");
       const template = tmplData.template;
 
@@ -520,19 +507,19 @@ export default function PdfSignCanvasOverlay() {
       console.log(`[PdfSignCanvasOverlay] PDF generated: ${pdfBlob.size} bytes`);
 
       let pdfFileUrl = null;
-      if (pdfBlob.size > 0) {
+      if (pdfBlob.size > 0 && submission?.id) {
         try {
-          const appId = import.meta.env.VITE_BASE44_APP_ID;
-          const formData = new FormData();
-          formData.append("file", pdfBlob, `${templateName || "signed-form"}.pdf`);
-          const uploadRes = await fetch(
-            `/api/apps/${appId}/functions/uploadFile?client_id=${encodeURIComponent(clientId)}&token=${encodeURIComponent(token)}`,
-            { method: "POST", body: formData }
-          );
-          if (uploadRes.ok) {
-            const { file_uri } = await uploadRes.json();
-            pdfFileUrl = file_uri;
-          }
+          const file = new File([pdfBlob], `${templateName || "signed-form"}.pdf`, {
+            type: "application/pdf",
+          });
+          pdfFileUrl = await fileClient.uploadPublicFile({
+            file,
+            clientId,
+            token,
+            submissionId: submission.id,
+            purpose: "signed_pdf",
+            stepId,
+          });
         } catch (uploadErr) {
           console.error("[PdfSignCanvasOverlay] Upload failed:", uploadErr);
         }

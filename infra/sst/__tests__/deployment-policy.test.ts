@@ -74,6 +74,20 @@ describe("test deployment IAM policy", () => {
     });
   });
 
+  it("grants only explicit CloudFront KeyValueStore actions without unsupported tag conditions", () => {
+    const keyValueStore = policy.Statement.find(
+      ({ Sid }) => Sid === "ManageCloudFrontKeyValues",
+    );
+
+    expect(keyValueStore).toEqual({
+      Sid: "ManageCloudFrontKeyValues",
+      Effect: "Allow",
+      Action: deploymentPolicyContracts.cloudFrontKeyValueStoreActions,
+      Resource:
+        "arn:aws:cloudfront::123456789012:key-value-store/*",
+    });
+  });
+
   it("never grants an administrator action or an unconditioned global mutation", () => {
     for (const statement of policy.Statement) {
       if (statement.Effect !== "Allow") continue;

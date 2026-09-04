@@ -14,7 +14,7 @@ export default function WelcomeStep({ client, onStart, isStarting = false }) {
       {/* Hero card */}
       <div className="bg-white rounded-3xl p-6 border border-border shadow-sm text-center">
         <img
-          src="https://media.base44.com/images/public/69f6f0a2ca1cf47418010a34/cbf7a3438_brandimage.jpg"
+          src="/brand-image.jpg"
           alt="Doron & Doron"
           className="h-20 w-auto object-contain mx-auto mb-4"
         />

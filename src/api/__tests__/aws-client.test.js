@@ -44,21 +44,56 @@ describe("AWS compatibility client", () => {
     expect(request).not.toHaveBeenCalled();
   });
 
-  it("maps Drive controls only to the authenticated deferred API", async () => {
+  it("maps protected functions and wraps their results", async () => {
     const { client, request } = setup();
-    await client.functions.invoke("syncFilesToGoogleDrive", { check_connection: true });
+    request.mockResolvedValueOnce({ connected: false });
+    await expect(
+      client.functions.invoke("syncFilesToGoogleDrive", { check_connection: true }),
+    ).resolves.toEqual({ data: { connected: false } });
+    await client.functions.invoke("getActiveTemplate", {});
+    await client.functions.invoke("cpaSaveSubmission", { client_id: "client-1" });
+    await client.functions.invoke("resetOrphanClientStatus", { client_id: "client/1" });
+    await client.functions.invoke("updateClientDetails", {
+      client_id: "client/1",
+      revision: 3,
+      profile: { full_name: "Updated Client" },
+      tax_year: 2025,
+    });
     await client.connectors.connectAppUser("connector-1");
     expect(request.mock.calls).toEqual([
       ["/cpa/integrations/google-drive/sync", { method: "POST", body: { check_connection: true } }],
+      ["/cpa/questionnaire-templates/active", { method: "GET" }],
+      ["/apps/auditflow/functions/cpaSaveSubmission", { method: "POST", body: { client_id: "client-1" } }],
+      ["/cpa/clients/client%2F1/orphan-status-reset", { method: "POST", body: {} }],
+      ["/cpa/clients/client%2F1/details", {
+        method: "PATCH",
+        body: {
+          revision: 3,
+          profile: { full_name: "Updated Client" },
+          tax_year: 2025,
+        },
+      }],
       ["/cpa/integrations/google-drive/connect", { method: "POST", body: { connector_id: "connector-1" } }],
     ]);
   });
 
   it("does not invent an AWS fallback for unmigrated functions", () => {
     const { client, request } = setup();
-    expect(() => client.functions.invoke("getActiveTemplate", {})).toThrow(
-      "not migrated",
-    );
+    expect(client.functions.invoke("notifySubmissionCompleted", {})).rejects.toThrow("not migrated");
     expect(request).not.toHaveBeenCalled();
+  });
+
+  it("maps PDF template lifecycle to protected AWS routes", async () => {
+    const { client, request } = setup();
+    await client.entities.PdfTemplate.list();
+    await client.entities.PdfTemplate.create({ name: "Form", template_json: "{}" });
+    await client.entities.PdfTemplate.update("template/1", { name: "Updated", revision: 4 });
+    await client.entities.PdfTemplate.delete("template/1", 5);
+    expect(request.mock.calls).toEqual([
+      ["/cpa/pdf-templates"],
+      ["/cpa/pdf-templates", { method: "POST", body: { name: "Form", template_json: "{}" } }],
+      ["/cpa/pdf-templates/template%2F1", { method: "PATCH", body: { name: "Updated", revision: 4 } }],
+      ["/cpa/pdf-templates/template%2F1/archive", { method: "POST", body: { revision: 5 } }],
+    ]);
   });
 });

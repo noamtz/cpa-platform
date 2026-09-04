@@ -27,6 +27,34 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+export function scopedCpaRouteCount(contract) {
+  return contract.routes.filter(
+    ({ route, authorization }) =>
+      authorization === "cognito-jwt" && route !== "GET /auth/health",
+  ).length;
+}
+
+export const requiredCloudFrontKeyValueStoreActions = readJson(
+  contractPath,
+).deployerPolicy.cloudFrontKeyValueStoreActions;
+
+export function hasScopedCloudFrontKeyValueStorePermissions(
+  policy,
+  accountId,
+) {
+  const statement = policy?.Statement?.find(
+    ({ Sid }) => Sid === "ManageCloudFrontKeyValues",
+  );
+  return (
+    statement?.Effect === "Allow" &&
+    JSON.stringify(asArray(statement.Action)) ===
+      JSON.stringify(requiredCloudFrontKeyValueStoreActions) &&
+    statement.Resource ===
+      `arn:aws:cloudfront::${accountId}:key-value-store/*` &&
+    statement.Condition === undefined
+  );
+}
+
 function parseArguments(argv) {
   const parsed = { mode: undefined, stage: undefined, outputs: undefined };
   for (let index = 0; index < argv.length; index += 2) {
@@ -102,8 +130,9 @@ function verifyContract(contract, stage) {
     ),
     "Protected health route contract is missing.",
   );
-  const publicQuestionnaireRoutes = contract.routes.filter(({ route }) =>
-    route.includes(" /apps/{appId}/functions/"),
+  const publicQuestionnaireRoutes = contract.routes.filter(
+    ({ route, authorization }) =>
+      route.includes(" /apps/{appId}/functions/") && authorization === "none",
   );
   assert(
     JSON.stringify(publicQuestionnaireRoutes) ===
@@ -143,10 +172,14 @@ function verifyContract(contract, stage) {
       ]),
     "The exact public questionnaire route inventory is incomplete.",
   );
-  const cpaRoutes = contract.routes.filter(({ route }) =>
-    route.includes(" /cpa/"),
+  const cpaRoutes = contract.routes.filter(
+    ({ route, authorization }) =>
+      authorization === "cognito-jwt" && route !== "GET /auth/health",
   );
-  assert(cpaRoutes.length === 21, "The exact CPA route inventory is incomplete.");
+  assert(
+    cpaRoutes.length === 36 && scopedCpaRouteCount(contract) === cpaRoutes.length,
+    "The exact CPA route inventory is incomplete.",
+  );
   assert(
     cpaRoutes.every(
       ({ authorization, authorizationScopes }) =>
@@ -276,6 +309,18 @@ function verifyContract(contract, stage) {
       !contract.oidc.subject.includes("*") &&
       !contract.oidc.subject.includes("noamtz/auditflow"),
     "OIDC trust must use the exact immutable test Environment subject.",
+  );
+  assert(
+    JSON.stringify(contract.deployerPolicy.cloudFrontKeyValueStoreActions) ===
+      JSON.stringify([
+        "cloudfront-keyvaluestore:DeleteKey",
+        "cloudfront-keyvaluestore:DescribeKeyValueStore",
+        "cloudfront-keyvaluestore:GetKey",
+        "cloudfront-keyvaluestore:ListKeys",
+        "cloudfront-keyvaluestore:PutKey",
+        "cloudfront-keyvaluestore:UpdateKeys",
+      ]),
+    "CloudFront KeyValueStore deployer actions must remain explicit and complete.",
   );
   assert(
     Object.values(contract.inventory).every((count) => Number.isInteger(count)),
@@ -485,6 +530,78 @@ function simulatePrincipalAction(roleArn, action, resourceArn, context = []) {
   const result = runAws(arguments_).value.EvaluationResults?.[0];
   assert(result?.EvalActionName === action, `IAM simulation omitted ${action}.`);
   return result.EvalDecision;
+}
+
+function verifyDeployer(contract, stage) {
+  assert(stage === "test", "Deployer verification is restricted to the test stage.");
+  const identity = runAws(["sts", "get-caller-identity"]).value;
+  const accountId = identity.Account;
+  assert(/^\d{12}$/.test(accountId), "AWS account ID has an unexpected shape.");
+
+  const roleArn =
+    `arn:aws:iam::${accountId}:role/auditflow-test-github-deploy`;
+  if (process.env.AWS_DEPLOY_ROLE_ARN) {
+    assert(
+      process.env.AWS_DEPLOY_ROLE_ARN === roleArn,
+      "AWS_DEPLOY_ROLE_ARN does not identify the AuditFlow test deployer.",
+    );
+  }
+
+  const roleName = roleArn.slice(roleArn.lastIndexOf("/") + 1);
+  const inlinePolicyNames = runAws([
+    "iam",
+    "list-role-policies",
+    "--role-name",
+    roleName,
+  ]).value.PolicyNames;
+  assert(
+    JSON.stringify(inlinePolicyNames) ===
+      JSON.stringify(["auditflow-test-foundation-deploy"]),
+    "Test deploy role must have exactly one scoped inline policy.",
+  );
+  const inlinePolicy = runAws([
+    "iam",
+    "get-role-policy",
+    "--role-name",
+    roleName,
+    "--policy-name",
+    inlinePolicyNames[0],
+  ]).value.PolicyDocument;
+  assert(
+    hasScopedCloudFrontKeyValueStorePermissions(inlinePolicy, accountId),
+    "Test deploy role CloudFront KeyValueStore permissions are missing, broad, or conditioned on unsupported tags.",
+  );
+
+  const keyValueStoreProbeArn =
+    `arn:aws:cloudfront::${accountId}:key-value-store/auditflow-policy-probe`;
+  for (const action of requiredCloudFrontKeyValueStoreActions) {
+    assert(
+      simulatePrincipalAction(roleArn, action, keyValueStoreProbeArn) ===
+        "allowed",
+      `Test deploy role does not effectively allow ${action}.`,
+    );
+  }
+  assert(
+    simulatePrincipalAction(
+      roleArn,
+      "cloudfront-keyvaluestore:DescribeKeyValueStore",
+      "arn:aws:cloudfront::000000000000:key-value-store/unrelated-policy-probe",
+    ) !== "allowed",
+    "Test deploy role can inspect a CloudFront KeyValueStore in another account.",
+  );
+
+  return {
+    mode: "deployer",
+    stage,
+    region: contract.region,
+    statuses: {
+      exactInlinePolicy: true,
+      cloudFrontKeyValueStoreActions:
+        requiredCloudFrontKeyValueStoreActions.length,
+      cloudFrontKeyValueStoreResourceScoped: true,
+      cloudFrontKeyValueStoreCrossAccountDenied: true,
+    },
+  };
 }
 
 async function fetchText(url, expectedStatus) {
@@ -822,8 +939,9 @@ async function verifyLive(contract, stage, outputsPath) {
     "--api-id",
     outputs.apiId,
   ]).value.Items;
-  for (const routeContract of contract.routes.filter(({ route }) =>
-    route.includes(" /cpa/"),
+  for (const routeContract of contract.routes.filter(
+    ({ route, authorization }) =>
+      authorization === "cognito-jwt" && route !== "GET /auth/health",
   )) {
     const deployedRoute = deployedRoutes?.find(
       ({ RouteKey }) => RouteKey === routeContract.route,
@@ -835,8 +953,9 @@ async function verifyLive(contract, stage, outputsPath) {
       `CPA route ${routeContract.route} is missing JWT scope authorization.`,
     );
   }
-  for (const routeContract of contract.routes.filter(({ route }) =>
-    route.includes(" /apps/{appId}/functions/"),
+  for (const routeContract of contract.routes.filter(
+    ({ route, authorization }) =>
+      route.includes(" /apps/{appId}/functions/") && authorization === "none",
   )) {
     const deployedRoute = deployedRoutes?.find(
       ({ RouteKey }) => RouteKey === routeContract.route,
@@ -1045,6 +1164,10 @@ async function verifyLive(contract, stage, outputsPath) {
     inlinePolicyNames[0],
   ]).value.PolicyDocument;
   assert(
+    hasScopedCloudFrontKeyValueStorePermissions(inlinePolicy, accountId),
+    "Test deploy role CloudFront KeyValueStore permissions are missing, broad, or conditioned on unsupported tags.",
+  );
+  assert(
     inlinePolicy.Statement.every(
       (statement) =>
         !asArray(statement.Action).includes("*") &&
@@ -1236,6 +1359,23 @@ async function verifyLive(contract, stage, outputsPath) {
     ) !== "allowed",
     "Policy simulation allowed mutation of unrelated SST state.",
   );
+  const keyValueStoreProbeArn =
+    `arn:aws:cloudfront::${accountId}:key-value-store/auditflow-policy-probe`;
+  for (const action of requiredCloudFrontKeyValueStoreActions) {
+    assert(
+      simulatePrincipalAction(roleArn, action, keyValueStoreProbeArn) ===
+        "allowed",
+      `Policy simulation did not allow ${action} on an account-local KeyValueStore.`,
+    );
+  }
+  assert(
+    simulatePrincipalAction(
+      roleArn,
+      "cloudfront-keyvaluestore:DescribeKeyValueStore",
+      "arn:aws:cloudfront::000000000000:key-value-store/unrelated-policy-probe",
+    ) !== "allowed",
+    "Policy simulation allowed cross-account CloudFront KeyValueStore access.",
+  );
   assert(
     simulatePrincipalAction(
       roleArn,
@@ -1367,7 +1507,7 @@ async function verifyLive(contract, stage, outputsPath) {
       routerDeployed: true,
       managedLoginConfigured: true,
       refreshRotationEnabled: true,
-      cpaRoutesScoped: 14,
+      cpaRoutesScoped: scopedCpaRouteCount(contract),
       exactOidcTrust: true,
       noAdministratorPolicy: true,
       noDeployRoleSelfMutation: true,
@@ -1389,18 +1529,23 @@ async function verifyLive(contract, stage, outputsPath) {
 
 async function main() {
   const arguments_ = parseArguments(process.argv.slice(2));
-  assert(arguments_.mode === "contract" || arguments_.mode === "live", "Invalid mode.");
+  assert(
+    ["contract", "deployer", "live"].includes(arguments_.mode),
+    "Invalid mode.",
+  );
   assert(arguments_.stage, "Missing --stage.");
   const contract = readJson(contractPath);
   const contractResult = verifyContract(contract, arguments_.stage);
-  const result =
-    arguments_.mode === "contract"
-      ? contractResult
-      : await verifyLive(
-          contract,
-          arguments_.stage,
-          arguments_.outputs ?? ".sst/outputs.json",
-        );
+  let result = contractResult;
+  if (arguments_.mode === "deployer") {
+    result = verifyDeployer(contract, arguments_.stage);
+  } else if (arguments_.mode === "live") {
+    result = await verifyLive(
+      contract,
+      arguments_.stage,
+      arguments_.outputs ?? ".sst/outputs.json",
+    );
+  }
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 

@@ -4,6 +4,10 @@ import {
   questionnaireTemplatePersistedSchema,
   type QuestionnaireTemplateRecord,
 } from "../contracts/public-questionnaire";
+import {
+  questionnaireTemplateGuardSchema,
+  type QuestionnaireTemplateGuard,
+} from "../contracts/templates";
 import { getRecord, queryRecords, type DynamoDocumentClient } from "./dynamo";
 
 export class QuestionnaireTemplateRepository {
@@ -19,6 +23,30 @@ export class QuestionnaireTemplateRepository {
       id,
       questionnaireTemplatePersistedSchema,
     );
+  }
+
+  getActiveGuard(): Promise<QuestionnaireTemplateGuard | undefined> {
+    return getRecord(
+      this.client,
+      this.tableName,
+      "!ACTIVE",
+      questionnaireTemplateGuardSchema,
+    );
+  }
+
+  history(limit = 100): Promise<QuestionnaireTemplateRecord[]> {
+    return queryRecords<QuestionnaireTemplateRecord>({
+      client: this.client,
+      tableName: this.tableName,
+      indexName: "byVersion",
+      keyExpression: "#record_type = :record_type",
+      expressionNames: { "#record_type": "record_type" },
+      expressionValues: { ":record_type": "QuestionnaireTemplate" },
+      schema: questionnaireTemplatePersistedSchema as z.ZodType<QuestionnaireTemplateRecord>,
+      filter: {},
+      ascending: false,
+      limit,
+    });
   }
 
   async latestActive(): Promise<QuestionnaireTemplateRecord | undefined> {

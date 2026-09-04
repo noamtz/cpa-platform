@@ -160,10 +160,10 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
     const newYear = prompt(`שנת המס הנוכחית: ${client.tax_year || 2024}\nהזן שנת מס חדשה:`);
     if (!newYear || Number.isNaN(Number(newYear))) return;
     setChangingYear(true);
-    // Check if target year already has a submission with a cpa_status
-    const targetSubmission = allSubmissions.find(s => s.tax_year === parseInt(newYear));
-    const restoredStatus = targetSubmission?.cpa_status || 'pending';
-    await base44.entities.Client.update(client.id, { tax_year: parseInt(newYear), status: restoredStatus });
+    await base44.functions.invoke("changeClientTaxYear", {
+      client_id: client.id,
+      tax_year: parseInt(newYear),
+    });
     toast({ title: 'שנת המס עודכנה', description: `${client.full_name} — שנת ${newYear}` });
     onRefresh();
     setChangingYear(false);
@@ -671,7 +671,9 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                     if (conflict) {
                       setRestoreConflict({ toRestore: displayedSubmission, conflicting: conflict, clientName: client.full_name });
                     } else {
-                      await base44.entities.Submission.update(displayedSubmission.id, { is_archived: false });
+                      await base44.functions.invoke("restoreSubmission", {
+                        submission_id: displayedSubmission.id,
+                      });
                       toast({ title: "הגשה שוחזרה", description: `שנת ${displayedSubmission.tax_year}` });
                       onRefresh();
                     }
@@ -686,7 +688,9 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                 <button
                   onClick={async (e) => {
                     e.stopPropagation();
-                    await base44.entities.Client.update(client.id, { status: 'pending' });
+                    await base44.functions.invoke("resetOrphanClientStatus", {
+                      client_id: client.id,
+                    });
                     onRefresh();
                   }}
                   className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
@@ -751,10 +755,12 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                 <button
                   onClick={async (e) => {
                     e.stopPropagation();
-                    await Promise.all([
-                      base44.entities.Client.update(client.id, { status: "ready_for_ira" }),
-                      submission && base44.entities.Submission.update(submission.id, { cpa_status: "ready_for_ira" }),
-                    ]);
+                    if (!submission) return;
+                    await base44.functions.invoke("transitionSubmissionStatus", {
+                      client_id: client.id,
+                      submission_id: submission.id,
+                      status: "ready_for_ira",
+                    });
                     onRefresh();
                   }}
                   className="text-xs bg-purple-600 text-white hover:bg-purple-700 rounded-lg px-3 py-1.5 font-medium flex items-center gap-1"
@@ -766,10 +772,12 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                 <button
                   onClick={async (e) => {
                     e.stopPropagation();
-                    await Promise.all([
-                      base44.entities.Client.update(client.id, { status: "reviewed" }),
-                      submission && base44.entities.Submission.update(submission.id, { cpa_status: "reviewed" }),
-                    ]);
+                    if (!submission) return;
+                    await base44.functions.invoke("transitionSubmissionStatus", {
+                      client_id: client.id,
+                      submission_id: submission.id,
+                      status: "reviewed",
+                    });
                     onRefresh();
                   }}
                   className="text-xs bg-gray-600 text-white hover:bg-gray-700 rounded-lg px-3 py-1.5 font-medium flex items-center gap-1"
@@ -807,10 +815,10 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
           onChoose={async (choice) => {
             const { toRestore, conflicting } = restoreConflict;
             if (choice === "restore") {
-              await Promise.all([
-                base44.entities.Submission.update(toRestore.id, { is_archived: false }),
-                base44.entities.Submission.update(conflicting.id, { is_archived: true }),
-              ]);
+              await base44.functions.invoke("restoreSubmission", {
+                submission_id: toRestore.id,
+                conflicting_submission_id: conflicting.id,
+              });
               toast({ title: "הגשה שוחזרה", description: `שנת ${toRestore.tax_year}` });
             } else {
               toast({ title: "הגשה הפעילה נשמרה ללא שינוי" });

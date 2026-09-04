@@ -10,12 +10,12 @@
   "dir": "rtl",
   "icons": [
     {
-      "src": "https://media.base44.com/images/public/69f6f0a2ca1cf47418010a34/cbf7a3438_brandimage.jpg",
+      "src": "/brand-image.jpg",
       "sizes": "192x192",
       "type": "image/jpeg"
     },
     {
-      "src": "https://media.base44.com/images/public/69f6f0a2ca1cf47418010a34/cbf7a3438_brandimage.jpg",
+      "src": "/brand-image.jpg",
       "sizes": "512x512",
       "type": "image/jpeg"
     }

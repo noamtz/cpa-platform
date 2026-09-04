@@ -55,4 +55,17 @@ describe("SubmissionRepository", () => {
     });
     expect(records[0].responses).toBe('{"preserved":true}');
   });
+
+  it("reports duplicate active records instead of choosing one", async () => {
+    const send = vi.fn().mockResolvedValue({
+      Items: [
+        submission("submission-1", "2026-01-01T00:00:00.000Z"),
+        submission("submission-2", "2026-02-01T00:00:00.000Z"),
+      ],
+    });
+    const repository = new SubmissionRepository({ send }, "SubmissionTable.test");
+    await expect(
+      repository.getActiveForClientYear("client-1", 2025),
+    ).resolves.toEqual({ conflict: true, record: undefined });
+  });
 });

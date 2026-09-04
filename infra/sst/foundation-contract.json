@@ -34,6 +34,21 @@
     { "route": "POST /cpa/clients/{id}/token-rotation", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/submissions/query", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "PATCH /cpa/submissions/{id}", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /apps/{appId}/functions/cpaSaveSubmission", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/clients/{id}/tax-year", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/clients/{id}/orphan-status-reset", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "PATCH /cpa/clients/{id}/details", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/submissions/{id}/restore", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/submissions/{id}/workflow-status", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "GET /cpa/questionnaire-templates/active", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "GET /cpa/questionnaire-templates", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "GET /cpa/questionnaire-templates/{id}", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/questionnaire-templates", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "GET /cpa/pdf-templates", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "GET /cpa/pdf-templates/{id}", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/pdf-templates", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "PATCH /cpa/pdf-templates/{id}", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
+    { "route": "POST /cpa/pdf-templates/{id}/archive", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/files/uploads/initiate", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/files/uploads/complete", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
     { "route": "POST /cpa/files/submission-url", "authorization": "cognito-jwt", "authorizationScopes": ["auditflow-api/cpa"] },
@@ -154,6 +169,16 @@
       "syntheticOnlyValue": "false",
       "enablementIssue": 11
     }
+  },
+  "deployerPolicy": {
+    "cloudFrontKeyValueStoreActions": [
+      "cloudfront-keyvaluestore:DeleteKey",
+      "cloudfront-keyvaluestore:DescribeKeyValueStore",
+      "cloudfront-keyvaluestore:GetKey",
+      "cloudfront-keyvaluestore:ListKeys",
+      "cloudfront-keyvaluestore:PutKey",
+      "cloudfront-keyvaluestore:UpdateKeys"
+    ]
   },
   "oidc": {
     "providerUrl": "token.actions.githubusercontent.com",

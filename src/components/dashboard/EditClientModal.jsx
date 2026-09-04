@@ -23,10 +23,21 @@ export default function EditClientModal({ client, onClose, onSaved }) {
       return;
     }
     setSaving(true);
-    await base44.entities.Client.update(client.id, form);
-    setSaving(false);
-    onSaved();
-    onClose();
+    const { tax_year, ...profile } = form;
+    try {
+      await base44.functions.invoke("updateClientDetails", {
+        client_id: client.id,
+        revision: client.revision,
+        profile,
+        ...(tax_year === client.tax_year ? {} : { tax_year }),
+      });
+      onSaved();
+      onClose();
+    } catch {
+      alert("שמירת פרטי הלקוח נכשלה. נא לרענן ולנסות שוב.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
