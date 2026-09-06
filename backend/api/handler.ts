@@ -116,9 +116,16 @@ function requiredEnvironment(name: string) {
 
 let runtimeDependencies: ApiDependencies | undefined;
 
+export const DYNAMODB_DOCUMENT_CLIENT_OPTIONS = {
+  marshallOptions: { removeUndefinedValues: true },
+} as const;
+
 export function createRuntimeDependencies(): ApiDependencies {
   if (runtimeDependencies) return runtimeDependencies;
-  const sdkDocumentClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+  const sdkDocumentClient = DynamoDBDocumentClient.from(
+    new DynamoDBClient({}),
+    DYNAMODB_DOCUMENT_CLIENT_OPTIONS,
+  );
   const documentClient: DynamoDocumentClient = {
     send(command) {
       return sdkDocumentClient.send(command as never);

@@ -83,4 +83,31 @@ describe("SubmissionRepository", () => {
       ),
     ).resolves.toMatchObject([{ id: "submission-2350", tax_year: 2350 }]);
   });
+
+  it("normalizes imported null optional fields at the persistence boundary", async () => {
+    const send = vi.fn().mockResolvedValue({
+      Items: [
+        {
+          ...submission("submission-imported", "2026-01-01T00:00:00.000Z"),
+          cpa_status: null,
+          responses: null,
+          signed_pdfs: null,
+          cpa_audit_log: null,
+        },
+      ],
+    });
+    const repository = new SubmissionRepository({ send }, "SubmissionTable.test");
+
+    const [record] = await repository.query(
+      { client_id: "client-1", tax_year: 2025 },
+      "-created_date",
+      200,
+    );
+
+    expect(record).toMatchObject({ id: "submission-imported" });
+    expect(record.cpa_status).toBeUndefined();
+    expect(record.responses).toBeUndefined();
+    expect(record.signed_pdfs).toBeUndefined();
+    expect(record.cpa_audit_log).toBeUndefined();
+  });
 });
