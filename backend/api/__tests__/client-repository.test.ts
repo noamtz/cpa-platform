@@ -2,6 +2,7 @@ import { GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 import { describe, expect, it, vi } from "vitest";
 
 import { ClientRepository } from "../repositories/client";
+import { derivedPlaceholderClientDisplayName } from "../contracts/entities";
 
 function client(id: string, archived = false) {
   return {
@@ -44,5 +45,49 @@ describe("ClientRepository", () => {
       repository.query({ id: "broken" }, "-created_date", 200),
     ).rejects.toMatchObject({ statusCode: 500 });
     expect(send.mock.calls[0][0]).toBeInstanceOf(GetCommand);
+  });
+
+  it("reads a correctly marked derived placeholder without inventing identity data", async () => {
+    const send = vi.fn().mockResolvedValue({
+      Item: {
+        id: "missing-client",
+        is_archived: true,
+        record_type: "Client",
+        _version: 1,
+        created_date: "2026-01-01T00:00:00.000Z",
+        updated_date: "2026-01-02T00:00:00.000Z",
+        _auditflow_migration: {
+          schema_version: 1,
+          source: "base44",
+          item_kind: "derived_placeholder_client",
+          source_manifest_sha256: "a".repeat(64),
+          source_submission_count: 2,
+          source_submission_ids_sha256: "b".repeat(64),
+        },
+      },
+    });
+    const repository = new ClientRepository({ send }, "ClientTable.test");
+
+    await expect(repository.get("missing-client")).resolves.toMatchObject({
+      id: "missing-client",
+      full_name: derivedPlaceholderClientDisplayName,
+    });
+  });
+
+  it("still rejects an unmarked client without a name", async () => {
+    const send = vi.fn().mockResolvedValue({
+      Item: {
+        id: "missing-client",
+        record_type: "Client",
+        _version: 1,
+        created_date: "2026-01-01T00:00:00.000Z",
+        updated_date: "2026-01-01T00:00:00.000Z",
+      },
+    });
+    const repository = new ClientRepository({ send }, "ClientTable.test");
+
+    await expect(repository.get("missing-client")).rejects.toMatchObject({
+      statusCode: 500,
+    });
   });
 });

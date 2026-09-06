@@ -48,7 +48,12 @@ export class UserRepository {
       filter: {},
       ascending: true,
       limit: 3,
-    });
+    }).then((records) =>
+      records.filter(
+        (record): record is UserRecord & { cognito_sub: string } =>
+          typeof record.cognito_sub === "string",
+      ),
+    );
   }
 
   async findByEmail(email: string) {

@@ -3,11 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SubmissionRepository } from "../repositories/submission";
 
-function submission(id: string, createdDate: string) {
+function submission(id: string, createdDate: string, taxYear = 2025) {
   return {
     id,
     client_id: "client-1",
-    tax_year: 2025,
+    tax_year: taxYear,
     is_archived: false,
     responses: '{"preserved":true}',
     record_type: "Submission",
@@ -67,5 +67,20 @@ describe("SubmissionRepository", () => {
     await expect(
       repository.getActiveForClientYear("client-1", 2025),
     ).resolves.toEqual({ conflict: true, record: undefined });
+  });
+
+  it("reads an imported future-year submission through the repository schema", async () => {
+    const send = vi.fn().mockResolvedValue({
+      Items: [submission("submission-2350", "2026-01-01T00:00:00.000Z", 2350)],
+    });
+    const repository = new SubmissionRepository({ send }, "SubmissionTable.test");
+
+    await expect(
+      repository.query(
+        { client_id: "client-1", tax_year: 2350 },
+        "-created_date",
+        200,
+      ),
+    ).resolves.toMatchObject([{ id: "submission-2350", tax_year: 2350 }]);
   });
 });

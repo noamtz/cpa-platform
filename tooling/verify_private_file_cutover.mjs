@@ -1,12 +1,75 @@
 import { existsSync, readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
 
 export const DEFAULT_PRIVATE_FILE_EVIDENCE_PATH =
   "docs/migration/private-file-import-verification.json";
+export const PRIVATE_FILE_EVIDENCE_SCHEMA_VERSION = 3;
+export const LEGACY_REFERENCE_RESOLVER_CONTRACT =
+  "legacy-reference-sha256-v2";
+export const MAX_EVIDENCE_AGE_MS = 72 * 60 * 60 * 1_000;
+export const MAX_EVIDENCE_FUTURE_MS = 5 * 60 * 1_000;
+
+const entityNames = [
+  "Client",
+  "Submission",
+  "QuestionnaireTemplate",
+  "PdfTemplate",
+  "SyncedDriveFile",
+  "User",
+];
+const totalNames = [
+  "sourceRecordCount",
+  "importedRecordCount",
+  "derivedPlaceholderClientCount",
+  "resolvedDuplicateActiveSubmissionCount",
+  "derivedGuardCount",
+  "nonImportedTargetRecordCount",
+  "referenceCount",
+  "referenceObjectCount",
+  "referenceBindingCount",
+  "uniqueContentCount",
+  "referenceObjectBytes",
+  "uniqueContentBytes",
+  "unresolvedReferenceCount",
+];
+const gateNames = [
+  "sourceVerified",
+  "recordsReconciled",
+  "relationshipsValid",
+  "guardsReconciled",
+  "filesReconciled",
+  "syntheticSeparated",
+  "privacySafe",
+];
+const topLevelNames = [
+  "schemaVersion",
+  "artifactType",
+  "stage",
+  "status",
+  "resolverContract",
+  "importToolVersion",
+  "sourceSnapshotCompletedAt",
+  "verifiedAt",
+  "sourceManifestSha256",
+  "entities",
+  "totals",
+  "gates",
+];
+const sha256Pattern = /^[a-f0-9]{64}$/;
+const semverPattern = /^\d+\.\d+\.\d+$/;
+
+function exactObject(value, keys) {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort())
+  );
+}
 
 function isIsoDate(value) {
   return (
@@ -16,31 +79,83 @@ function isIsoDate(value) {
   );
 }
 
-export function validatePrivateFileCutoverEvidence(value, stage) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+function isSafeCount(value, { positive = false } = {}) {
+  return Number.isSafeInteger(value) && (positive ? value > 0 : value >= 0);
+}
+
+export function validatePrivateFileCutoverEvidence(
+  value,
+  stage,
+  { now = Date.now(), requireFresh = true } = {},
+) {
+  if (!exactObject(value, topLevelNames)) {
     return { ready: false, reason: "invalid_evidence" };
   }
   const evidence = value;
-  const valid =
-    evidence.schemaVersion === 1 &&
-    evidence.artifactType === "PRIVATE_FILE_IMPORT_VERIFICATION" &&
-    evidence.stage === stage &&
-    evidence.status === "verified" &&
-    evidence.resolverContract === "legacy-sha256-v1" &&
-    isIsoDate(evidence.verifiedAt) &&
-    Number.isInteger(evidence.referenceCount) &&
-    evidence.referenceCount > 0 &&
-    Number.isInteger(evidence.copiedObjectCount) &&
-    evidence.copiedObjectCount > 0 &&
-    evidence.unresolvedReferenceCount === 0 &&
-    typeof evidence.manifestSha256 === "string" &&
-    /^[a-f0-9]{64}$/.test(evidence.manifestSha256);
-  if (!valid) return { ready: false, reason: "invalid_evidence" };
+  if (
+    evidence.schemaVersion !== PRIVATE_FILE_EVIDENCE_SCHEMA_VERSION ||
+    evidence.artifactType !== "PRIVATE_FILE_IMPORT_VERIFICATION" ||
+    evidence.stage !== stage ||
+    evidence.status !== "verified" ||
+    evidence.resolverContract !== LEGACY_REFERENCE_RESOLVER_CONTRACT ||
+    !semverPattern.test(evidence.importToolVersion) ||
+    !isIsoDate(evidence.sourceSnapshotCompletedAt) ||
+    !isIsoDate(evidence.verifiedAt) ||
+    !sha256Pattern.test(evidence.sourceManifestSha256) ||
+    !exactObject(evidence.entities, entityNames) ||
+    !exactObject(evidence.totals, totalNames) ||
+    !exactObject(evidence.gates, gateNames)
+  ) {
+    return { ready: false, reason: "invalid_evidence" };
+  }
+
+  const entityCount = entityNames.reduce((count, entityName) => {
+    const entity = evidence.entities[entityName];
+    if (
+      !exactObject(entity, ["count", "aggregateSha256"]) ||
+      !isSafeCount(entity.count, { positive: true }) ||
+      !sha256Pattern.test(entity.aggregateSha256)
+    ) {
+      return Number.NaN;
+    }
+    return count + entity.count;
+  }, 0);
+  if (!Number.isSafeInteger(entityCount)) {
+    return { ready: false, reason: "invalid_evidence" };
+  }
+  if (!totalNames.every((name) => isSafeCount(evidence.totals[name]))) {
+    return { ready: false, reason: "invalid_evidence" };
+  }
+  if (
+    evidence.totals.sourceRecordCount !== entityCount ||
+    evidence.totals.importedRecordCount !== entityCount ||
+    evidence.totals.referenceCount <= 0 ||
+    evidence.totals.referenceObjectCount !== evidence.totals.referenceCount ||
+    evidence.totals.referenceBindingCount <= 0 ||
+    evidence.totals.uniqueContentCount > evidence.totals.referenceCount ||
+    evidence.totals.referenceObjectBytes < evidence.totals.uniqueContentBytes ||
+    evidence.totals.unresolvedReferenceCount !== 0 ||
+    Date.parse(evidence.sourceSnapshotCompletedAt) > Date.parse(evidence.verifiedAt) ||
+    !gateNames.every((name) => evidence.gates[name] === true)
+  ) {
+    return { ready: false, reason: "invalid_evidence" };
+  }
+
+  const verifiedAt = Date.parse(evidence.verifiedAt);
+  if (
+    requireFresh &&
+    (verifiedAt > now + MAX_EVIDENCE_FUTURE_MS ||
+      verifiedAt < now - MAX_EVIDENCE_AGE_MS)
+  ) {
+    return { ready: false, reason: "stale_evidence" };
+  }
+
   return {
     ready: true,
     stage,
-    referenceCount: evidence.referenceCount,
-    copiedObjectCount: evidence.copiedObjectCount,
+    sourceManifestSha256: evidence.sourceManifestSha256,
+    referenceCount: evidence.totals.referenceCount,
+    referenceObjectCount: evidence.totals.referenceObjectCount,
     verifiedAt: evidence.verifiedAt,
   };
 }
@@ -49,6 +164,8 @@ export function checkPrivateFileCutover({
   stage,
   evidencePath = DEFAULT_PRIVATE_FILE_EVIDENCE_PATH,
   root = repositoryRoot,
+  now = Date.now(),
+  requireFresh = true,
 }) {
   const absolutePath = resolve(root, evidencePath);
   if (!existsSync(absolutePath)) {
@@ -58,6 +175,7 @@ export function checkPrivateFileCutover({
     return validatePrivateFileCutoverEvidence(
       JSON.parse(readFileSync(absolutePath, "utf8")),
       stage,
+      { now, requireFresh },
     );
   } catch {
     return { ready: false, reason: "invalid_evidence" };
@@ -70,6 +188,7 @@ function parseArguments(argv) {
     stage: undefined,
     evidence: DEFAULT_PRIVATE_FILE_EVIDENCE_PATH,
   };
+  const seen = new Set();
   for (let index = 0; index < argv.length; index += 2) {
     const flag = argv[index];
     const value = argv[index + 1];
@@ -78,6 +197,8 @@ function parseArguments(argv) {
     }
     const key = flag.slice(2);
     if (!(key in parsed)) throw new Error(`Unknown verifier option: ${flag}`);
+    if (seen.has(key)) throw new Error(`Duplicate verifier option: ${flag}`);
+    seen.add(key);
     parsed[key] = value;
   }
   if (!["require", "status"].includes(parsed.mode)) {
@@ -98,7 +219,7 @@ function main() {
   process.stdout.write(`${JSON.stringify(result)}\n`);
   if (arguments_.mode === "require" && !result.ready) {
     throw new Error(
-      `Legacy file-read enablement is blocked (${result.reason}); issue #11 must publish verified import evidence.`,
+      `Legacy file-read enablement is blocked (${result.reason}); issue #11 must publish fresh verified import evidence.`,
     );
   }
 }

@@ -46,7 +46,10 @@ export async function createTestDeploymentRole(stage: StageSettings) {
               [`${deploymentContract.providerUrl}:aud`]:
                 deploymentContract.audience,
               [`${deploymentContract.providerUrl}:sub`]:
-                deploymentContract.subject,
+                [
+                  deploymentContract.subject,
+                  deploymentContract.enablementSubject,
+                ],
             },
           },
         },

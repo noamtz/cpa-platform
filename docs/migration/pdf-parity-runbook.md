@@ -10,8 +10,10 @@ templates, field values, signatures, tokens, or client data in committed evidenc
 - Use Node 20.17.0 and region `il-central-1` with an independently verified AuditFlow AWS identity.
 - `sst diff` is read-only review, not deployment approval. The owner has authorized issue #9's full SST `test`
   deployment only in synthetic-only mode, with application and ZIP-worker legacy file reads pinned to `false`.
-- `npm run verify:file-cutover:test` remains the hard gate for issue #11's later legacy-read enablement. A missing or
-  failing artifact is expected before #11 and does not block synthetic-only issue #9 acceptance.
+- `npm run verify:file-cutover:test` remains the hard gate for issue #11's protected legacy-read enablement. The
+  authorized test-stage import and aggregate-only reconciliation evidence now exist. Protected legacy-read
+  enablement, live reconciliation after deployment, and acceptance must still pass before cutover; this does not
+  change the completed synthetic-only issue #9 acceptance.
 - Production deployment, production preview, DNS, Terraform, and the imported legacy Lambda workflows are outside
   this procedure and remain prohibited without separate authorization.
 - Lambda's complete synchronous proxy response must remain below 6 MB; because generated PDFs are base64-encoded

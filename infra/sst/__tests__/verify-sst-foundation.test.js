@@ -75,6 +75,42 @@ describe("test deployer permission verification", () => {
     expect(preflight).toBeLessThan(preview);
     expect(preflight).toBeLessThan(deployment);
   });
+
+  it("keeps ordinary deploys disabled and gates manual enablement before AWS access", () => {
+    const workflow = readFileSync(
+      new URL("../../../.github/workflows/deploy-sst-test.yml", import.meta.url),
+      "utf8",
+    );
+    const modeValidation = workflow.indexOf(
+      "Validate requested legacy-file mode before AWS access",
+    );
+    const credentials = workflow.indexOf("Configure AWS credentials");
+    const environmentReadback = workflow.indexOf(
+      "Verify protected enablement environment",
+    );
+
+    expect(workflow).toContain("enable_legacy_file_reads:");
+    expect(workflow).toMatch(
+      /enable_legacy_file_reads:[\s\S]*?type: boolean[\s\S]*?default: false/,
+    );
+    expect(workflow).toContain(
+      "github.event_name == 'workflow_dispatch' && inputs.enable_legacy_file_reads && 'test-legacy-read-enable' || 'test'",
+    );
+    expect(workflow).toContain(
+      "github.event_name == 'workflow_dispatch' && inputs.enable_legacy_file_reads && 'true' || 'false'",
+    );
+    expect(workflow).toContain('[[ "${GITHUB_REF}" == "refs/heads/main" ]]');
+    expect(workflow).toContain("npm run verify:file-cutover:test");
+    expect(workflow).toContain(
+      "environments/test-legacy-read-enable/deployment-branch-policies?per_page=100",
+    );
+    expect(workflow).toContain('entry.reviewer?.login === "noamtz"');
+    expect(workflow).toContain('policies.branch_policies?.[0]?.name === "main"');
+    expect(modeValidation).toBeGreaterThan(-1);
+    expect(modeValidation).toBeLessThan(credentials);
+    expect(environmentReadback).toBeGreaterThan(modeValidation);
+    expect(environmentReadback).toBeLessThan(credentials);
+  });
 });
 
 describe("live verifier evidence", () => {

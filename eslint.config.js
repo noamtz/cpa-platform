@@ -86,6 +86,9 @@ export default [
   {
     files: [
       "tooling/verify_sst_foundation.mjs",
+      "tooling/verify_private_file_cutover.mjs",
+      "tooling/import_base44_snapshot.mjs",
+      "tooling/import_base44_snapshot.test.mjs",
       "tooling/verify_pdf_bundle.mjs",
       "tooling/verify_pdf_bundle.test.mjs",
       "tooling/verify_pdf_parity.mjs",

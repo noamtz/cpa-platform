@@ -12,6 +12,7 @@ import {
   publicUploadSchema,
   resolveStoredFileReference,
   sanitizeZipName,
+  stableReferenceHash,
   zipManifestSchema,
   zipProcessingLeaseSchema,
   zipResultKey,
@@ -49,7 +50,6 @@ describe("file contracts", () => {
     const reference = privateFileReference(key);
     expect(parsePrivateFileReference(reference)).toEqual({ key, kind: "owned" });
     for (const value of [
-      "https://example.test/file.pdf",
       "s3://bucket/key",
       "arn:aws:s3:::bucket/key",
       "private://files/firms/ddcpa/../foreign.pdf",
@@ -69,6 +69,31 @@ describe("file contracts", () => {
     expect(first).not.toContain("synthetic");
     expect(resolveStoredFileReference("private/synthetic/imported.pdf").kind).toBe("legacy");
     expect(resolveStoredFileReference("mp/synthetic/imported.pdf").kind).toBe("legacy");
+    const httpsReference = "HTTPS://example.test/folder/file.pdf?version=1";
+    expect(legacyReferenceKey(httpsReference)).toBe(
+      `legacy/${stableReferenceHash(httpsReference)}`,
+    );
+    const whitespaceBearingReference = `${reference} `;
+    expect(legacyReferenceKey(whitespaceBearingReference)).toBe(
+      `legacy/${stableReferenceHash(whitespaceBearingReference)}`,
+    );
+    expect(legacyReferenceKey(whitespaceBearingReference)).not.toBe(first);
+  });
+
+  it("rejects unsafe HTTPS references without normalizing them", () => {
+    for (const value of [
+      "http://example.test/file.pdf",
+      "https://user:password@example.test/file.pdf",
+      "https://example.test/../file.pdf",
+      "https://example.test/safe/%2e%2e/file.pdf",
+      "https://example.test/%2fescape.pdf",
+      "https://example.test/file\\name.pdf",
+      " https://example.test/file.pdf",
+      "https://example.test/file.pdf ",
+      "https://example.test/file\u007f.pdf",
+    ]) {
+      expect(() => legacyReferenceKey(value)).toThrow("Invalid private file reference");
+    }
   });
 
   it("requires resource locators instead of a raw file reference", () => {
@@ -106,7 +131,7 @@ describe("file contracts", () => {
     ).toBe(false);
   });
 
-  it("accepts only private references in the authenticated template mirror", () => {
+  it("accepts only resolver-supported references in the authenticated template mirror", () => {
     const input = {
       template_id: "template-test",
       file_reference: "private://synthetic/imported.pdf",
@@ -120,7 +145,7 @@ describe("file contracts", () => {
         ...input,
         file_reference: "https://example.test/template.pdf",
       }).success,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       cpaTemplateFileMirrorSchema.safeParse({ ...input, object_key: "foreign" })
         .success,

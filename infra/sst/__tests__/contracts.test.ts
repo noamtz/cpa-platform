@@ -104,6 +104,7 @@ describe("foundation resource contract", () => {
       providerUrl: deploymentContract.providerUrl,
       audience: deploymentContract.audience,
       subject: deploymentContract.subject,
+      enablementSubject: deploymentContract.enablementSubject,
     });
     expect(verifierContract.inventory).toEqual(expectedInventory);
     expect(verifierContract.outputKeys).toEqual(expectedOutputKeys);
@@ -414,24 +415,36 @@ describe("foundation resource contract", () => {
     );
     expect(deploymentContract.subject).not.toContain("*");
     expect(deploymentContract.subject).not.toContain("noamtz/auditflow");
+    expect(deploymentContract.enablementSubject).toBe(
+      "repo:noamtz@2631641/cpa-platform@1332935468:environment:test-legacy-read-enable",
+    );
+    expect(deploymentContract.enablementSubject).not.toContain("*");
   });
 
-  it("pins test deployments to synthetic-only file access", () => {
+  it("defaults test deployments to disabled legacy file access", () => {
     expect(deploymentGateContract.privateFilesImport).toEqual({
       issue: 11,
       evidencePath: "docs/migration/private-file-import-verification.json",
       verifier: "tooling/verify_private_file_cutover.mjs",
       requiredBefore: "legacy-file-read-enablement",
-      resolverContract: "legacy-sha256-v1",
+      resolverContract: "legacy-reference-sha256-v2",
+      evidenceSchemaVersion: 3,
       environmentVariable: "LEGACY_FILE_READS_ENABLED",
+      manifestEnvironmentVariable: "LEGACY_FILE_IMPORT_MANIFEST_SHA256",
+      requestEnvironmentVariable: "AUDITFLOW_ENABLE_LEGACY_FILE_READS",
+      expectedManifestEnvironmentVariable:
+        "AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256",
       syntheticOnlyValue: "false",
+      enabledStage: "test",
+      maximumEvidenceAgeHours: 72,
       enablementIssue: 11,
     });
     const applicationSource = readFileSync(
       new URL("../application.ts", import.meta.url),
       "utf8",
     );
-    expect(applicationSource.match(/syntheticOnlyValue/g)).toHaveLength(2);
+    expect(applicationSource.match(/privateFileCutover\.enabled/g)).toHaveLength(2);
+    expect(applicationSource.match(/privateFileCutover\.manifestSha256/g)).toHaveLength(2);
   });
 
   it("defines an alert-only production budget and safe outputs", () => {

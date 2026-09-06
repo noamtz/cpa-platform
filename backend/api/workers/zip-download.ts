@@ -8,6 +8,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
+import { resolveLegacyFileRuntimeConfig } from "../core/runtime-config";
 import type { S3Event } from "aws-lambda";
 import JSZip from "jszip";
 import { ZodError } from "zod";
@@ -447,6 +448,7 @@ function requiredEnvironment(name: string) {
 
 function createRuntimeHandler() {
   const sdkS3 = new S3Client({});
+  const legacyFileRuntime = resolveLegacyFileRuntimeConfig();
   const temporaryOutputsBucketName = requiredEnvironment(
     "TEMPORARY_OUTPUTS_BUCKET_NAME",
   );
@@ -454,7 +456,7 @@ function createRuntimeHandler() {
     s3: { send: (command) => sdkS3.send(command as never) },
     filesBucketName: requiredEnvironment("FILES_BUCKET_NAME"),
     temporaryOutputsBucketName,
-    legacyFileReadsEnabled: process.env.LEGACY_FILE_READS_ENABLED === "true",
+    legacyFileReadsEnabled: legacyFileRuntime.legacyFileReadsEnabled,
     createUpload(key, body) {
       const upload = new Upload({
         client: sdkS3,

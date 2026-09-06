@@ -382,6 +382,83 @@ describe("PublicQuestionnaireService mutation and concurrency", () => {
     expect(commit).not.toHaveBeenCalled();
   });
 
+  it("rejects a newly injected legacy reference while preserving an imported one", async () => {
+    const importedReference = "private://synthetic/imported.pdf";
+    const foreignReference = "private://synthetic/foreign.pdf";
+    const before = submissionRecord({
+      responses: JSON.stringify({
+        step: { answer: true, files: [importedReference] },
+      }),
+    });
+    const { service, commit } = setup({
+      client: clientRecord({ status: "in_progress" }),
+      submission: before,
+    });
+
+    await expect(
+      service.updateClientSubmission(
+        {
+          ...credentials,
+          submission_id: before.id,
+          _version: before._version,
+          data: {
+            responses: JSON.stringify({
+              step: {
+                answer: true,
+                files: [importedReference, foreignReference],
+              },
+            }),
+          },
+          completed: false,
+        },
+        "request-legacy-injection",
+      ),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(commit).not.toHaveBeenCalled();
+
+    await expect(
+      service.updateClientSubmission(
+        {
+          ...credentials,
+          submission_id: before.id,
+          _version: before._version,
+          data: { responses: before.responses },
+          completed: false,
+        },
+        "request-preserve-imported",
+      ),
+    ).resolves.toMatchObject({
+      submission: { responses: before.responses },
+    });
+    expect(commit).toHaveBeenCalledOnce();
+  });
+
+  it("rejects legacy references on a new public submission", async () => {
+    const { service, commit } = setup({
+      client: clientRecord(),
+      activeTemplate: templateRecord(),
+    });
+
+    await expect(
+      service.updateClientSubmission(
+        {
+          ...credentials,
+          data: {
+            signed_pdfs: JSON.stringify([
+              {
+                step_id: "pdf-1",
+                pdf_file_url: "https://example.test/foreign.pdf",
+              },
+            ]),
+          },
+          completed: false,
+        },
+        "request-new-legacy",
+      ),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(commit).not.toHaveBeenCalled();
+  });
+
   it("rejects a replaced ID when another current-year Submission is active", async () => {
     const oldSubmission = submissionRecord();
     const replacement = submissionRecord({ id: "submission-2", _version: 1 });

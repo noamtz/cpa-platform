@@ -33,6 +33,7 @@ export default $config({
       { createApplication, createApplicationRouter },
       { createTestDeploymentRole },
       { createPdfApi },
+      { resolvePrivateFileCutover },
     ] = await Promise.all([
       import("./infra/sst/stage"),
       import("./infra/sst/storage"),
@@ -41,9 +42,16 @@ export default $config({
       import("./infra/sst/application"),
       import("./infra/sst/deployment-role"),
       import("./infra/sst/pdf"),
+      import("./infra/sst/private-file-cutover"),
     ]);
 
     const stage = getStageSettings($app.stage);
+    const privateFileCutover = resolvePrivateFileCutover({
+      stage: stage.name,
+      requested: process.env.AUDITFLOW_ENABLE_LEGACY_FILE_READS,
+      expectedManifestSha256:
+        process.env.AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256,
+    });
     const router = createApplicationRouter();
     const storage = createStorage(stage, router.url);
     const authentication = createAuthentication(stage, router.url);
@@ -61,6 +69,7 @@ export default $config({
       testDeployRole.workloadBoundary.arn,
       router,
       pdf,
+      privateFileCutover,
     );
 
     return {

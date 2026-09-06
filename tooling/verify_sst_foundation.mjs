@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { inspectPdfBundle } from "./verify_pdf_bundle.mjs";
+import { checkPrivateFileCutover } from "./verify_private_file_cutover.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, "..");
@@ -56,7 +57,14 @@ export function hasScopedCloudFrontKeyValueStorePermissions(
 }
 
 function parseArguments(argv) {
-  const parsed = { mode: undefined, stage: undefined, outputs: undefined };
+  const parsed = {
+    mode: undefined,
+    stage: undefined,
+    outputs: undefined,
+    "legacy-file-reads": "disabled",
+    evidence: undefined,
+  };
+  const seen = new Set();
   for (let index = 0; index < argv.length; index += 2) {
     const flag = argv[index];
     const value = argv[index + 1];
@@ -65,13 +73,15 @@ function parseArguments(argv) {
     }
     const key = flag.slice(2);
     if (!(key in parsed)) fail(`Unknown verifier option: ${flag}`);
+    if (seen.has(key)) fail(`Duplicate verifier option: ${flag}`);
+    seen.add(key);
     parsed[key] = value;
   }
   return parsed;
 }
 
 function verifyContract(contract, stage) {
-  assert(contract.schemaVersion === 3, "Unsupported contract schema version.");
+  assert(contract.schemaVersion === 4, "Unsupported contract schema version.");
   assert(contract.app === "auditflow", "Unexpected SST application name.");
   assert(contract.sstVersion === "3.19.3", "SST version must be 3.19.3.");
   assert(contract.region === "il-central-1", "Unexpected AWS region.");
@@ -295,10 +305,19 @@ function verifyContract(contract, stage) {
       contract.deploymentGates.privateFilesImport.requiredBefore ===
         "legacy-file-read-enablement" &&
       contract.deploymentGates.privateFilesImport.resolverContract ===
-        "legacy-sha256-v1" &&
+        "legacy-reference-sha256-v2" &&
+      contract.deploymentGates.privateFilesImport.evidenceSchemaVersion === 3 &&
       contract.deploymentGates.privateFilesImport.environmentVariable ===
         "LEGACY_FILE_READS_ENABLED" &&
+      contract.deploymentGates.privateFilesImport.manifestEnvironmentVariable ===
+        "LEGACY_FILE_IMPORT_MANIFEST_SHA256" &&
+      contract.deploymentGates.privateFilesImport.requestEnvironmentVariable ===
+        "AUDITFLOW_ENABLE_LEGACY_FILE_READS" &&
+      contract.deploymentGates.privateFilesImport.expectedManifestEnvironmentVariable ===
+        "AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256" &&
       contract.deploymentGates.privateFilesImport.syntheticOnlyValue === "false" &&
+      contract.deploymentGates.privateFilesImport.enabledStage === "test" &&
+      contract.deploymentGates.privateFilesImport.maximumEvidenceAgeHours === 72 &&
       contract.deploymentGates.privateFilesImport.enablementIssue === 11,
     "Legacy file reads must remain gated on issue #11 import evidence.",
   );
@@ -306,7 +325,10 @@ function verifyContract(contract, stage) {
     contract.oidc.audience === "sts.amazonaws.com" &&
       contract.oidc.subject ===
         "repo:noamtz@2631641/cpa-platform@1332935468:environment:test" &&
+      contract.oidc.enablementSubject ===
+        "repo:noamtz@2631641/cpa-platform@1332935468:environment:test-legacy-read-enable" &&
       !contract.oidc.subject.includes("*") &&
+      !contract.oidc.enablementSubject.includes("*") &&
       !contract.oidc.subject.includes("noamtz/auditflow"),
     "OIDC trust must use the exact immutable test Environment subject.",
   );
@@ -613,8 +635,32 @@ async function fetchText(url, expectedStatus) {
   return { response, text: await response.text() };
 }
 
-async function verifyLive(contract, stage, outputsPath) {
+async function verifyLive(
+  contract,
+  stage,
+  outputsPath,
+  legacyFileReads = "disabled",
+  evidencePath,
+) {
   assert(stage === "test", "Live verification is restricted to the test stage.");
+  assert(
+    legacyFileReads === "disabled" || legacyFileReads === "enabled",
+    "Legacy file-read expectation must be enabled or disabled.",
+  );
+  assert(
+    legacyFileReads === "enabled" ? Boolean(evidencePath) : !evidencePath,
+    "Enabled live verification requires evidence; disabled verification forbids it.",
+  );
+  let expectedLegacyManifestSha256 = "";
+  if (legacyFileReads === "enabled") {
+    const evidence = checkPrivateFileCutover({
+      stage,
+      evidencePath,
+      root: repositoryRoot,
+    });
+    assert(evidence.ready, `Legacy file evidence is not ready (${evidence.reason}).`);
+    expectedLegacyManifestSha256 = evidence.sourceManifestSha256;
+  }
   const outputs = readJson(resolve(repositoryRoot, outputsPath));
   assert(outputs.stage === "test", "Deployment outputs are not for the test stage.");
   for (const key of contract.outputKeys) {
@@ -796,11 +842,15 @@ async function verifyLive(contract, stage, outputsPath) {
       JSON.stringify(zipWorker.Architectures) === JSON.stringify(["arm64"]),
     "ZIP worker runtime limits have drifted.",
   );
+  const zipEnvironment = zipWorker.Environment?.Variables ?? {};
   assert(
-    zipWorker.Environment?.Variables?.[
+    zipEnvironment[
       contract.deploymentGates.privateFilesImport.environmentVariable
-    ] === contract.deploymentGates.privateFilesImport.syntheticOnlyValue,
-    "ZIP worker legacy file reads are not pinned to synthetic-only mode.",
+    ] === (legacyFileReads === "enabled" ? "true" : "false") &&
+      (zipEnvironment[
+        contract.deploymentGates.privateFilesImport.manifestEnvironmentVariable
+      ] ?? "") === expectedLegacyManifestSha256,
+    "ZIP worker legacy file-read mode or manifest binding has drifted.",
   );
   const notification = runAws([
     "s3api",
@@ -973,11 +1023,15 @@ async function verifyLive(contract, stage, outputsPath) {
   ]).value;
   assert(lambda.Runtime === "nodejs20.x", "API Lambda runtime has drifted.");
   assert(lambda.Architectures?.includes("arm64"), "API Lambda is not arm64.");
+  const apiEnvironment = lambda.Environment?.Variables ?? {};
   assert(
-    lambda.Environment?.Variables?.[
+    apiEnvironment[
       contract.deploymentGates.privateFilesImport.environmentVariable
-    ] === contract.deploymentGates.privateFilesImport.syntheticOnlyValue,
-    "API Lambda legacy file reads are not pinned to synthetic-only mode.",
+    ] === (legacyFileReads === "enabled" ? "true" : "false") &&
+      (apiEnvironment[
+        contract.deploymentGates.privateFilesImport.manifestEnvironmentVariable
+      ] ?? "") === expectedLegacyManifestSha256,
+    "API Lambda legacy file-read mode or manifest binding has drifted.",
   );
 
   const pdfApi = runAws([
@@ -1130,8 +1184,8 @@ async function verifyLive(contract, stage, outputsPath) {
     ) &&
       trustConditions?.["token.actions.githubusercontent.com:aud"] ===
         contract.oidc.audience &&
-      trustConditions?.["token.actions.githubusercontent.com:sub"] ===
-        contract.oidc.subject,
+      JSON.stringify(trustConditions?.["token.actions.githubusercontent.com:sub"]) ===
+        JSON.stringify([contract.oidc.subject, contract.oidc.enablementSubject]),
     "Test deploy role does not have the exact GitHub OIDC trust contract.",
   );
   const attachedPolicies = runAws([
@@ -1518,6 +1572,11 @@ async function verifyLive(contract, stage, outputsPath) {
       iamSimulationPassed: true,
       healthOk: true,
       protectedHealthRejected: true,
+      legacyFileReads,
+      legacyManifestBound:
+        legacyFileReads === "enabled"
+          ? /^[a-f0-9]{64}$/.test(expectedLegacyManifestSha256)
+          : true,
     },
     urls: {
       routerUrl: outputs.routerUrl,
@@ -1534,6 +1593,11 @@ async function main() {
     "Invalid mode.",
   );
   assert(arguments_.stage, "Missing --stage.");
+  assert(
+    arguments_.mode === "live" ||
+      (arguments_["legacy-file-reads"] === "disabled" && !arguments_.evidence),
+    "Legacy file-read expectations are valid only for live verification.",
+  );
   const contract = readJson(contractPath);
   const contractResult = verifyContract(contract, arguments_.stage);
   let result = contractResult;
@@ -1544,6 +1608,8 @@ async function main() {
       contract,
       arguments_.stage,
       arguments_.outputs ?? ".sst/outputs.json",
+      arguments_["legacy-file-reads"],
+      arguments_.evidence,
     );
   }
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

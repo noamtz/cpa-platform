@@ -19,7 +19,7 @@ const clientFields = {
   full_name: z.string().trim().min(1).max(512),
   email: z.string().email().max(512).optional(),
   phone: z.string().max(128).optional(),
-  tax_year: z.number().int().min(1900).max(2200).optional(),
+  tax_year: z.number().int().positive().max(9999).optional(),
   osek_type: osekTypeSchema.optional(),
   pricing: z.number().finite().nonnegative().optional(),
   status: clientStatusSchema.optional(),
@@ -37,10 +37,24 @@ const clientProfileFields = {
   notes: clientFields.notes,
 };
 
+const derivedPlaceholderClientMarkerSchema = z
+  .object({
+    schema_version: z.literal(1),
+    source: z.literal("base44"),
+    item_kind: z.literal("derived_placeholder_client"),
+    source_manifest_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+    source_submission_count: z.number().int().positive(),
+    source_submission_ids_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
+
+export const derivedPlaceholderClientDisplayName = "לקוח היסטורי";
+
 export const clientPersistedSchema = z
   .object({
     id,
     ...clientFields,
+    full_name: clientFields.full_name.optional(),
     token: z.string().max(256).optional(),
     record_type: z.literal("Client"),
     _version: z.number().int().positive(),
@@ -48,7 +62,21 @@ export const clientPersistedSchema = z
     updated_date: timestamp,
     created_by: z.string().max(512).optional(),
   })
-  .passthrough();
+  .passthrough()
+  .transform((record, context): typeof record & { full_name: string } => {
+    if (record.full_name !== undefined) {
+      return { ...record, full_name: record.full_name };
+    }
+    if (derivedPlaceholderClientMarkerSchema.safeParse(record._auditflow_migration).success) {
+      return { ...record, full_name: derivedPlaceholderClientDisplayName };
+    }
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "full_name is required",
+      path: ["full_name"],
+    });
+    return z.NEVER;
+  });
 
 export const clientCreateSchema = z
   .object({
@@ -90,7 +118,7 @@ export const clientQuerySchema = z
 
 const submissionKnownFields = {
   client_id: id,
-  tax_year: z.number().int().min(1900).max(2200).optional(),
+  tax_year: z.number().int().positive().max(9999).optional(),
   cpa_status: z.enum(["ready_for_ira", "reviewed"]).optional(),
   is_archived: z.boolean().optional(),
   responses: z.string().optional(),
@@ -116,7 +144,7 @@ export const activeSubmissionGuardSchema = z
     record_type: z.literal("!ACTIVE_GUARD"),
     submission_id: id,
     client_id: id,
-    tax_year: z.number().int().min(1900).max(2200),
+    tax_year: z.number().int().positive().max(9999),
   })
   .strict();
 
@@ -148,7 +176,7 @@ export const userPersistedSchema = z
     email: z.string().email().max(512),
     role: z.enum(["admin", "user"]),
     drive_base_path: z.string().max(2048).optional(),
-    cognito_sub: id,
+    cognito_sub: id.optional(),
     record_type: z.literal("User"),
     _version: z.number().int().positive(),
     created_date: timestamp,
