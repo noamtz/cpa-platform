@@ -6,6 +6,17 @@ const optionalText = z.string().max(4096).optional();
 const sort = z.enum(["created_date", "-created_date"]).default("-created_date");
 const limit = z.number().int().min(1).max(200).default(200);
 
+function importedOptional<T extends z.ZodTypeAny>(
+  schema: T,
+  { emptyString = false }: { readonly emptyString?: boolean } = {},
+) {
+  return z.preprocess(
+    (value) =>
+      value === null || (emptyString && value === "") ? undefined : value,
+    schema.optional(),
+  );
+}
+
 export const clientStatusSchema = z.enum([
   "pending",
   "in_progress",
@@ -55,6 +66,12 @@ export const clientPersistedSchema = z
     id,
     ...clientFields,
     full_name: clientFields.full_name.optional(),
+    email: importedOptional(z.string().email().max(512), {
+      emptyString: true,
+    }),
+    osek_type: importedOptional(osekTypeSchema),
+    notes: importedOptional(z.string().max(4096)),
+    last_activity: importedOptional(timestamp),
     token: z.string().max(256).optional(),
     record_type: z.literal("Client"),
     _version: z.number().int().positive(),
