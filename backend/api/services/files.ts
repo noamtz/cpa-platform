@@ -22,6 +22,7 @@ import {
   ZIP_LOCK_PREFIX,
   allowedContentTypeSchema,
   extensionForContentType,
+  legacyReferenceBindingKey,
   ownerKeyPart,
   parsePrivateFileReference,
   privateFileReference,
@@ -570,7 +571,29 @@ export class FileService {
     return this.complete(owner, input.upload_id, requestId);
   }
 
-  private async signedUrlFor(reference: unknown, ownedPrefixes: readonly string[]) {
+  private async assertLegacyBinding(
+    legacyObjectKey: string,
+    entity: "Submission" | "PdfTemplate",
+    recordId: string,
+  ) {
+    try {
+      await this.options.s3.send(
+        new HeadObjectCommand({
+          Bucket: this.options.filesBucketName,
+          Key: legacyReferenceBindingKey(legacyObjectKey, entity, recordId),
+        }),
+      );
+    } catch (error) {
+      if (isMissingObject(error)) throw notFound("File not found");
+      throw internalError();
+    }
+  }
+
+  private async signedUrlFor(
+    reference: unknown,
+    ownedPrefixes: readonly string[],
+    legacyOwner: { readonly entity: "Submission" | "PdfTemplate"; readonly id: string },
+  ) {
     let key: string;
     let kind: "owned" | "legacy";
     try {
@@ -584,6 +607,9 @@ export class FileService {
       !ownedPrefixes.some((prefix) => key.startsWith(prefix))
     ) {
       throw notFound("File not found");
+    }
+    if (kind === "legacy") {
+      await this.assertLegacyBinding(key, legacyOwner.entity, legacyOwner.id);
     }
     try {
       await this.options.s3.send(
@@ -608,7 +634,7 @@ export class FileService {
     if (!reference) throw notFound("PDF file not found for this step");
     return this.signedUrlFor(reference, [
       submissionPrefix(client.id, submission.id, ""),
-    ]);
+    ], { entity: "Submission", id: submission.id });
   }
 
   async getPublicTemplateFileUrl(input: PublicTemplateFileUrlInput) {
@@ -618,7 +644,7 @@ export class FileService {
     return this.signedUrlFor(reference, [
       templatePrefix(input.template_id),
       templatePrefix("pending"),
-    ]);
+    ], { entity: "PdfTemplate", id: template.id });
   }
 
   async getPublicPdfTemplate(input: PublicPdfTemplateReadInput) {
@@ -657,7 +683,7 @@ export class FileService {
     if (!reference) throw notFound("File not found");
     return this.signedUrlFor(reference, [
       submissionPrefix(client.id, submission.id, ""),
-    ]);
+    ], { entity: "Submission", id: submission.id });
   }
 
   async getCpaTemplateFileUrl(templateId: string, actor: CpaActor) {
@@ -669,7 +695,7 @@ export class FileService {
     return this.signedUrlFor(reference, [
       templatePrefix(templateId),
       templatePrefix("pending"),
-    ]);
+    ], { entity: "PdfTemplate", id: template.id });
   }
 
   async validateCpaTemplateReference(
@@ -679,7 +705,10 @@ export class FileService {
     void actor;
     const { key, kind } = resolveStoredFileReference(input.fileReference);
     this.assertReadableReferenceKind(kind);
-    if (kind !== "owned") return;
+    if (kind !== "owned") {
+      await this.assertLegacyBinding(key, "PdfTemplate", input.templateId);
+      return;
+    }
 
     const receiptKey = createHash("sha256")
       .update(`create:${input.fileReference}`)
@@ -859,6 +888,9 @@ export class FileService {
       this.assertReadableReferenceKind(
         sourceKey.startsWith("legacy/") ? "legacy" : "owned",
       );
+      if (sourceKey.startsWith("legacy/")) {
+        await this.assertLegacyBinding(sourceKey, "Submission", submission.id);
+      }
       if (
         !sourceKey.startsWith("legacy/") &&
         !sourceKey.startsWith(allowedOwnedPrefix)

@@ -428,7 +428,7 @@ describe("foundation resource contract", () => {
       verifier: "tooling/verify_private_file_cutover.mjs",
       requiredBefore: "legacy-file-read-enablement",
       resolverContract: "legacy-reference-sha256-v2",
-      evidenceSchemaVersion: 2,
+      evidenceSchemaVersion: 3,
       environmentVariable: "LEGACY_FILE_READS_ENABLED",
       manifestEnvironmentVariable: "LEGACY_FILE_IMPORT_MANIFEST_SHA256",
       requestEnvironmentVariable: "AUDITFLOW_ENABLE_LEGACY_FILE_READS",

@@ -163,11 +163,25 @@ function fixture(records = sourceRecords()) {
     "https://example.test/invented.pdf?version=1",
   ];
   const references = sources
-    .map((sourceReference) => ({
+    .map((sourceReference, index) => ({
       referenceFingerprint: sha256(Buffer.from(sourceReference, "utf8")),
       sourceReference,
       classification: sourceReference.startsWith("https:") ? "public" : "private",
-      occurrences: [],
+      occurrences: [
+        index === 0
+          ? {
+              entity: "Submission",
+              recordId: "submission-1",
+              jsonPointer: "/responses",
+              containerType: "string",
+            }
+          : {
+              entity: "PdfTemplate",
+              recordId: "pdf-1",
+              jsonPointer: "/template_json/basePdf",
+              containerType: "string",
+            },
+      ],
       status: "downloaded",
       contentSha256,
       byteLength: bytes.length,
@@ -315,7 +329,9 @@ function fakeClients({ pageSize = 1 } = {}) {
         return { VersionId: "invented-version" };
       }
       if (command.constructor.name === "ListObjectsV2Command") {
-        const names = [...objects.keys()].sort();
+        const names = [...objects.keys()]
+          .filter((name) => name.startsWith(input.Prefix))
+          .sort();
         const offset = Number(input.ContinuationToken ?? 0);
         const page = names.slice(offset, offset + pageSize);
         const next = offset + page.length;
@@ -371,6 +387,7 @@ describe("Base44 snapshot importer", () => {
     const plan = loadFixture();
     expect(plan.sourceRecordCount).toBe(8);
     expect(plan.references).toHaveLength(2);
+    expect(plan.referenceBindings).toHaveLength(2);
     expect(plan.references.map(({ objectName }) => objectName)).toEqual(
       expect.arrayContaining([
         legacyReferenceKey("private://legacy/invented.pdf"),
@@ -578,6 +595,7 @@ describe("Base44 snapshot importer", () => {
       resolvedDuplicateActiveSubmissionCount: 0,
       derivedGuardCount: 2,
       referenceObjectCount: 2,
+      referenceBindingCount: 2,
     });
     const evidence = evidenceFor(
       plan,

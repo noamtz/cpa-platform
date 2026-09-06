@@ -306,7 +306,7 @@ function verifyContract(contract, stage) {
         "legacy-file-read-enablement" &&
       contract.deploymentGates.privateFilesImport.resolverContract ===
         "legacy-reference-sha256-v2" &&
-      contract.deploymentGates.privateFilesImport.evidenceSchemaVersion === 2 &&
+      contract.deploymentGates.privateFilesImport.evidenceSchemaVersion === 3 &&
       contract.deploymentGates.privateFilesImport.environmentVariable ===
         "LEGACY_FILE_READS_ENABLED" &&
       contract.deploymentGates.privateFilesImport.manifestEnvironmentVariable ===

@@ -11,8 +11,9 @@ templates, field values, signatures, tokens, or client data in committed evidenc
 - `sst diff` is read-only review, not deployment approval. The owner has authorized issue #9's full SST `test`
   deployment only in synthetic-only mode, with application and ZIP-worker legacy file reads pinned to `false`.
 - `npm run verify:file-cutover:test` remains the hard gate for issue #11's protected legacy-read enablement. The
-  importer and evidence-v2 gate are locally validated, but the authorized live import and evidence do not yet exist;
-  this does not change the completed synthetic-only issue #9 acceptance.
+  authorized test-stage import and aggregate-only reconciliation evidence now exist. Protected legacy-read
+  enablement, live reconciliation after deployment, and acceptance must still pass before cutover; this does not
+  change the completed synthetic-only issue #9 acceptance.
 - Production deployment, production preview, DNS, Terraform, and the imported legacy Lambda workflows are outside
   this procedure and remain prohibited without separate authorization.
 - Lambda's complete synchronous proxy response must remain below 6 MB; because generated PDFs are base64-encoded

@@ -22,8 +22,8 @@ enablement are prohibited by this issue.
 - Confirm `.sst/outputs.json` was produced for stage `test`. The doctor validates the exact six tables, private bucket,
   Cognito pool, bucket encryption/versioning, and mapped identities before an import can write.
 - The operator session needs only STS identity; DynamoDB Describe/Get/Put/Scan on the six tables; S3 ListBucket and
-  Head/Get/Put on `legacy/*`; Cognito Describe/List/AdminGet for the test pool; and KMS decrypt only when required by
-  the bucket key. A 403 is terminal and is never treated as an absent object.
+  Head/Get/Put on `legacy/*` and `legacy-bindings/*`; Cognito Describe/List/AdminGet for the test pool; and KMS decrypt
+  only when required by the bucket key. A 403 is terminal and is never treated as an absent object.
 
 Use private, absolute paths and do not paste their resolved values into tickets or committed reports:
 
@@ -68,6 +68,29 @@ the immutable source rows:
 
 These rules are limited to the import compatibility layer. They do not change source files or silently repair other
 relationship, identity, reference, or target conflicts.
+
+## Owner bootstrap for protected deployment trust
+
+The ordinary GitHub deploy role is explicitly denied permission to change its own policy or trust relationship. If
+the protected enablement subject is not yet trusted, use an independently authenticated owner profile and run:
+
+```powershell
+npm run bootstrap:test-deployment-trust
+```
+
+The command accepts only the tagged AuditFlow test deploy role, permits only the prior one-subject policy or the
+desired two-subject policy, rejects execution from the deploy role itself, and reads back the exact desired policy.
+It does not touch workload permissions, application resources, or production.
+
+If Windows HTTPS inspection prevents Node from validating the AWS certificate chain, use a Node runtime that supports
+the Windows trust store and keep certificate verification enabled:
+
+```powershell
+$env:AWS_PROFILE = "<owner-profile>"
+node --use-system-ca tooling/bootstrap_test_deployment_trust.mjs --confirm-test-trust-bootstrap
+```
+
+Do not bypass TLS verification for the trust-policy update.
 
 ## Authorized test import, interruption, and resume
 

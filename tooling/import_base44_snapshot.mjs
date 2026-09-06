@@ -45,6 +45,7 @@ export const IMPORT_TOOL_VERSION = "1.1.0";
 export const IMPORT_CHECKPOINT_SCHEMA_VERSION = 1;
 export const MIGRATION_MARKER_SCHEMA_VERSION = 1;
 export const LEGACY_REFERENCE_RESOLVER_CONTRACT = "legacy-reference-sha256-v2";
+export const LEGACY_BINDING_PREFIX = "legacy-bindings/";
 export const AWS_REGION = "il-central-1";
 export const AUTHORIZED_PLACEHOLDER_POLICY = Object.freeze({
   sourceManifestSha256:
@@ -247,6 +248,17 @@ export function validLegacyReference(value) {
 export function legacyReferenceKey(reference) {
   if (!validLegacyReference(reference)) fail("source_reference_invalid");
   return `legacy/${sha256(Buffer.from(reference, "utf8"))}`;
+}
+
+function legacyReferenceBinding(entity, recordId, referenceFingerprint, sourceManifestSha256) {
+  const bindingHash = sha256(Buffer.from(`${entity}\0${recordId}`, "utf8"));
+  return {
+    entity,
+    recordId,
+    bindingHash,
+    objectName: `${LEGACY_BINDING_PREFIX}${referenceFingerprint}/${bindingHash}`,
+    sourceManifestSha256,
+  };
 }
 
 function invokeOfflineVerifier(snapshot, spawn = spawnSync) {
@@ -721,6 +733,7 @@ export function loadImportPlan({
       sha256(Buffer.from(reference.sourceReference, "utf8")) !==
         reference.referenceFingerprint ||
       reference.status !== "downloaded" ||
+      !Array.isArray(reference.occurrences) ||
       !sha256Pattern.test(reference.contentSha256) ||
       !Number.isSafeInteger(reference.byteLength) ||
       reference.byteLength < 0
@@ -738,6 +751,27 @@ export function loadImportPlan({
       byteLength: reference.byteLength,
       contentPath: file.contentPath,
       sourceManifestSha256,
+      bindings: [
+        ...new Map(
+          reference.occurrences
+            .filter(
+              (occurrence) =>
+                isRecord(occurrence) &&
+                ["Submission", "PdfTemplate"].includes(occurrence.entity) &&
+                typeof occurrence.recordId === "string" &&
+                occurrence.recordId.length > 0,
+            )
+            .map((occurrence) => [
+              `${occurrence.entity}\0${occurrence.recordId}`,
+              legacyReferenceBinding(
+                occurrence.entity,
+                occurrence.recordId,
+                reference.referenceFingerprint,
+                sourceManifestSha256,
+              ),
+            ]),
+        ).values(),
+      ],
     };
   });
   if (new Set(references.map(({ objectName }) => objectName)).size !== references.length) {
@@ -757,6 +791,7 @@ export function loadImportPlan({
     derivedPlaceholderClients,
     guards,
     references,
+    referenceBindings: references.flatMap(({ bindings }) => bindings),
     sourceRecordCount: ENTITY_NAMES.reduce(
       (count, entity) => count + recordsByEntity[entity].length,
       0,
@@ -1044,6 +1079,48 @@ async function compareS3Object(s3, bucket, reference) {
   return true;
 }
 
+async function compareS3Binding(s3, bucket, binding) {
+  const head = await headS3Object(s3, bucket, binding);
+  if (!head) return false;
+  if (
+    head.ContentLength !== 0 ||
+    head.Metadata?.["resolver-contract"] !== LEGACY_REFERENCE_RESOLVER_CONTRACT ||
+    head.Metadata?.["source-manifest-sha256"] !== binding.sourceManifestSha256 ||
+    head.Metadata?.["binding-hash"] !== binding.bindingHash
+  ) {
+    fail("target_binding_conflict");
+  }
+  return true;
+}
+
+export async function convergeS3Binding({ s3, bucket, binding }) {
+  if (await compareS3Binding(s3, bucket, binding)) return "skipped";
+  let raced = false;
+  try {
+    await sendPutObject(s3, {
+      Bucket: bucket,
+      Key: binding.objectName,
+      Body: Buffer.alloc(0),
+      ContentLength: 0,
+      IfNoneMatch: "*",
+      Metadata: {
+        "resolver-contract": LEGACY_REFERENCE_RESOLVER_CONTRACT,
+        "source-manifest-sha256": binding.sourceManifestSha256,
+        "binding-hash": binding.bindingHash,
+      },
+    });
+  } catch (error) {
+    if (![409, 412].includes(error?.$metadata?.httpStatusCode)) {
+      fail("target_binding_write_failed", error);
+    }
+    raced = true;
+  }
+  if (!(await compareS3Binding(s3, bucket, binding))) {
+    fail("target_binding_confirmation_failed");
+  }
+  return raced ? "skipped" : "written";
+}
+
 function verifyLocalContent(reference) {
   const content = sha256File(reference.contentPath);
   if (
@@ -1133,6 +1210,13 @@ function importUnits(plan) {
       reference,
     });
   }
+  for (const binding of plan.referenceBindings) {
+    units.push({
+      kind: "s3-binding",
+      name: `binding:${binding.objectName}`,
+      binding,
+    });
+  }
   return units;
 }
 
@@ -1152,16 +1236,18 @@ export async function runImport(
       const expectedHash =
         unit.kind === "dynamo"
           ? desiredItemSha256(unit.item)
-          : sha256(
-              Buffer.from(
-                canonicalJson({
-                  objectName: unit.reference.objectName,
-                  contentSha256: unit.reference.contentSha256,
-                  byteLength: unit.reference.byteLength,
-                }),
-                "utf8",
-              ),
-            );
+          : unit.kind === "s3"
+            ? sha256(
+                Buffer.from(
+                  canonicalJson({
+                    objectName: unit.reference.objectName,
+                    contentSha256: unit.reference.contentSha256,
+                    byteLength: unit.reference.byteLength,
+                  }),
+                  "utf8",
+                ),
+              )
+            : sha256(Buffer.from(canonicalJson(unit.binding), "utf8"));
       if (
         !verifyCompletedImport &&
         checkpoint.state.completed[unit.name] === expectedHash
@@ -1176,12 +1262,18 @@ export async function runImport(
               tableName: unit.tableName,
               item: unit.item,
             })
-          : await convergeS3Object({
-              s3: clients.s3,
-              bucket: plan.outputs.bucketNames.FilesBucket,
-              reference: unit.reference,
-              manifestSha256: plan.sourceManifestSha256,
-            });
+          : unit.kind === "s3"
+            ? await convergeS3Object({
+                s3: clients.s3,
+                bucket: plan.outputs.bucketNames.FilesBucket,
+                reference: unit.reference,
+                manifestSha256: plan.sourceManifestSha256,
+              })
+            : await convergeS3Binding({
+                s3: clients.s3,
+                bucket: plan.outputs.bucketNames.FilesBucket,
+                binding: unit.binding,
+              });
       checkpoint.state.completed[unit.name] = expectedHash;
       checkpoint.save();
       completedThisRun += 1;
@@ -1216,14 +1308,14 @@ async function scanAll(client, tableName) {
   return items;
 }
 
-async function listAllLegacyObjects(s3, bucket) {
+async function listAllObjectsWithPrefix(s3, bucket, prefix) {
   const objects = [];
   let token;
   do {
     const result = await s3.send(
       new ListObjectsV2Command({
         Bucket: bucket,
-        Prefix: "legacy/",
+        Prefix: prefix,
         ContinuationToken: token,
       }),
     );
@@ -1304,9 +1396,10 @@ export async function reconcileTarget(plan, clients) {
     fail("reconciliation_record_count_mismatch");
   }
 
-  const listed = await listAllLegacyObjects(
+  const listed = await listAllObjectsWithPrefix(
     clients.s3,
     plan.outputs.bucketNames.FilesBucket,
+    "legacy/",
   );
   const expectedNames = new Set(
     plan.references.map(({ objectName }) => objectName),
@@ -1331,6 +1424,32 @@ export async function reconcileTarget(plan, clients) {
     }
     referenceObjectBytes += reference.byteLength;
   }
+  const listedBindings = await listAllObjectsWithPrefix(
+    clients.s3,
+    plan.outputs.bucketNames.FilesBucket,
+    LEGACY_BINDING_PREFIX,
+  );
+  const expectedBindingNames = new Set(
+    plan.referenceBindings.map(({ objectName }) => objectName),
+  );
+  const listedBindingNames = new Set(listedBindings.map(({ Key }) => Key));
+  if (
+    listedBindingNames.size !== expectedBindingNames.size ||
+    [...listedBindingNames].some((name) => !expectedBindingNames.has(name))
+  ) {
+    fail("reconciliation_binding_inventory_mismatch");
+  }
+  for (const binding of plan.referenceBindings) {
+    if (
+      !(await compareS3Binding(
+        clients.s3,
+        plan.outputs.bucketNames.FilesBucket,
+        binding,
+      ))
+    ) {
+      fail("reconciliation_binding_missing");
+    }
+  }
   return {
     status: "verified",
     importedRecordCount,
@@ -1341,6 +1460,7 @@ export async function reconcileTarget(plan, clients) {
     nonImportedTargetRecordCount,
     referenceObjectCount: plan.references.length,
     referenceObjectBytes,
+    referenceBindingCount: plan.referenceBindings.length,
   };
 }
 
@@ -1359,7 +1479,7 @@ export function evidenceFor(plan, reconciliation, now = new Date()) {
     0,
   );
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     artifactType: "PRIVATE_FILE_IMPORT_VERIFICATION",
     stage: plan.stage,
     status: "verified",
@@ -1381,6 +1501,7 @@ export function evidenceFor(plan, reconciliation, now = new Date()) {
         reconciliation.nonImportedTargetRecordCount,
       referenceCount: plan.references.length,
       referenceObjectCount: reconciliation.referenceObjectCount,
+      referenceBindingCount: reconciliation.referenceBindingCount,
       uniqueContentCount: plan.manifest.files.length,
       referenceObjectBytes: reconciliation.referenceObjectBytes,
       uniqueContentBytes,

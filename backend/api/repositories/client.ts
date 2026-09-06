@@ -20,7 +20,12 @@ export class ClientRepository {
   ) {}
 
   get(id: string) {
-    return getRecord(this.client, this.tableName, id, clientPersistedSchema);
+    return getRecord<ClientRecord>(
+      this.client,
+      this.tableName,
+      id,
+      clientPersistedSchema as z.ZodType<ClientRecord>,
+    );
   }
 
   async query(filter: ClientFilter, sort: EntitySort, limit: number) {

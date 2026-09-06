@@ -10,6 +10,7 @@ export const CURRENT_FIRM_KEY = "ddcpa";
 export const ZIP_REQUEST_PREFIX = "zip-jobs/requests/";
 export const ZIP_RESULT_PREFIX = "zip-jobs/results/";
 export const ZIP_LOCK_PREFIX = "zip-jobs/locks/";
+export const LEGACY_BINDING_PREFIX = "legacy-bindings/";
 export const ZIP_LEASE_DURATION_MS = 60 * 1_000;
 export const ZIP_LEASE_HEARTBEAT_MS = 20 * 1_000;
 export const LEGACY_REFERENCE_RESOLVER_CONTRACT =
@@ -197,6 +198,23 @@ export function validLegacyReference(value: string) {
 export function legacyReferenceKey(value: string) {
   if (!validLegacyReference(value)) throw new Error("Invalid private file reference");
   return `legacy/${createHash("sha256").update(value, "utf8").digest("hex")}`;
+}
+
+export function legacyReferenceBindingHash(
+  entity: "Submission" | "PdfTemplate",
+  recordId: string,
+) {
+  return createHash("sha256").update(`${entity}\0${idSchema.parse(recordId)}`, "utf8").digest("hex");
+}
+
+export function legacyReferenceBindingKey(
+  legacyObjectKey: string,
+  entity: "Submission" | "PdfTemplate",
+  recordId: string,
+) {
+  const match = /^legacy\/([a-f0-9]{64})$/.exec(legacyObjectKey);
+  if (!match) throw new Error("Invalid legacy object key");
+  return `${LEGACY_BINDING_PREFIX}${match[1]}/${legacyReferenceBindingHash(entity, recordId)}`;
 }
 
 export function resolveStoredFileReference(value: unknown): ResolvedFileReference {

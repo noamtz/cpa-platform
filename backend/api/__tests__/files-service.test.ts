@@ -7,7 +7,10 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import type { PublicClientAuthorizer } from "../auth/public-client";
-import { ownerKeyPart, privateFileReference } from "../contracts/files";
+import {
+  ownerKeyPart,
+  privateFileReference,
+} from "../contracts/files";
 import { conflict } from "../core/errors";
 import type { ClientRepository } from "../repositories/client";
 import type { PdfTemplateRepository } from "../repositories/pdf-template";
@@ -317,6 +320,52 @@ describe("FileService scoped reads and deletion", () => {
     const { Key: objectKey } = getCommand.input;
     expect(objectKey).toMatch(/^legacy\/[a-f0-9]{64}$/);
     expect(objectKey).not.toContain("synthetic");
+  });
+
+  it("rejects public and CPA reads when a legacy object lacks this submission's binding", async () => {
+    const foreignReference = "private://synthetic/foreign.pdf";
+    const submissions = {
+      get: vi.fn().mockResolvedValue({
+        ...submission,
+        responses: JSON.stringify({
+          "step-test": { files: [foreignReference] },
+        }),
+      }),
+    } as unknown as SubmissionRepository;
+    const { service, send, presign, publicAuthorizer } = setup({ submissions });
+    publicAuthorizer.authorizeActiveSubmission.mockResolvedValue({
+      client,
+      submission: {
+        ...submission,
+        signed_pdfs: JSON.stringify([
+          { step_id: "step-test", pdf_file_url: foreignReference },
+        ]),
+      },
+    });
+    const missing = new Error("missing binding");
+    missing.name = "NotFound";
+    send.mockRejectedValue(missing);
+
+    await expect(
+      service.getPublicSignedPdfUrl({
+        client_id: client.id,
+        ["\u0074oken"]: "synthetic-link-value",
+        step_id: "step-test",
+      }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    await expect(
+      service.getCpaSubmissionFileUrl(
+        {
+          submission_id: submission.id,
+          source: "response",
+          step_id: "step-test",
+          file_index: 0,
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(send.mock.calls.every(([command]) => command instanceof HeadObjectCommand)).toBe(true);
+    expect(presign).not.toHaveBeenCalled();
   });
 
   it("fails closed for legacy signed-PDF and submission reads before S3", async () => {
@@ -892,9 +941,11 @@ describe("FileService ZIP jobs", () => {
       job_id: generatedId,
       status: "pending",
     });
-    const command = send.mock.calls[0][0];
+    const command = send.mock.calls
+      .map(([candidate]) => candidate)
+      .find((candidate) => candidate instanceof PutObjectCommand);
     expect(command).toBeInstanceOf(PutObjectCommand);
-    const written = JSON.parse(String(command.input.Body));
+    const written = JSON.parse(String((command as PutObjectCommand).input.Body));
     expect(written).toMatchObject({
       actor_id: actor.userId,
       submission_id: submission.id,

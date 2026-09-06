@@ -7,7 +7,7 @@ const repositoryRoot = resolve(scriptDirectory, "..");
 
 export const DEFAULT_PRIVATE_FILE_EVIDENCE_PATH =
   "docs/migration/private-file-import-verification.json";
-export const PRIVATE_FILE_EVIDENCE_SCHEMA_VERSION = 2;
+export const PRIVATE_FILE_EVIDENCE_SCHEMA_VERSION = 3;
 export const LEGACY_REFERENCE_RESOLVER_CONTRACT =
   "legacy-reference-sha256-v2";
 export const MAX_EVIDENCE_AGE_MS = 72 * 60 * 60 * 1_000;
@@ -30,6 +30,7 @@ const totalNames = [
   "nonImportedTargetRecordCount",
   "referenceCount",
   "referenceObjectCount",
+  "referenceBindingCount",
   "uniqueContentCount",
   "referenceObjectBytes",
   "uniqueContentBytes",
@@ -130,6 +131,7 @@ export function validatePrivateFileCutoverEvidence(
     evidence.totals.importedRecordCount !== entityCount ||
     evidence.totals.referenceCount <= 0 ||
     evidence.totals.referenceObjectCount !== evidence.totals.referenceCount ||
+    evidence.totals.referenceBindingCount <= 0 ||
     evidence.totals.uniqueContentCount > evidence.totals.referenceCount ||
     evidence.totals.referenceObjectBytes < evidence.totals.uniqueContentBytes ||
     evidence.totals.unresolvedReferenceCount !== 0 ||

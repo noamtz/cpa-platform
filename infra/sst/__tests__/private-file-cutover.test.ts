@@ -12,7 +12,7 @@ const manifestSha256 = "a".repeat(64);
 
 function evidence() {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     artifactType: "PRIVATE_FILE_IMPORT_VERIFICATION",
     stage: "test",
     status: "verified",
@@ -35,6 +35,7 @@ function evidence() {
       nonImportedTargetRecordCount: 0,
       referenceCount: 1,
       referenceObjectCount: 1,
+      referenceBindingCount: 1,
       uniqueContentCount: 1,
       referenceObjectBytes: 1,
       uniqueContentBytes: 1,

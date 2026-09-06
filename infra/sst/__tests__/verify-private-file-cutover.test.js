@@ -14,7 +14,7 @@ const temporaryRoots = [];
 function validEvidence(overrides = {}) {
   const hash = "a".repeat(64);
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     artifactType: "PRIVATE_FILE_IMPORT_VERIFICATION",
     stage: "test",
     status: "verified",
@@ -37,6 +37,7 @@ function validEvidence(overrides = {}) {
       nonImportedTargetRecordCount: 0,
       referenceCount: 687,
       referenceObjectCount: 687,
+      referenceBindingCount: 800,
       uniqueContentCount: 622,
       referenceObjectBytes: 172_000_000,
       uniqueContentBytes: 171_488_658,

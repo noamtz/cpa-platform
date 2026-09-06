@@ -7,6 +7,7 @@ import type {
   SubmissionRecord,
 } from "../contracts/entities";
 import type { MutationChange } from "../contracts/change-journal";
+import { stableReferenceHash, validLegacyReference } from "../contracts/files";
 import type { QuestionnaireTemplateGuard } from "../contracts/templates";
 import {
   PUBLIC_QUESTIONNAIRE_ERROR_CODES,
@@ -28,6 +29,59 @@ import type { SubmissionRepository } from "../repositories/submission";
 import type { ChangeJournalService, TransactionItem } from "./change-journal";
 
 const DEFAULT_TEMPLATE_ID = "questionnaire-template-default-v1";
+
+function legacyObjectsInJson(
+  value: unknown,
+  field: "responses" | "signed_pdfs",
+) {
+  if (typeof value !== "string") return new Set<string>();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return new Set<string>();
+  }
+  const objects = new Set<string>();
+  const candidates = field === "signed_pdfs"
+    ? (Array.isArray(parsed) ? parsed : []).map((entry) =>
+        entry && typeof entry === "object"
+          ? (entry as Record<string, unknown>).pdf_file_url
+          : undefined,
+      )
+    : Object.values(
+        parsed && typeof parsed === "object" && !Array.isArray(parsed)
+          ? (parsed as Record<string, unknown>)
+          : {},
+      ).flatMap((entry) =>
+        entry && typeof entry === "object" && Array.isArray((entry as Record<string, unknown>).files)
+          ? ((entry as Record<string, unknown>).files as unknown[])
+          : [],
+      );
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    if (validLegacyReference(candidate)) {
+      objects.add(stableReferenceHash(candidate));
+      continue;
+    }
+    const direct = /^private:\/\/files\/legacy\/([a-f0-9]{64})$/.exec(candidate);
+    if (direct) objects.add(direct[1]);
+  }
+  return objects;
+}
+
+function assertNoNewLegacyReferences(
+  before: SubmissionRecord | undefined,
+  data: PublicQuestionnaireData,
+) {
+  for (const field of ["responses", "signed_pdfs"] as const) {
+    if (data[field] === undefined) continue;
+    const allowed = legacyObjectsInJson(before?.[field], field);
+    const requested = legacyObjectsInJson(data[field], field);
+    if ([...requested].some((object) => !allowed.has(object))) {
+      throw notFound("File not found");
+    }
+  }
+}
 
 const DEFAULT_TEMPLATE_STEPS = [
   {
@@ -403,6 +457,7 @@ export class PublicQuestionnaireService {
     input: UpdateClientSubmissionInput,
     requestId: string,
   ) {
+    assertNoNewLegacyReferences(undefined, input.data);
     const now = this.clock().toISOString();
     const taxYear = taxYearFor(client);
     const template = await this.ensureActiveTemplate(client, requestId);
@@ -486,6 +541,7 @@ export class PublicQuestionnaireService {
     if (before._version !== input._version) {
       throw reloadConflict(PUBLIC_QUESTIONNAIRE_ERROR_CODES.submissionConflict);
     }
+    assertNoNewLegacyReferences(before, input.data);
 
     const now = this.clock().toISOString();
     let acceptedData: PublicQuestionnaireData = input.data;
