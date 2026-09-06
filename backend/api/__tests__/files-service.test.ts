@@ -293,7 +293,7 @@ describe("FileService uploads", () => {
 
 describe("FileService scoped reads and deletion", () => {
   it("derives a public signed PDF from the active Submission", async () => {
-    const legacyReference = "private://synthetic/signed.pdf";
+    const legacyReference = "https://example.test/synthetic/signed.pdf?version=1";
     const { service, send, presign, publicAuthorizer } = setup();
     publicAuthorizer.authorizeActiveSubmission.mockResolvedValue({
       client,
@@ -321,11 +321,12 @@ describe("FileService scoped reads and deletion", () => {
 
   it("fails closed for legacy signed-PDF and submission reads before S3", async () => {
     const legacyReference = "private://synthetic/signed.pdf";
+    const httpsReference = "https://example.test/synthetic/upload.pdf";
     const submissions = {
       get: vi.fn().mockResolvedValue({
         ...submission,
         responses: JSON.stringify({
-          "step-test": { files: [legacyReference] },
+          "step-test": { files: [httpsReference] },
         }),
       }),
     } as unknown as SubmissionRepository;

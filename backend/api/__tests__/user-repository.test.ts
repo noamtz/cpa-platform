@@ -31,9 +31,11 @@ describe("UserRepository", () => {
   });
 
   it("uses the listing index for bounded team reads", async () => {
-    const send = vi.fn().mockResolvedValue({ Items: [user("user-1")] });
+    const unlinked = { ...user("user-2"), role: "user" };
+    delete (unlinked as Partial<ReturnType<typeof user>>).cognito_sub;
+    const send = vi.fn().mockResolvedValue({ Items: [user("user-1"), unlinked] });
     const repository = new UserRepository({ send }, "UserTable.test");
-    await repository.list("-created_date", 200);
+    await expect(repository.list("-created_date", 200)).resolves.toHaveLength(2);
     expect(send.mock.calls[0][0].input.IndexName).toBe("byCreatedDate");
   });
 });

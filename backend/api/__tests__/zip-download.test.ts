@@ -146,7 +146,7 @@ describe("ZIP inventory", () => {
           file_names: ["source.pdf"],
         },
       }),
-      donation_files: ["private://synthetic/legacy.png"],
+      donation_files: ["https://example.test/synthetic/legacy.png"],
       signed_pdfs: JSON.stringify([
         {
           step_id: "signed",

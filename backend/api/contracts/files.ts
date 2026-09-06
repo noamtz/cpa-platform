@@ -12,6 +12,8 @@ export const ZIP_RESULT_PREFIX = "zip-jobs/results/";
 export const ZIP_LOCK_PREFIX = "zip-jobs/locks/";
 export const ZIP_LEASE_DURATION_MS = 60 * 1_000;
 export const ZIP_LEASE_HEARTBEAT_MS = 20 * 1_000;
+export const LEGACY_REFERENCE_RESOLVER_CONTRACT =
+  "legacy-reference-sha256-v2";
 
 const idSchema = z.string().min(1).max(256);
 const tokenSchema = z.string().min(1).max(512);
@@ -154,20 +156,47 @@ export function privateFileReference(key: string) {
   return `${fileReferencePrefix}${key}`;
 }
 
-function validLegacyReference(value: string) {
-  if (value.length < 4 || value.length > 4096 || /[\u0000-\u001f\\]/.test(value)) return false;
+export function validLegacyReference(value: string) {
+  if (value.length < 4 || value.length > 4096 || /[\u0000-\u001f\u007f\\]/.test(value)) return false;
   if (encodedSeparatorPattern.test(value) || value.split("/").some((part) => part === "." || part === "..")) return false;
-  return (
+  if (
     (value.startsWith("private://") && !value.startsWith(fileReferencePrefix)) ||
     value.startsWith("private/") ||
     value.startsWith("mp/")
-  );
+  ) {
+    return true;
+  }
+  if (!/^https:\/\//i.test(value) || value.trim() !== value) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    return false;
+  }
+  if (
+    parsed.protocol !== "https:" ||
+    !parsed.hostname ||
+    parsed.username ||
+    parsed.password
+  ) {
+    return false;
+  }
+  const authorityStart = value.indexOf("//") + 2;
+  const suffixOffset = value.slice(authorityStart).search(/[/?#]/);
+  const rawSuffix = suffixOffset === -1 ? "" : value.slice(authorityStart + suffixOffset);
+  const rawPath = rawSuffix.split(/[?#]/, 1)[0];
+  try {
+    return !rawPath
+      .split("/")
+      .some((part) => [".", ".."].includes(decodeURIComponent(part)));
+  } catch {
+    return false;
+  }
 }
 
 export function legacyReferenceKey(value: string) {
-  const canonical = value.trim();
-  if (!validLegacyReference(canonical)) throw new Error("Invalid private file reference");
-  return `legacy/${createHash("sha256").update(canonical).digest("hex")}`;
+  if (!validLegacyReference(value)) throw new Error("Invalid private file reference");
+  return `legacy/${createHash("sha256").update(value, "utf8").digest("hex")}`;
 }
 
 export function resolveStoredFileReference(value: unknown): ResolvedFileReference {

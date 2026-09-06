@@ -35,6 +35,7 @@ import { registerPublicQuestionnaireRoutes } from "./routes/public-questionnaire
 import { registerTemplateRoutes } from "./routes/templates";
 import { registerUserRoutes } from "./routes/users";
 import { ChangeJournalService } from "./services/change-journal";
+import { resolveLegacyFileRuntimeConfig } from "./core/runtime-config";
 import { CpaWorkflowService } from "./services/cpa-workflows";
 import { EntityService } from "./services/entities";
 import { FileService } from "./services/files";
@@ -155,6 +156,7 @@ export function createRuntimeDependencies(): ApiDependencies {
     tableName: requiredEnvironment("CHANGE_JOURNAL_TABLE_NAME"),
   });
   const publicAuthorizer = new PublicClientAuthorizer({ clients, submissions });
+  const legacyFileRuntime = resolveLegacyFileRuntimeConfig();
   const files = new FileService({
     s3: {
       send(command) {
@@ -169,7 +171,7 @@ export function createRuntimeDependencies(): ApiDependencies {
     },
     filesBucketName: requiredEnvironment("FILES_BUCKET_NAME"),
     temporaryOutputsBucketName: requiredEnvironment("TEMPORARY_OUTPUTS_BUCKET_NAME"),
-    legacyFileReadsEnabled: process.env.LEGACY_FILE_READS_ENABLED === "true",
+    legacyFileReadsEnabled: legacyFileRuntime.legacyFileReadsEnabled,
     clients,
     submissions,
     questionnaireTemplates: templates,

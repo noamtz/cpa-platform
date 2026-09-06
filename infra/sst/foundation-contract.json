@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "app": "auditflow",
   "sstVersion": "3.19.3",
   "region": "il-central-1",
@@ -164,9 +164,15 @@
       "evidencePath": "docs/migration/private-file-import-verification.json",
       "verifier": "tooling/verify_private_file_cutover.mjs",
       "requiredBefore": "legacy-file-read-enablement",
-      "resolverContract": "legacy-sha256-v1",
+      "resolverContract": "legacy-reference-sha256-v2",
+      "evidenceSchemaVersion": 2,
       "environmentVariable": "LEGACY_FILE_READS_ENABLED",
+      "manifestEnvironmentVariable": "LEGACY_FILE_IMPORT_MANIFEST_SHA256",
+      "requestEnvironmentVariable": "AUDITFLOW_ENABLE_LEGACY_FILE_READS",
+      "expectedManifestEnvironmentVariable": "AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256",
       "syntheticOnlyValue": "false",
+      "enabledStage": "test",
+      "maximumEvidenceAgeHours": 72,
       "enablementIssue": 11
     }
   },
@@ -183,7 +189,8 @@
   "oidc": {
     "providerUrl": "token.actions.githubusercontent.com",
     "audience": "sts.amazonaws.com",
-    "subject": "repo:noamtz@2631641/cpa-platform@1332935468:environment:test"
+    "subject": "repo:noamtz@2631641/cpa-platform@1332935468:environment:test",
+    "enablementSubject": "repo:noamtz@2631641/cpa-platform@1332935468:environment:test-legacy-read-enable"
   },
   "inventory": {
     "tables": 7,

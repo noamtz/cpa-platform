@@ -10,6 +10,7 @@ import type { FoundationAuthentication } from "./auth";
 import type { StageSettings } from "./stage";
 import type { FoundationStorage } from "./storage";
 import type { FoundationPdf } from "./pdf";
+import type { PrivateFileCutoverSettings } from "./private-file-cutover";
 
 export function createApplicationRouter() {
   return new sst.aws.Router(routerContract.logicalName);
@@ -58,6 +59,7 @@ export function createApplication(
   workloadBoundaryArn: $util.Input<string>,
   router: ReturnType<typeof createApplicationRouter>,
   pdf: FoundationPdf,
+  privateFileCutover: PrivateFileCutoverSettings,
 ) {
   const api = new sst.aws.ApiGatewayV2("ApplicationApi", {
     cors: false,
@@ -91,7 +93,9 @@ export function createApplication(
       TEMPORARY_OUTPUTS_BUCKET_NAME:
         storage.buckets.TemporaryOutputsBucket.name,
       [deploymentGateContract.privateFilesImport.environmentVariable]:
-        deploymentGateContract.privateFilesImport.syntheticOnlyValue,
+        privateFileCutover.enabled,
+      [deploymentGateContract.privateFilesImport.manifestEnvironmentVariable]:
+        privateFileCutover.manifestSha256,
     },
     link: [
       ...storage.tableList,
@@ -121,7 +125,9 @@ export function createApplication(
       TEMPORARY_OUTPUTS_BUCKET_NAME:
         storage.buckets.TemporaryOutputsBucket.name,
       [deploymentGateContract.privateFilesImport.environmentVariable]:
-        deploymentGateContract.privateFilesImport.syntheticOnlyValue,
+        privateFileCutover.enabled,
+      [deploymentGateContract.privateFilesImport.manifestEnvironmentVariable]:
+        privateFileCutover.manifestSha256,
     },
     permissions: [
       {

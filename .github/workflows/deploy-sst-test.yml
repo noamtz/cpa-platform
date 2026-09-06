@@ -2,6 +2,16 @@ name: Deploy SST test
 
 on:
   workflow_dispatch:
+    inputs:
+      enable_legacy_file_reads:
+        description: Enable reconciled Base44 legacy-file reads in test
+        required: true
+        type: boolean
+        default: false
+      expected_legacy_import_manifest_sha256:
+        description: Exact verified source manifest SHA-256 (required when enabling)
+        required: false
+        type: string
   pull_request:
     branches: [main]
     paths:
@@ -19,6 +29,9 @@ on:
       - "docs/migration/pdf-parity-runbook.md"
       - "tooling/verify_sst_foundation.mjs"
       - "tooling/verify_private_file_cutover.mjs"
+      - "tooling/import_base44_snapshot.mjs"
+      - "tooling/import_base44_snapshot.test.mjs"
+      - "docs/migration/base44-import-runbook.md"
       - "docs/migration/private-file-import-verification.json"
       - "package.json"
       - "package-lock.json"
@@ -40,12 +53,16 @@ on:
       - "docs/migration/pdf-parity-runbook.md"
       - "tooling/verify_sst_foundation.mjs"
       - "tooling/verify_private_file_cutover.mjs"
+      - "tooling/import_base44_snapshot.mjs"
+      - "tooling/import_base44_snapshot.test.mjs"
+      - "docs/migration/base44-import-runbook.md"
       - "docs/migration/private-file-import-verification.json"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/deploy-sst-test.yml"
 
 permissions:
+  actions: read
   id-token: write
   contents: read
 
@@ -58,8 +75,8 @@ jobs:
     if: >-
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository
-    # The test Environment admits main and refs/pull/*/merge for pre-merge acceptance.
-    environment: test
+    # The enablement Environment must be separately protected by owner review and main-only deployment policy.
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_legacy_file_reads && 'test-legacy-read-enable' || 'test' }}
     runs-on: ubuntu-latest
     env:
       AWS_REGION: il-central-1
@@ -67,7 +84,9 @@ jobs:
       SST_STAGE: test
       AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
       EXPECTED_OIDC_AUDIENCE: sts.amazonaws.com
-      EXPECTED_OIDC_SUBJECT: repo:noamtz@2631641/cpa-platform@1332935468:environment:test
+      EXPECTED_OIDC_SUBJECT: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_legacy_file_reads && 'repo:noamtz@2631641/cpa-platform@1332935468:environment:test-legacy-read-enable' || 'repo:noamtz@2631641/cpa-platform@1332935468:environment:test' }}
+      AUDITFLOW_ENABLE_LEGACY_FILE_READS: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_legacy_file_reads && 'true' || 'false' }}
+      AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_legacy_file_reads && inputs.expected_legacy_import_manifest_sha256 || '' }}
 
     steps:
       - name: Check out repository
@@ -81,6 +100,55 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate requested legacy-file mode before AWS access
+        shell: bash
+        run: |
+          if [[ "${AUDITFLOW_ENABLE_LEGACY_FILE_READS}" == "true" ]]; then
+            [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]
+            [[ "${GITHUB_REF}" == "refs/heads/main" ]]
+            [[ "${AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256}" =~ ^[a-f0-9]{64}$ ]]
+            npm run verify:file-cutover:test
+            node --input-type=module <<'NODE'
+          import { checkPrivateFileCutover } from "./tooling/verify_private_file_cutover.mjs";
+          const result = checkPrivateFileCutover({ stage: "test" });
+          if (!result.ready || result.sourceManifestSha256 !== process.env.AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256) {
+            throw new Error("Requested manifest does not match fresh verified import evidence");
+          }
+          NODE
+          else
+            [[ -z "${AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256}" ]]
+          fi
+
+      - name: Verify protected enablement environment
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_legacy_file_reads }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          environment_json="$(gh api "repos/${GITHUB_REPOSITORY}/environments/test-legacy-read-enable")"
+          policies_json="$(gh api "repos/${GITHUB_REPOSITORY}/environments/test-legacy-read-enable/deployment-branch-policies?per_page=100")"
+          ENVIRONMENT_JSON="$environment_json" POLICIES_JSON="$policies_json" node <<'NODE'
+          const environment = JSON.parse(process.env.ENVIRONMENT_JSON);
+          const policies = JSON.parse(process.env.POLICIES_JSON);
+          const reviewerRules = (environment.protection_rules ?? []).filter(
+            (rule) => rule.type === "required_reviewers",
+          );
+          const hasOwnerReviewer = reviewerRules.some((rule) =>
+            (rule.reviewers ?? []).some(
+              (entry) => entry.type === "User" && entry.reviewer?.login === "noamtz",
+            ),
+          );
+          const branchPolicy = environment.deployment_branch_policy;
+          const mainOnly =
+            branchPolicy?.protected_branches === false &&
+            branchPolicy?.custom_branch_policies === true &&
+            policies.total_count === 1 &&
+            policies.branch_policies?.[0]?.name === "main";
+          if (!hasOwnerReviewer || !mainOnly) {
+            throw new Error("Legacy-read enablement Environment protection is missing or has drifted");
+          }
+          NODE
 
       - name: Validate GitHub OIDC claims
         shell: bash
@@ -144,23 +212,16 @@ jobs:
           --artifacts .sst/artifacts
           --function PdfRendererFunction
 
-      - name: Report private-file import evidence
-        id: private-file-cutover
-        shell: bash
-        run: |
-          if npm run verify:file-cutover:test; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Deploying synthetic-only mode. Legacy file reads remain disabled until issue #11 publishes verified import evidence."
-          fi
-
-      - name: Deploy synthetic-only test stage
+      - name: Deploy requested test-stage file mode
         run: npm run sst:deploy:test
 
       - name: Verify live test foundation
-        run: >-
-          node tooling/verify_sst_foundation.mjs
-          --mode live
-          --stage test
-          --outputs .sst/outputs.json
+        shell: bash
+        run: |
+          args=(--mode live --stage test --outputs .sst/outputs.json)
+          if [[ "${AUDITFLOW_ENABLE_LEGACY_FILE_READS}" == "true" ]]; then
+            args+=(--legacy-file-reads enabled --evidence docs/migration/private-file-import-verification.json)
+          else
+            args+=(--legacy-file-reads disabled)
+          fi
+          node tooling/verify_sst_foundation.mjs "${args[@]}"

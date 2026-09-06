@@ -860,20 +860,21 @@ blocks commit. Never run broad searches against the private snapshot/checkpoint 
 ## COMPLETION CHECKLIST
 
 - [ ] Implementation branch starts from current `origin/main`; ticket/epic/architecture/dependencies are re-read.
-- [ ] Private snapshot passes the current offline exporter verifier before any AWS write.
-- [ ] All source preflight, identity mapping, relationship, guard, and resolver checks pass locally.
-- [ ] Every Dynamo and S3 unit converges through compare/conditional-create/checkpoint semantics.
-- [ ] Deliberate interruption/resume and full idempotent rerun pass.
-- [ ] Exhaustive target reconciliation passes with synthetic items separated.
-- [ ] Aggregate evidence passes strict schema and privacy review; no private artifact is tracked.
-- [ ] Legacy reads remain disabled through ordinary PR/push deployments.
+- [x] Private snapshot passes the current offline exporter verifier before any AWS write.
+- [x] All source preflight, identity mapping, relationship, guard, and resolver checks pass locally under the amended
+  source-exception policy below.
+- [x] Every Dynamo and S3 unit converges through compare/conditional-create/checkpoint semantics.
+- [x] Deliberate interruption/resume and full idempotent rerun pass.
+- [x] Exhaustive target reconciliation passes with synthetic items separated.
+- [x] Aggregate evidence passes strict schema and privacy review; no private artifact is tracked.
+- [x] Legacy reads remain disabled through ordinary PR/push deployments.
 - [ ] Protected enablement deploy and live API/ZIP manifest binding pass under explicit authorization.
 - [ ] Authorized positive/negative imported-data acceptance passes without private output.
 - [ ] Disable/redeploy rehearsal proves both functions fail closed without deleting imported data.
-- [ ] Full application/foundation/PDF/exporter/importer validation and Codex-layer checks pass or match documented
-  inherited frontend baselines exactly.
-- [ ] Pre-commit code review has zero unresolved findings.
-- [ ] Implementation report records only aggregate results, deviations, authorization, and remaining production
+- [x] Full application/foundation/PDF/exporter/importer validation and Codex-layer checks pass or match the current
+  detached-HEAD inherited frontend baselines exactly.
+- [x] Pre-commit code review has zero unresolved findings.
+- [x] Implementation report records only aggregate results, deviations, authorization, and remaining production
   prohibitions.
 
 ---
@@ -949,7 +950,28 @@ integrity, availability of two mapped test Cognito subjects, and owner-authorize
 
 ## AMENDMENTS
 
-(None at creation.)
+### 2026-09-06 — authorized handling of verified source inconsistencies
+
+The authorized test rehearsal found source conditions that could not be inferred during planning. The owner approved
+a migration-only archived placeholder for the one missing client referenced by 20 immutable source submissions. The
+placeholder preserves the missing source ID, contains no invented identifying data, is bound to the source manifest,
+and is counted separately in evidence. The exception is compiled against the reviewed manifest hash and aggregate
+shape of one missing client referenced by 20 submissions; any other manifest or shape remains a hard failure.
+
+Five client/year keys contained 17 active source submissions. All source submissions remain unchanged; the derived
+guard selects the latest `updated_date`, then latest `created_date`, then lexicographically smallest ID. Evidence
+counts the 12 non-winning active submissions separately. Empty optional PDF-template IDs are treated as absent
+relationships. Positive integral tax years through 9999 are preserved because the Base44 source contract has no
+2200 upper bound. Evidence schema v2 includes the two new aggregate exception counts.
+
+These amendments affect import compatibility and aggregate evidence only. They do not authorize production or alter
+the protected post-merge requirement: legacy-read enablement, live acceptance, and the disable rehearsal must run
+from `main` after the reviewed evidence is merged.
+
+The historical source-baseline document records the diagnostics at the original imported commit. Because later work
+reduced those inherited frontend diagnostics, final validation compares the unchanged frontend against this branch's
+detached `HEAD`: 145 type diagnostics and two lint errors on both sides. Changed backend, infrastructure, Lambda, and
+migration-tool surfaces must still pass their dedicated typecheck and lint with zero errors.
 
 ---
 
@@ -960,4 +982,4 @@ integrity, availability of two mapped test Cognito subjects, and owner-authorize
 [PRD](https://github.com/noamtz/cpa-platform/wiki/PRD-AuditFlow-Platform-Migration),
 [architecture](https://github.com/noamtz/cpa-platform/wiki/Architecture-AuditFlow-Platform-Migration)
 
-**Last updated:** 2026-09-04
+**Last updated:** 2026-09-06

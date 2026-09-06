@@ -114,7 +114,10 @@ describe("protected template routes", () => {
   it("rejects malformed PDF file references before create or update dispatch", async () => {
     const { handler, service } = setup();
     const template_json = JSON.stringify({
-      basePdf: { __type: "file_uri", value: "https://example.test/file.pdf" },
+      basePdf: {
+        __type: "file_uri",
+        value: "https://user:password@example.test/file.pdf",
+      },
       schemas: [],
     });
     const created = await handler(

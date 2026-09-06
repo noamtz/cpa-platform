@@ -19,7 +19,7 @@ const clientFields = {
   full_name: z.string().trim().min(1).max(512),
   email: z.string().email().max(512).optional(),
   phone: z.string().max(128).optional(),
-  tax_year: z.number().int().min(1900).max(2200).optional(),
+  tax_year: z.number().int().positive().max(9999).optional(),
   osek_type: osekTypeSchema.optional(),
   pricing: z.number().finite().nonnegative().optional(),
   status: clientStatusSchema.optional(),
@@ -116,7 +116,7 @@ export const activeSubmissionGuardSchema = z
     record_type: z.literal("!ACTIVE_GUARD"),
     submission_id: id,
     client_id: id,
-    tax_year: z.number().int().min(1900).max(2200),
+    tax_year: z.number().int().positive().max(9999),
   })
   .strict();
 
@@ -148,7 +148,7 @@ export const userPersistedSchema = z
     email: z.string().email().max(512),
     role: z.enum(["admin", "user"]),
     drive_base_path: z.string().max(2048).optional(),
-    cognito_sub: id,
+    cognito_sub: id.optional(),
     record_type: z.literal("User"),
     _version: z.number().int().positive(),
     created_date: timestamp,

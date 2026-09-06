@@ -542,6 +542,8 @@ export const deploymentContract = {
   audience: "sts.amazonaws.com",
   subject:
     "repo:noamtz@2631641/cpa-platform@1332935468:environment:test",
+  enablementSubject:
+    "repo:noamtz@2631641/cpa-platform@1332935468:environment:test-legacy-read-enable",
   repository: "noamtz/cpa-platform",
   environment: "test",
   cloudFrontKeyValueStoreActions: [
@@ -560,9 +562,16 @@ export const deploymentGateContract = {
     evidencePath: "docs/migration/private-file-import-verification.json",
     verifier: "tooling/verify_private_file_cutover.mjs",
     requiredBefore: "legacy-file-read-enablement",
-    resolverContract: "legacy-sha256-v1",
+    resolverContract: "legacy-reference-sha256-v2",
+    evidenceSchemaVersion: 2,
     environmentVariable: "LEGACY_FILE_READS_ENABLED",
+    manifestEnvironmentVariable: "LEGACY_FILE_IMPORT_MANIFEST_SHA256",
+    requestEnvironmentVariable: "AUDITFLOW_ENABLE_LEGACY_FILE_READS",
+    expectedManifestEnvironmentVariable:
+      "AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256",
     syntheticOnlyValue: "false",
+    enabledStage: "test",
+    maximumEvidenceAgeHours: 72,
     enablementIssue: 11,
   },
 } as const;
