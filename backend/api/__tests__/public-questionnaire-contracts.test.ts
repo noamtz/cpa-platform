@@ -10,6 +10,7 @@ import {
   publicQuestionnaireDataSchema,
   publicSubmission,
   publicTemplate,
+  questionnaireTemplatePersistedSchema,
   updateClientSubmissionSchema,
 } from "../contracts/public-questionnaire";
 
@@ -188,5 +189,27 @@ describe("public questionnaire contracts", () => {
       steps: [{ id: "one" }],
       created_at: "2026-01-01T00:00:00.000Z",
     });
+  });
+
+  it("normalizes imported null template creator emails at the persistence boundary", () => {
+    const persisted = questionnaireTemplatePersistedSchema.parse({
+      id: "template-imported",
+      version: 1,
+      is_active: true,
+      steps: "[]",
+      record_type: "QuestionnaireTemplate",
+      _version: 1,
+      created_date: "2026-01-01T00:00:00.000Z",
+      updated_date: "2026-01-01T00:00:00.000Z",
+      created_by_email: null,
+    });
+
+    expect(persisted.created_by_email).toBeUndefined();
+    expect(
+      questionnaireTemplatePersistedSchema.safeParse({
+        ...persisted,
+        created_by_email: "not-an-email",
+      }).success,
+    ).toBe(false);
   });
 });

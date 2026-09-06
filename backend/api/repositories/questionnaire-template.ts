@@ -17,11 +17,11 @@ export class QuestionnaireTemplateRepository {
   ) {}
 
   get(id: string) {
-    return getRecord(
+    return getRecord<QuestionnaireTemplateRecord>(
       this.client,
       this.tableName,
       id,
-      questionnaireTemplatePersistedSchema,
+      questionnaireTemplatePersistedSchema as z.ZodType<QuestionnaireTemplateRecord>,
     );
   }
 
