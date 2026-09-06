@@ -51,6 +51,7 @@ export default $config({
       requested: process.env.AUDITFLOW_ENABLE_LEGACY_FILE_READS,
       expectedManifestSha256:
         process.env.AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256,
+      repositoryRoot: process.cwd(),
     });
     const router = createApplicationRouter();
     const storage = createStorage(stage, router.url);
