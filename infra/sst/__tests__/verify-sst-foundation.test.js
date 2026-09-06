@@ -111,6 +111,15 @@ describe("test deployer permission verification", () => {
     expect(environmentReadback).toBeGreaterThan(modeValidation);
     expect(environmentReadback).toBeLessThan(credentials);
   });
+
+  it("resolves cutover evidence from the checkout instead of SST's bundled module path", () => {
+    const config = readFileSync(
+      new URL("../../../sst.config.ts", import.meta.url),
+      "utf8",
+    );
+
+    expect(config).toContain("repositoryRoot: process.cwd()");
+  });
 });
 
 describe("live verifier evidence", () => {
