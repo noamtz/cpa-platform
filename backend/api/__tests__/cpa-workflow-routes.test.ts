@@ -80,12 +80,12 @@ describe("protected CPA workflow routes", () => {
 
   it("dispatches tax-year, client-details, orphan-reset, restore, and paired-status operations", async () => {
     const { handler, service } = setup();
-    await handler(event("POST /cpa/clients/{id}/tax-year", { tax_year: 2025 }), {} as Context, vi.fn());
+    await handler(event("POST /cpa/clients/{id}/tax-year", { tax_year: 2350 }), {} as Context, vi.fn());
     await handler(event("POST /cpa/clients/{id}/orphan-status-reset", {}), {} as Context, vi.fn());
     const details = {
       revision: 3,
       profile: { full_name: "Updated Client" },
-      tax_year: 2025,
+      tax_year: 2350,
     };
     await handler(event("PATCH /cpa/clients/{id}/details", details), {} as Context, vi.fn());
     await handler(event("POST /cpa/submissions/{id}/restore", {}), {} as Context, vi.fn());
@@ -94,7 +94,7 @@ describe("protected CPA workflow routes", () => {
       {} as Context,
       vi.fn(),
     );
-    expect(service.changeTaxYear).toHaveBeenCalledWith("submission-1", { tax_year: 2025 }, expect.any(Object), "request-2");
+    expect(service.changeTaxYear).toHaveBeenCalledWith("submission-1", { tax_year: 2350 }, expect.any(Object), "request-2");
     expect(service.resetOrphanStatus).toHaveBeenCalledWith("submission-1", expect.any(Object), "request-2");
     expect(service.updateClientDetails).toHaveBeenCalledWith(
       "submission-1",

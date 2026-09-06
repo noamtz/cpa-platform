@@ -33,7 +33,7 @@ export const cpaSaveSubmissionSchema = z
   });
 
 export const changeClientTaxYearSchema = z
-  .object({ tax_year: z.number().int().min(1900).max(2200) })
+  .object({ tax_year: z.number().int().min(1900).max(9999) })
   .strict();
 
 export const resetOrphanClientStatusSchema = z.object({}).strict();
@@ -42,7 +42,7 @@ export const updateClientDetailsSchema = z
   .object({
     revision: z.number().int().positive(),
     profile: clientProfileUpdateSchema.optional(),
-    tax_year: z.number().int().min(1900).max(2200).optional(),
+    tax_year: z.number().int().min(1900).max(9999).optional(),
   })
   .strict()
   .refine(
