@@ -147,6 +147,10 @@ export const submissionPersistedSchema = z
   .object({
     id,
     ...submissionKnownFields,
+    cpa_status: importedOptional(z.enum(["ready_for_ira", "reviewed"])),
+    responses: importedOptional(z.string()),
+    signed_pdfs: importedOptional(z.string()),
+    cpa_audit_log: importedOptional(z.string()),
     record_type: z.literal("Submission"),
     _version: z.number().int().positive(),
     created_date: timestamp,

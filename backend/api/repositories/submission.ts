@@ -21,7 +21,12 @@ export class SubmissionRepository {
   ) {}
 
   get(id: string) {
-    return getRecord(this.client, this.tableName, id, submissionPersistedSchema);
+    return getRecord<SubmissionRecord>(
+      this.client,
+      this.tableName,
+      id,
+      submissionPersistedSchema as z.ZodType<SubmissionRecord>,
+    );
   }
 
   getActiveGuard(clientId: string, taxYear: number) {
