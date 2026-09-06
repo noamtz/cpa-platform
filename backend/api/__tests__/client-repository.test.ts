@@ -74,6 +74,27 @@ describe("ClientRepository", () => {
     });
   });
 
+  it("normalizes nullable Base44 optional fields on persisted clients", async () => {
+    const send = vi.fn().mockResolvedValue({
+      Item: {
+        ...client("imported-client"),
+        email: "",
+        notes: null,
+        last_activity: null,
+        osek_type: null,
+      },
+    });
+    const repository = new ClientRepository({ send }, "ClientTable.test");
+
+    await expect(repository.get("imported-client")).resolves.toMatchObject({
+      id: "imported-client",
+      email: undefined,
+      notes: undefined,
+      last_activity: undefined,
+      osek_type: undefined,
+    });
+  });
+
   it("still rejects an unmarked client without a name", async () => {
     const send = vi.fn().mockResolvedValue({
       Item: {
