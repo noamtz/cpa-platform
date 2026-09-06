@@ -90,6 +90,7 @@ describe("SubmissionRepository", () => {
         {
           ...submission("submission-imported", "2026-01-01T00:00:00.000Z"),
           cpa_status: null,
+          responses: null,
           signed_pdfs: null,
           cpa_audit_log: null,
         },
@@ -105,6 +106,7 @@ describe("SubmissionRepository", () => {
 
     expect(record).toMatchObject({ id: "submission-imported" });
     expect(record.cpa_status).toBeUndefined();
+    expect(record.responses).toBeUndefined();
     expect(record.signed_pdfs).toBeUndefined();
     expect(record.cpa_audit_log).toBeUndefined();
   });
