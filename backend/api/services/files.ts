@@ -421,9 +421,20 @@ export class FileService {
     purpose: "questionnaire_document" | "signed_pdf" | "pdf_template",
     size: number,
     contentType: "application/pdf" | "image/jpeg" | "image/png" | "image/heic" | "image/heif",
+    requestId: string,
   ) {
     const key = `${owner.prefix}${this.idGenerator()}.${extensionForContentType(contentType)}`;
     const fileUri = privateFileReference(key);
+    const expiresAt = new Date(
+      this.clock().getTime() + UPLOAD_URL_TTL_SECONDS * 1_000,
+    ).toISOString();
+    const intent = await this.options.journal.beginExternalActivity?.({
+      activityType: "UPLOAD_CAPABILITY",
+      operationId: `upload-${stableReferenceHash(`${requestId}:${fileUri}`).slice(0, 32)}`,
+      sequenceSeed: `upload-capability:${fileUri}`,
+      resourceReference: fileUri,
+      expiresAt,
+    });
     const metadata = {
       "owner-hash": ownerKeyPart(owner.id),
       purpose,
@@ -439,11 +450,17 @@ export class FileService {
       IfNoneMatch: "*",
       Metadata: metadata,
     });
-    const uploadUrl = await this.options.presign(
-      command,
-      UPLOAD_URL_TTL_SECONDS,
-      metadataHeaders,
-    );
+    let uploadUrl: string;
+    try {
+      uploadUrl = await this.options.presign(
+        command,
+        UPLOAD_URL_TTL_SECONDS,
+        metadataHeaders,
+      );
+    } catch (error) {
+      await this.options.journal.resolveExternalActivity?.(intent);
+      throw error;
+    }
     return {
       upload_id: fileUri,
       upload_url: uploadUrl,
@@ -454,20 +471,19 @@ export class FileService {
         "x-amz-meta-purpose": purpose,
         "x-amz-meta-declared-size": String(size),
       },
-      expires_at: new Date(
-        this.clock().getTime() + UPLOAD_URL_TTL_SECONDS * 1_000,
-      ).toISOString(),
+      expires_at: expiresAt,
     };
   }
 
-  async initiatePublicUpload(input: PublicUploadInitiateInput) {
+  async initiatePublicUpload(input: PublicUploadInitiateInput, requestId = "unknown") {
     const owner = await this.publicSubmissionOwner(input, input.purpose);
-    return this.initiate(owner, input.purpose, input.size, input.content_type);
+    return this.initiate(owner, input.purpose, input.size, input.content_type, requestId);
   }
 
   async initiateCpaUpload(
     input: CpaUploadInitiateInput,
     actor: CpaActor,
+    requestId = "unknown",
   ) {
     const owner = await this.cpaOwner(
       input.owner_type,
@@ -475,7 +491,7 @@ export class FileService {
       actor,
       input.purpose,
     );
-    return this.initiate(owner, input.purpose, input.size, input.content_type);
+    return this.initiate(owner, input.purpose, input.size, input.content_type, requestId);
   }
 
   private async complete(owner: UploadOwner, uploadId: string, requestId: string) {
@@ -485,7 +501,13 @@ export class FileService {
     }
     const receiptKey = createHash("sha256").update(`create:${uploadId}`).digest("hex");
     const existing = await this.options.journal.getFileOperationReceipt(receiptKey);
-    if (existing) return { file_uri: existing.file_uri };
+    const uploadIntent = await this.options.journal.getExternalActivity?.(
+      `upload-capability:${uploadId}`,
+    );
+    if (existing) {
+      await this.options.journal.resolveExternalActivity?.(uploadIntent);
+      return { file_uri: existing.file_uri };
+    }
 
     let head: HeadResult;
     try {
@@ -506,7 +528,10 @@ export class FileService {
       !["questionnaire_document", "signed_pdf", "pdf_template"].includes(purpose ?? "") ||
       !key.includes(`/${purposeSlug(purpose ?? "")}/`)
     ) {
-      await this.compensateUpload(key, head.VersionId, requestId);
+      const compensated = await this.compensateUpload(key, head.VersionId, requestId);
+      if (compensated) {
+        await this.options.journal.resolveExternalActivity?.(uploadIntent).catch(() => undefined);
+      }
       throw notFound("File not found");
     }
     const snapshot = {
@@ -532,10 +557,15 @@ export class FileService {
           before: null,
           after: snapshot,
         },
+        maintenanceGeneration: uploadIntent?.generation,
+        resolveExternalActivity: uploadIntent,
       });
       return { file_uri: result.fileUri };
     } catch (error) {
-      await this.compensateUpload(key, head.VersionId, requestId);
+      const compensated = await this.compensateUpload(key, head.VersionId, requestId);
+      if (compensated) {
+        await this.options.journal.resolveExternalActivity?.(uploadIntent).catch(() => undefined);
+      }
       throw error;
     }
   }
@@ -549,11 +579,13 @@ export class FileService {
           ...(versionId ? { VersionId: versionId } : {}),
         }),
       );
+      return true;
     } catch (error) {
       console.error("AuditFlow file compensation failed", {
         requestId,
         errorName: error instanceof Error ? error.name : "UnknownError",
       });
+      return false;
     }
   }
 
@@ -856,7 +888,11 @@ export class FileService {
     } as const;
   }
 
-  async requestZipDownload(submissionId: string, actor: CpaActor) {
+  async requestZipDownload(
+    submissionId: string,
+    actor: CpaActor,
+    requestId = "unknown",
+  ) {
     const submission = await this.options.submissions.get(submissionId);
     if (!submission || submission.is_archived) throw notFound("Submission not found");
     const client = await this.options.clients.get(submission.client_id);
@@ -901,6 +937,12 @@ export class FileService {
 
     const now = this.clock();
     const jobId = this.idGenerator();
+    const zipIntent = await this.options.journal.beginExternalActivity?.({
+      activityType: "ZIP_JOB",
+      operationId: `zip-${stableReferenceHash(`${requestId}:${jobId}`).slice(0, 32)}`,
+      sequenceSeed: `zip-job:${jobId}`,
+      expiresAt: new Date(now.getTime() + ZIP_RESULT_TTL_SECONDS * 1_000).toISOString(),
+    });
     const archiveName = `${sanitizeZipName(client.full_name, "documents")}.zip`;
     const manifest = zipManifestSchema.parse({
       version: 1,
@@ -911,16 +953,27 @@ export class FileService {
       archive_name: archiveName,
       created_at: now.toISOString(),
       expires_at: new Date(now.getTime() + ZIP_RESULT_TTL_SECONDS * 1_000).toISOString(),
+      ...(zipIntent
+        ? {
+            maintenance_generation: zipIntent.generation,
+            activity_intent_sequence: zipIntent.sequence,
+          }
+        : {}),
       entries,
     });
-    await this.options.s3.send(
-      new PutObjectCommand({
-        Bucket: this.options.temporaryOutputsBucketName,
-        Key: `${ZIP_REQUEST_PREFIX}${jobId}.json`,
-        Body: JSON.stringify(manifest),
-        ContentType: "application/json",
-      }),
-    );
+    try {
+      await this.options.s3.send(
+        new PutObjectCommand({
+          Bucket: this.options.temporaryOutputsBucketName,
+          Key: `${ZIP_REQUEST_PREFIX}${jobId}.json`,
+          Body: JSON.stringify(manifest),
+          ContentType: "application/json",
+        }),
+      );
+    } catch (error) {
+      // An ambiguous S3 result must remain an active boundary blocker.
+      throw error;
+    }
     return { job_id: jobId, status: "pending" as const };
   }
 
@@ -1012,6 +1065,12 @@ export class FileService {
     const head = (await this.options.s3.send(
       new HeadObjectCommand({ Bucket: this.options.filesBucketName, Key: key }),
     )) as HeadResult;
+    const operationId = `file-delete-${receiptKey.slice(0, 32)}`;
+    const deleteIntent = await this.options.journal.beginExternalActivity?.({
+      activityType: "FILE_DELETE",
+      operationId,
+      sequenceSeed: `file-delete:${input.reference}`,
+    });
     const deleted = (await this.options.s3.send(
       new DeleteObjectCommand({ Bucket: this.options.filesBucketName, Key: key }),
     )) as DeleteResult;
@@ -1020,7 +1079,7 @@ export class FileService {
       const result = await this.options.journal.commitFileOperation({
         actorId: input.actor.userId,
         requestId: input.requestId,
-        operationId: `file-delete-${receiptKey.slice(0, 32)}`,
+        operationId,
         receiptKey,
         fileUri: input.reference,
         change: {
@@ -1037,6 +1096,8 @@ export class FileService {
           },
           after: { deleted: true, delete_marker_version_id: deleted.VersionId },
         },
+        maintenanceGeneration: deleteIntent?.generation,
+        resolveExternalActivity: deleteIntent,
       });
       if (result.replayed) {
         await this.options.s3.send(
@@ -1057,12 +1118,13 @@ export class FileService {
             VersionId: deleted.VersionId,
           }),
         );
+        await this.options.journal.resolveExternalActivity?.(deleteIntent).catch(() => undefined);
       } catch (restorationError) {
         try {
           await this.options.journal.recordFileReconciliation({
             actorId: input.actor.userId,
             requestId: input.requestId,
-            operationId: `file-delete-${receiptKey.slice(0, 32)}`,
+            operationId,
             receiptKey,
             referenceHash: stableReferenceHash(input.reference),
             deleteMarkerVersionId: deleted.VersionId,

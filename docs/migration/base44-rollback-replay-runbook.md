@@ -1,0 +1,190 @@
+# Base44 rollback replay runbook
+
+This runbook proves issue #12 on the isolated test target and defines the production rollback sequence consumed by
+issue #15. It never authorizes production replay, DNS changes, Terraform changes, Base44 cancellation, or broad
+cleanup. The application runtime remains AWS-only; only this operator tool can write to the controlled Base44 target.
+
+## Authority and roles
+
+- The product owner authorizes the exact stage, target descriptor, invented fixture, maintenance window, and every
+  mutating command. Production needs a new explicit rollback decision; rehearsal approval is not transferable.
+- The owner tells both CPAs when maintenance starts, which workflows are unavailable, and when the authoritative
+  application is restored. No DNS change is attempted by this tool.
+- The operator keeps snapshots, fixture inputs, capability output, checkpoints, dry-run plans, and detailed evidence
+  under the protected roots declared by the target descriptor. Never paste them into CI, Issues, PRs, logs, or chat.
+- Use only the `noamtz/cpa-platform` repository and its `noamtz` GitHub identity. Production data and the pinned source
+  repository are read-only unless a separately authorized production rollback requires the documented bridge.
+
+## Non-negotiable gates
+
+Use Node 20.17.0. The target descriptor is
+`C:\Users\ntzur\Documents\Codex\AuditFlow\rollback-replay\rehearsal-target.json`; commands accept no app identifier,
+URL, credential, private-file URI, invitation address, or alternate checkpoint flag. Base44 authentication stays in
+its CLI-managed profile and is validated only by the fixed bridge.
+
+Before any fixture write:
+
+1. Confirm issues #5, #6, #8, #10, and #11 remain accepted and the verified test import is current.
+2. Remove the mismatched private clone through the Base44 dashboard and update the protected descriptor only after
+   remote read-back proves it is gone.
+3. Prove the selected app is private, matches six entity schemas and seventeen source functions (with the documented
+   non-state notification exclusion), and is not the production app.
+4. Run live enumeration of all six entities. The five business collections must be zero and `User` must contain
+   exactly one identified app-owner row with an administrator role. Base44 does not permit removing the app owner.
+   Any additional row blocks fixture writes; a documented empty-clone expectation is not sufficient.
+5. Supply a disposable, observable, non-client invitation inbox and invented capability file in the protected fixture
+   root. Never reconnect production notifications or integrations.
+6. Run the capability matrix. Exact caller-supplied Client ID preservation, create/update/delete visibility,
+   pagination, invitation/login equivalence, private upload/read/delete, and retry observability must all pass. Any
+   unsupported result blocks issues #14 and #15.
+
+## Local and contract validation
+
+```powershell
+node --version
+npm ci
+npm run test:reverse-replay
+npm run test:foundation
+npm run typecheck:foundation
+npm run lint:foundation
+npm run build
+node tooling/verify_sst_foundation.mjs --mode contract --stage test
+python tooling/validate_codex_layer.py
+git diff --check
+```
+
+The version must be `v20.17.0`. CI runs only static and fake-adapter checks and never receives Base44 write access.
+
+## Controlled rehearsal preparation
+
+Define these variables only in the operator's local PowerShell session. Values come from the protected descriptor,
+the invented rehearsal snapshot, the invented fixture file, and current SST output. Do not print them.
+
+```powershell
+$targetDescriptorPath = 'C:\Users\ntzur\Documents\Codex\AuditFlow\rollback-replay\rehearsal-target.json'
+$snapshotPath = '<absolute protected invented snapshot directory>'
+$capabilityFixturePath = '<absolute protected capability fixture file>'
+$rehearsalFixturePath = '<absolute protected invented fixture file>'
+$outputsPath = '.sst/outputs.json'
+```
+
+Read-only doctor and the controlled capability probe:
+
+```powershell
+npm run reverse-replay -- doctor --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath
+npm run reverse-replay -- capabilities --stage test --target-descriptor $targetDescriptorPath --fixture $capabilityFixturePath --confirm-controlled-rehearsal
+```
+
+The capability fixture contains invented create/update records for the five ordinary entity surfaces, a second Client
+record for forced one-row pagination, a disposable invitation address plus User update, and a private binary path. The
+capability command mutates only the approved owner-only clone, verifies each effect across all six entity surfaces,
+removes every disposable record and file, proves the target returned to its owner-only baseline, and stores aggregate
+results outside the repository. It stops if a business collection is nonempty, the owner baseline changes, an effect
+is unobservable, or cleanup is incomplete. Verify delivery/login at the disposable inbox before accepting the
+invitation gate; do not use a client address.
+
+Current controlled-target result (2026-09-07): **BLOCKED**. Base44 accepted the invented Client fields but reassigned
+the caller-supplied entity ID plus `created_date` and `updated_date`. The residual invented Client was deleted by its
+observed destination ID and the owner-only baseline was read back. Do not bootstrap maintenance or continue the
+rehearsal until an approved link-compatibility design removes the dependency on preserved AWS Client IDs in public
+questionnaire URLs and the capability matrix passes from a clean owner-only baseline.
+
+## Exact start and maintenance boundary
+
+Deploying guarded code requires the maintenance control to exist first. Bootstrap is an explicit one-time test action:
+
+```powershell
+npm run reverse-replay -- maintenance-bootstrap --stage test --target-descriptor $targetDescriptorPath --outputs $outputsPath --confirm-controlled-rehearsal
+npm run reverse-replay -- maintenance-status --stage test --target-descriptor $targetDescriptorPath --outputs $outputsPath
+```
+
+`mark-cutover-start` strongly reads the `GLOBAL` cursor and accepts the snapshot only when its reconciled AWS
+projection hash and `lastAppliedGlobalCursor` match exactly. It atomically binds the manifest, target, run, cursor, and
+new maintenance generation. If the cursor advances, capture and reconcile a new baseline; never edit the binding.
+
+```powershell
+npm run reverse-replay -- mark-cutover-start --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --confirm-controlled-rehearsal
+npm run reverse-replay -- rehearsal-fixtures --stage test --target-descriptor $targetDescriptorPath --fixture $rehearsalFixturePath --outputs $outputsPath --confirm-controlled-rehearsal
+```
+
+The invented fixture must exercise Client/Submission/User/template create and update, questionnaire JSON-string state,
+native file create and reference replacement, and versioned file delete. Every journaled transaction and direct guard
+repair is conditioned on the exact OPEN generation.
+
+Start the communicated maintenance window, stop new API mutations, and wait at least 15 minutes from the last issued
+upload URL. Then inspect every active external intent, presigned upload capability, unlinked Cognito identity,
+unreceipted S3 object version, file-reconciliation item, pending/running ZIP request, lease, and result. Close cancels
+an expired upload intent only after proving its referenced object is absent, resolves it only when the create receipt
+exists, and scans all owned S3 objects for missing receipts. Do not delete or guess at an orphan; keep close blocked.
+
+```powershell
+npm run reverse-replay -- maintenance-close --stage test --target-descriptor $targetDescriptorPath --outputs $outputsPath --confirm-controlled-rehearsal
+npm run reverse-replay -- maintenance-status --stage test --target-descriptor $targetDescriptorPath --outputs $outputsPath
+```
+
+Close atomically requires zero external activity and captures the inclusive end cursor under a new generation. An
+in-flight request can commit before that boundary or fail with `{ "error": "Maintenance in progress" }`; it cannot
+land after it. A delayed ZIP notification from an older generation must not process.
+
+## Dry-run, replay, interruption, and resume
+
+The dry-run performs all AWS/Base44 reads, range continuity/group/hash checks, full-state reconstruction, coverage and
+dependency planning, and file-version checks. It performs zero AWS control/checkpoint or Base44 writes. Its protected
+plan lists exact affected entity and file identifiers but no client values or contents; terminal output is counts only.
+
+```powershell
+npm run reverse-replay -- plan --dry-run --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath
+npm run reverse-replay -- replay --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --confirm-controlled-rehearsal
+```
+
+Interrupt only after at least one durable operation receipt. Resume the exact immutable binding:
+
+```powershell
+npm run reverse-replay -- replay --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --resume --confirm-controlled-rehearsal
+```
+
+Replay queries the numeric `GLOBAL` partition for `(start,end]`, preserves adjacent logical operations, uploads exact
+S3 versions before pointer-bearing records, rewrites flat and nested JSON-string references, and checkpoints a group
+only after every destination state is observed. An ambiguous record response is resolved by observation; an ambiguous
+upload without safe rediscovery is a release blocker.
+
+## Reconciliation, zero-write rerun, and evidence
+
+```powershell
+npm run reverse-replay -- reconcile --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --confirm-controlled-rehearsal
+npm run reverse-replay -- replay --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --resume --confirm-controlled-rehearsal
+npm run reverse-replay -- evidence --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --output docs/migration/base44-reverse-replay-verification.json
+```
+
+Reconciliation independently paginates all six entities, compares mapped business state and relationships, reads active
+private files, and checks file count, bytes, and hash. The completed rerun must report zero destination writes. Evidence
+is generated only from the current complete zero-drift checkpoint and contains aggregate counts/booleans—never raw
+IDs, names, addresses, file names, URLs/URIs, paths, record values, snapshots, resource names, or credentials.
+
+## Abort, abandonment, and successful rollback
+
+`abort-replay` freezes the replay run only. It never changes AWS from MAINTENANCE to OPEN:
+
+```powershell
+npm run reverse-replay -- abort-replay --stage test --target-descriptor $targetDescriptorPath --outputs $outputsPath --confirm-controlled-rehearsal
+npm run reverse-replay -- maintenance-status --stage test --target-descriptor $targetDescriptorPath --outputs $outputsPath
+```
+
+Exercise abandonment on a distinct disposable rehearsal run before its first Base44 write. Reopening requires a new
+owner decision and explicit proof that Base44 received zero replay writes. If any disposable write occurred, reverse
+it and reconcile the fixture to its pre-run state first.
+
+```powershell
+npm run reverse-replay -- resume-aws-writes --stage test --target-descriptor $targetDescriptorPath --outputs $outputsPath --confirm-no-replay-writes --confirm-controlled-rehearsal
+```
+
+For an actual successful rollback, do not run `resume-aws-writes`. After accepted zero-drift reconciliation, terminalize
+the control as `ROLLED_BACK`; AWS remains write-disabled:
+
+```powershell
+npm run reverse-replay -- successful-rollback --stage production --target-descriptor <owner-approved-production-descriptor> --outputs $outputsPath --confirm-actual-rollback
+```
+
+Only issue #15 may then restore DNS to Base44, after the owner verifies Base44 is authoritative and communicates the end
+of maintenance. Never reopen AWS writes after DNS points users to Base44. Any capability, range, journal, hash, mapping,
+file, checkpoint, privacy, or reconciliation failure leaves maintenance in place and blocks DNS restoration.

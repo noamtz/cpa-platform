@@ -35,6 +35,7 @@ import { registerPublicQuestionnaireRoutes } from "./routes/public-questionnaire
 import { registerTemplateRoutes } from "./routes/templates";
 import { registerUserRoutes } from "./routes/users";
 import { ChangeJournalService } from "./services/change-journal";
+import { MaintenanceService } from "./services/maintenance";
 import { resolveLegacyFileRuntimeConfig } from "./core/runtime-config";
 import { CpaWorkflowService } from "./services/cpa-workflows";
 import { EntityService } from "./services/entities";
@@ -54,6 +55,7 @@ export interface ApiDependencies {
   readonly userService: UserService;
   readonly templates?: TemplateService;
   readonly cpaWorkflows?: CpaWorkflowService;
+  readonly maintenance?: MaintenanceService;
 }
 
 type DependencyProvider = () => ApiDependencies;
@@ -108,6 +110,33 @@ const PUBLIC_FUNCTION_ROUTE_KEYS = new Set([
   "POST /apps/{appId}/functions/getPdfTemplateById",
 ]);
 
+export const MAINTENANCE_GATED_ROUTE_KEYS = new Set([
+  "POST /cpa/clients",
+  "PATCH /cpa/clients/{id}",
+  "POST /cpa/clients/{id}/token-rotation",
+  "PATCH /cpa/submissions/{id}",
+  "PATCH /cpa/me",
+  "POST /cpa/users/invitations",
+  "POST /cpa/files/uploads/initiate",
+  "POST /cpa/files/uploads/complete",
+  "POST /cpa/files/template-mirror",
+  "POST /cpa/submissions/{id}/zip-downloads",
+  "GET /cpa/questionnaire-templates/active",
+  "POST /cpa/questionnaire-templates",
+  "POST /cpa/pdf-templates",
+  "PATCH /cpa/pdf-templates/{id}",
+  "POST /cpa/pdf-templates/{id}/archive",
+  "POST /apps/{appId}/functions/getActiveTemplate",
+  "POST /apps/{appId}/functions/updateClientSubmission",
+  "POST /apps/{appId}/functions/uploadFile",
+  "POST /apps/{appId}/functions/cpaSaveSubmission",
+  "POST /cpa/clients/{id}/tax-year",
+  "POST /cpa/clients/{id}/orphan-status-reset",
+  "PATCH /cpa/clients/{id}/details",
+  "POST /cpa/submissions/{id}/restore",
+  "POST /cpa/submissions/{id}/workflow-status",
+]);
+
 function requiredEnvironment(name: string) {
   const value = process.env[name];
   if (!value) throw new Error(`Missing runtime configuration: ${name}`);
@@ -158,9 +187,14 @@ export function createRuntimeDependencies(): ApiDependencies {
     documentClient,
     requiredEnvironment("USER_TABLE_NAME"),
   );
+  const maintenance = new MaintenanceService({
+    client: documentClient,
+    tableName: requiredEnvironment("CHANGE_JOURNAL_TABLE_NAME"),
+  });
   const journal = new ChangeJournalService({
     client: documentClient,
     tableName: requiredEnvironment("CHANGE_JOURNAL_TABLE_NAME"),
+    maintenance,
   });
   const publicAuthorizer = new PublicClientAuthorizer({ clients, submissions });
   const legacyFileRuntime = resolveLegacyFileRuntimeConfig();
@@ -216,6 +250,7 @@ export function createRuntimeDependencies(): ApiDependencies {
       templates,
       journal,
     }),
+    maintenance,
   };
   return runtimeDependencies;
 }
@@ -241,6 +276,14 @@ function createApiRouter(dependencies: ApiDependencies) {
         dependencies.verifier,
         dependencies.users,
       );
+      const routeKey = resolveRouteKey(event);
+      if (
+        routeKey &&
+        dependencies.maintenance &&
+        MAINTENANCE_GATED_ROUTE_KEYS.has(routeKey)
+      ) {
+        await dependencies.maintenance.requireOpen();
+      }
       return route(event, actor);
     };
 
@@ -264,6 +307,7 @@ export function createHandler(
   getDependencies: DependencyProvider = createRuntimeDependencies,
 ): APIGatewayProxyHandlerV2<APIGatewayProxyStructuredResultV2> {
   let router: ApiRouter | undefined;
+  let resolvedDependencies: ApiDependencies | undefined;
   return async (event) => {
     try {
       const routeKey = resolveRouteKey(event);
@@ -277,7 +321,18 @@ export function createHandler(
       ) {
         return errorResponse(404, "Not found");
       }
-      if (!router) router = createApiRouter(getDependencies());
+      if (!router) {
+        resolvedDependencies = getDependencies();
+        router = createApiRouter(resolvedDependencies);
+      }
+      const dependencies = resolvedDependencies;
+      if (
+        dependencies?.maintenance &&
+        PUBLIC_FUNCTION_ROUTE_KEYS.has(routeKey) &&
+        MAINTENANCE_GATED_ROUTE_KEYS.has(routeKey)
+      ) {
+        await dependencies.maintenance.requireOpen();
+      }
       if (!router.has(routeKey)) return errorResponse(404, "Not found");
       return await router.dispatch(routeKey, event);
     } catch (error) {

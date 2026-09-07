@@ -2,6 +2,7 @@ import { GetCommand, PutCommand, TransactWriteCommand } from "@aws-sdk/lib-dynam
 import { describe, expect, it, vi } from "vitest";
 
 import { ChangeJournalService, hashRecord } from "../services/change-journal";
+import type { MaintenanceService } from "../services/maintenance";
 
 function input(largeValue?: string) {
   return {
@@ -30,6 +31,47 @@ function input(largeValue?: string) {
 }
 
 describe("ChangeJournalService", () => {
+  it("adds the maintenance fence to runtime transactions", async () => {
+    const send = vi.fn().mockResolvedValueOnce({}).mockResolvedValueOnce({});
+    const maintenance = {
+      requireOpen: vi.fn().mockResolvedValue({ generation: 7, mode: "OPEN" }),
+      fence: vi.fn().mockReturnValue({ ConditionCheck: { Key: {} } }),
+      resolutionActions: vi.fn().mockReturnValue([]),
+    } as unknown as MaintenanceService;
+    const service = new ChangeJournalService({
+      client: { send },
+      tableName: "ChangeJournalTable.test",
+      maintenance,
+    });
+    await service.commit(input());
+    const transaction = send.mock.calls[1][0];
+    expect(transaction.input.TransactItems[1]).toHaveProperty("ConditionCheck");
+    expect(maintenance.fence).toHaveBeenCalledWith(7);
+  });
+
+  it("maps a stale generation cancellation to maintenance", async () => {
+    const stale = Object.assign(new Error("not exposed"), {
+      name: "TransactionCanceledException",
+      CancellationReasons: [
+        { Code: "None" },
+        { Code: "ConditionalCheckFailed" },
+        { Code: "None" },
+      ],
+    });
+    const send = vi.fn().mockResolvedValueOnce({}).mockRejectedValueOnce(stale);
+    const maintenance = {
+      requireOpen: vi.fn().mockResolvedValue({ generation: 7, mode: "OPEN" }),
+      fence: vi.fn().mockReturnValue({ ConditionCheck: {} }),
+      resolutionActions: vi.fn().mockReturnValue([]),
+    } as unknown as MaintenanceService;
+    const service = new ChangeJournalService({
+      client: { send },
+      tableName: "ChangeJournalTable.test",
+      maintenance,
+    });
+    await expect(service.commit(input())).rejects.toMatchObject({ statusCode: 503 });
+  });
+
   it("writes cursor, business state, and immutable evidence in one transaction", async () => {
     const send = vi.fn().mockResolvedValueOnce({}).mockResolvedValueOnce({});
     const service = new ChangeJournalService({

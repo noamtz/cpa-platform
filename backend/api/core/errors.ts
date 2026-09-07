@@ -2,7 +2,7 @@ import { ZodError } from "zod";
 
 export class ApiError extends Error {
   constructor(
-    readonly statusCode: 400 | 401 | 403 | 404 | 409 | 500 | 501,
+    readonly statusCode: 400 | 401 | 403 | 404 | 409 | 500 | 501 | 503,
     readonly publicMessage: string,
     readonly code?: string,
     readonly details?: Readonly<Record<string, unknown>>,
@@ -34,6 +34,10 @@ export function conflict(message = "Conflict") {
 
 export function internalError() {
   return new ApiError(500, "Internal server error");
+}
+
+export function maintenanceInProgress() {
+  return new ApiError(503, "Maintenance in progress");
 }
 
 export function normalizeApiError(error: unknown): ApiError {

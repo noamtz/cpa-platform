@@ -203,6 +203,24 @@ describe("foundation resource contract", () => {
     ]);
   });
 
+  it("links the ZIP worker to maintenance state with least privilege", () => {
+    const applicationSource = readFileSync(
+      new URL("../application.ts", import.meta.url),
+      "utf8",
+    );
+    expect(zipWorkerContract.permissions.journalActions).toEqual([
+      "dynamodb:GetItem",
+      "dynamodb:Query",
+      "dynamodb:TransactWriteItems",
+    ]);
+    expect(applicationSource).toContain(
+      "CHANGE_JOURNAL_TABLE_NAME: storage.tables.ChangeJournalTable.name",
+    );
+    expect(applicationSource).toContain(
+      "resources: [storage.tables.ChangeJournalTable.arn]",
+    );
+  });
+
   it("pins the same-origin and authorization boundary", () => {
     expect(apiRoutes.health).toEqual({
       route: "GET /health",

@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 
-import { PutCommand } from "@aws-sdk/lib-dynamodb";
 
 import type { CpaActor } from "../auth/cpa-context";
 import type { MutationChange } from "../contracts/change-journal";
@@ -128,16 +127,17 @@ export class TemplateService {
       _version: 1,
     };
     try {
-      await this.options.questionnaireTemplates.client.send(
-        new PutCommand({
+      await this.options.journal.commitOperationalAction({
+        Put: {
           TableName: this.options.questionnaireTemplates.tableName,
           Item: initialGuard,
           ConditionExpression: "attribute_not_exists(#id)",
           ExpressionAttributeNames: { "#id": "id" },
-        }),
-      );
+        },
+      });
       return { guard: initialGuard, record };
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError && error.statusCode === 503) throw error;
       const winner = await this.options.questionnaireTemplates.getActiveGuard();
       if (!winner) throw internalError();
       const winnerRecord = await this.options.questionnaireTemplates.get(

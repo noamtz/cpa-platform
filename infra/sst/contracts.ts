@@ -489,6 +489,11 @@ export const zipWorkerContract = {
     terminalStatusFenced: true,
   },
   permissions: {
+    journalActions: [
+      "dynamodb:GetItem",
+      "dynamodb:Query",
+      "dynamodb:TransactWriteItems",
+    ] as const,
     filesActions: ["s3:GetObject"] as const,
     temporaryActions: [
       "s3:AbortMultipartUpload",

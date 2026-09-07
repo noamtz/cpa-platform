@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 
-import { PutCommand } from "@aws-sdk/lib-dynamodb";
 
 import type {
   ClientRecord,
@@ -325,16 +324,17 @@ export class PublicQuestionnaireService {
         _version: 1,
       };
       try {
-        await this.options.templates.client.send(
-          new PutCommand({
+        await this.options.journal.commitOperationalAction({
+          Put: {
             TableName: this.options.templates.tableName,
             Item: initialGuard,
             ConditionExpression: "attribute_not_exists(#id)",
             ExpressionAttributeNames: { "#id": "id" },
-          }),
-        );
+          },
+        });
         return existing;
-      } catch {
+      } catch (error) {
+        if (error instanceof ApiError && error.statusCode === 503) throw error;
         const winnerGuard = await this.options.templates.getActiveGuard();
         if (!winnerGuard) throw internalError();
         const winner = await this.options.templates.get(winnerGuard.active_template_id);

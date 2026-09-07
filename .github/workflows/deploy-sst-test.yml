@@ -31,9 +31,16 @@ on:
       - "tooling/verify_private_file_cutover.mjs"
       - "tooling/import_base44_snapshot.mjs"
       - "tooling/import_base44_snapshot.test.mjs"
+      - "tooling/replay_base44_change_journal.mjs"
+      - "tooling/replay_base44_change_journal.test.mjs"
+      - "tooling/base44_replay_bridge.ts"
+      - "tooling/rehearsal_fixture_harness.ts"
+      - "tooling/rehearsal_fixture_harness.test.ts"
+      - "docs/migration/base44-rollback-replay-runbook.md"
       - "docs/migration/base44-import-runbook.md"
       - "docs/migration/private-file-import-verification.json"
       - "package.json"
+      - "vitest.foundation.config.js"
       - "package-lock.json"
       - ".github/workflows/deploy-sst-test.yml"
   push:
@@ -55,9 +62,16 @@ on:
       - "tooling/verify_private_file_cutover.mjs"
       - "tooling/import_base44_snapshot.mjs"
       - "tooling/import_base44_snapshot.test.mjs"
+      - "tooling/replay_base44_change_journal.mjs"
+      - "tooling/replay_base44_change_journal.test.mjs"
+      - "tooling/base44_replay_bridge.ts"
+      - "tooling/rehearsal_fixture_harness.ts"
+      - "tooling/rehearsal_fixture_harness.test.ts"
+      - "docs/migration/base44-rollback-replay-runbook.md"
       - "docs/migration/base44-import-runbook.md"
       - "docs/migration/private-file-import-verification.json"
       - "package.json"
+      - "vitest.foundation.config.js"
       - "package-lock.json"
       - ".github/workflows/deploy-sst-test.yml"
 
@@ -197,6 +211,7 @@ jobs:
       - name: Validate foundation
         run: |
           npm run test:pdf
+          npm run test:reverse-replay
           npm run test:foundation
           npm run typecheck:foundation
           npm run lint:foundation

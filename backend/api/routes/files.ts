@@ -35,7 +35,7 @@ export function registerFileRoutes(
     const input = parseJsonBody(event, publicUploadSchema);
     const result =
       input.operation === "initiate"
-        ? await service.initiatePublicUpload(input)
+        ? await service.initiatePublicUpload(input, event.requestContext.requestId)
         : await service.completePublicUpload(input, event.requestContext.requestId);
     return jsonResponse(200, result);
   });
@@ -69,6 +69,7 @@ export function registerFileRoutes(
         await service.initiateCpaUpload(
           parseJsonBody(event, cpaUploadInitiateSchema),
           actor,
+          event.requestContext.requestId,
         ),
       ),
     ),
@@ -124,7 +125,14 @@ export function registerFileRoutes(
       parseJsonBody(event, zipDownloadRequestSchema);
       const submissionId = event.pathParameters?.id;
       if (!submissionId) throw badRequest();
-      return jsonResponse(202, await service.requestZipDownload(submissionId, actor));
+      return jsonResponse(
+        202,
+        await service.requestZipDownload(
+          submissionId,
+          actor,
+          event.requestContext.requestId,
+        ),
+      );
     }),
   );
   router.register(

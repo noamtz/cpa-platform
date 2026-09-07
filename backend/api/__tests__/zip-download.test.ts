@@ -504,6 +504,51 @@ describe("ZIP worker", () => {
     error.mockRestore();
   });
 
+  it("rejects a stale maintenance generation before acquiring a lease", async () => {
+    const staleManifest = {
+      ...manifest,
+      maintenance_generation: 7,
+      activity_intent_sequence: "a".repeat(64),
+    };
+    const send = vi.fn(async (command: unknown) => {
+      if (command instanceof GetObjectCommand) {
+        if (command.input["Key"] === `zip-jobs/requests/${jobId}.json`) {
+          return textObject(staleManifest);
+        }
+        throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
+      }
+      return {};
+    });
+    const createUpload = vi.fn();
+    const handler = createZipDownloadHandler({
+      s3: { send },
+      filesBucketName: "FilesBucket.test",
+      temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
+      legacyFileReadsEnabled: true,
+      createUpload,
+      clock: () => new Date(now),
+      maintenance: {
+        getControl: vi.fn().mockResolvedValue({ mode: "OPEN", generation: 8 }),
+        getExternalActivity: vi.fn().mockResolvedValue({
+          scope: "EXTERNAL_ACTIVITY",
+          sequence: "a".repeat(64),
+          item_type: "EXTERNAL_ACTIVITY_INTENT",
+          activity_type: "ZIP_JOB",
+          status: "ACTIVE",
+          generation: 7,
+          operation_id: "zip-test",
+          created_at: now,
+          updated_at: now,
+        }),
+      } as never,
+      ...leaseOptions(),
+    });
+
+    await expect(handler(event())).resolves.toBeUndefined();
+    expect(send.mock.calls.some(([command]) => command instanceof PutObjectCommand)).toBe(false);
+    expect(createUpload).not.toHaveBeenCalled();
+  });
+
   it("releases the lease when terminal status persistence fails so a retry completes", async () => {
     let statusWriteAttempt = 0;
     const leases = createLeaseStore(undefined, ({ record }) => {

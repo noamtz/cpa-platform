@@ -14,6 +14,7 @@ import {
   JOURNAL_CURSOR_SEQUENCE,
   JOURNAL_MAX_ACTIONS,
   JOURNAL_MAX_ITEM_BYTES,
+  JOURNAL_MAX_TRANSACTION_BYTES,
   JOURNAL_SCOPE,
   journalEntrySchema,
   fileOperationReceiptSchema,
@@ -23,6 +24,11 @@ import {
 } from "../contracts/change-journal";
 import { ApiError, conflict, internalError } from "../core/errors";
 import type { DynamoDocumentClient } from "../repositories/dynamo";
+import {
+  MaintenanceService,
+  type BeginExternalActivityInput,
+} from "./maintenance";
+import type { ExternalActivityIntent } from "../contracts/maintenance";
 
 type TransactionItem = NonNullable<
   TransactWriteCommandInput["TransactItems"]
@@ -43,6 +49,8 @@ export interface JournalCommitInput {
   readonly operationId: string;
   readonly businessActions: readonly TransactionItem[];
   readonly changes: readonly MutationChange[];
+  readonly maintenanceGeneration?: number;
+  readonly resolveExternalActivity?: ExternalActivityIntent;
 }
 
 export interface ChangeJournalOptions {
@@ -51,6 +59,7 @@ export interface ChangeJournalOptions {
   readonly clock?: () => Date;
   readonly sleep?: (milliseconds: number) => Promise<void>;
   readonly maxCursorAttempts?: number;
+  readonly maintenance?: MaintenanceService;
 }
 
 export interface FileOperationCommitInput {
@@ -60,6 +69,8 @@ export interface FileOperationCommitInput {
   readonly receiptKey: string;
   readonly fileUri: string;
   readonly change: MutationChange;
+  readonly maintenanceGeneration?: number;
+  readonly resolveExternalActivity?: ExternalActivityIntent;
 }
 
 export interface FileReconciliationInput {
@@ -151,6 +162,14 @@ function isCursorConflict(error: TransactionFailure) {
   );
 }
 
+function isMaintenanceConflict(error: TransactionFailure, enabled: boolean) {
+  return (
+    enabled &&
+    error.name === "TransactionCanceledException" &&
+    error.CancellationReasons?.[1]?.Code === "ConditionalCheckFailed"
+  );
+}
+
 function isConditionalConflict(error: TransactionFailure) {
   return (
     error.name === "ConditionalCheckFailedException" ||
@@ -173,6 +192,32 @@ export class ChangeJournalService {
       ((milliseconds) =>
         new Promise((resolve) => setTimeout(resolve, milliseconds)));
     this.maxCursorAttempts = options.maxCursorAttempts ?? 4;
+  }
+
+  beginExternalActivity(input: BeginExternalActivityInput) {
+    return this.options.maintenance?.beginExternalActivity(input);
+  }
+
+  getExternalActivity(sequenceSeed: string) {
+    return this.options.maintenance?.getExternalActivity(sequenceSeed);
+  }
+
+  async resolveExternalActivity(intent: ExternalActivityIntent | undefined) {
+    if (intent) await this.options.maintenance?.resolveExternalActivity(intent);
+  }
+
+  async commitOperationalAction(action: TransactionItem) {
+    if (this.options.maintenance) {
+      await this.options.maintenance.transactOpen([action]);
+      return;
+    }
+    if (action.Put) {
+      await this.options.client.send(new PutCommand(action.Put));
+      return;
+    }
+    await this.options.client.send(
+      new TransactWriteCommand({ TransactItems: [action] }),
+    );
   }
 
   async getFileOperationReceipt(receiptKey: string): Promise<FileOperationReceipt | undefined> {
@@ -218,6 +263,8 @@ export class ChangeJournalService {
           },
         ],
         changes: [input.change],
+        maintenanceGeneration: input.maintenanceGeneration,
+        resolveExternalActivity: input.resolveExternalActivity,
       });
       return { fileUri: input.fileUri, replayed: false } as const;
     } catch (error) {
@@ -255,8 +302,27 @@ export class ChangeJournalService {
 
   async commit(input: JournalCommitInput) {
     if (input.changes.length === 0) throw internalError();
+    const maintenance = this.options.maintenance;
+    const control = maintenance ? await maintenance.requireOpen() : undefined;
+    const maintenanceGeneration =
+      input.maintenanceGeneration ?? control?.generation;
     if (
-      1 + input.businessActions.length + input.changes.length >
+      control &&
+      maintenanceGeneration !== undefined &&
+      control.generation !== maintenanceGeneration
+    ) {
+      throw new ApiError(503, "Maintenance in progress");
+    }
+    const resolutionActions =
+      maintenance && input.resolveExternalActivity
+        ? maintenance.resolutionActions(input.resolveExternalActivity)
+        : [];
+    const fixedOverhead = 1 + (maintenance ? 1 : 0);
+    if (
+      fixedOverhead +
+        input.businessActions.length +
+        resolutionActions.length +
+        input.changes.length >
       JOURNAL_MAX_ACTIONS
     ) {
       throw internalError();
@@ -326,7 +392,11 @@ export class ChangeJournalService {
       };
       const transactItems: TransactionItem[] = [
         cursorAction,
+        ...(maintenance && maintenanceGeneration !== undefined
+          ? [maintenance.fence(maintenanceGeneration)]
+          : []),
         ...input.businessActions,
+        ...resolutionActions,
         ...entries.map((entry) => ({
           Put: {
             TableName: this.options.tableName,
@@ -340,6 +410,12 @@ export class ChangeJournalService {
           },
         })),
       ];
+      if (
+        Buffer.byteLength(JSON.stringify(transactItems), "utf8") >
+        JOURNAL_MAX_TRANSACTION_BYTES
+      ) {
+        throw internalError();
+      }
       const command = new TransactWriteCommand({
         TransactItems: transactItems,
         ClientRequestToken: transactionToken(input.operationId, current),
@@ -349,6 +425,9 @@ export class ChangeJournalService {
         return entries;
       } catch (caught) {
         const error = caught as TransactionFailure;
+        if (isMaintenanceConflict(error, !!maintenance)) {
+          throw new ApiError(503, "Maintenance in progress");
+        }
         if (isCursorConflict(error) && attempt + 1 < this.maxCursorAttempts) {
           await this.sleep((attempt + 1) * 5);
           continue;

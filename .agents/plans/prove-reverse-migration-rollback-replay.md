@@ -850,3 +850,9 @@ checkpoint patterns are mature; external Base44 write behavior is explicitly iso
 - **2026-09-07 - readiness gates added from provisioning evidence:** Require live zero-row enumeration before fixtures,
   resolution of the CLI `exec`/Deno bridge failure, protected target binding, and deletion of the private undeployed
   mismatched clone before the controlled rehearsal.
+- **2026-09-07 - live capability blocker:** The owner deleted the exact mismatched clone and the approved target read
+  back with zero business rows plus one mandatory administrator owner row. The pinned bridge then proved Base44
+  preserves invented Client fields but reassigns the caller-supplied entity ID and both system timestamps. The
+  residual invented row was removed by its observed destination ID and the owner-only baseline was restored. This
+  blocks public questionnaire-link compatibility and therefore blocks maintenance bootstrap, replay, and issues #14/
+  #15 until an approved compatibility design exists and the full capability matrix passes.

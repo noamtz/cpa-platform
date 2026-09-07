@@ -316,6 +316,8 @@ export const zipManifestSchema = z
     archive_name: z.string().min(1).max(160),
     created_at: z.string().datetime({ offset: true }),
     expires_at: z.string().datetime({ offset: true }),
+    maintenance_generation: z.number().int().positive().optional(),
+    activity_intent_sequence: z.string().regex(/^[a-f0-9]{64}$/).optional(),
     entries: z
       .array(
         z

@@ -24,10 +24,12 @@
     "bootstrap:test-deployment-trust": "node tooling/bootstrap_test_deployment_trust.mjs --confirm-test-trust-bootstrap",
     "import:base44": "node tooling/import_base44_snapshot.mjs",
     "test:import": "vitest run --config vitest.foundation.config.js tooling/import_base44_snapshot.test.mjs",
+    "reverse-replay": "tsx tooling/replay_base44_change_journal.mjs",
+    "test:reverse-replay": "vitest run --config vitest.foundation.config.js tooling/replay_base44_change_journal.test.mjs tooling/rehearsal_fixture_harness.test.ts backend/api/__tests__/maintenance-service.test.ts",
     "sst:deploy:test": "sst deploy --stage test --print-logs && node tooling/configure_cognito_refresh_rotation.mjs --stage test --outputs .sst/outputs.json",
     "test:foundation": "vitest run --config vitest.foundation.config.js",
     "typecheck:foundation": "tsc -p ./tsconfig.foundation.json",
-    "lint:foundation": "eslint sst.config.ts infra/sst backend/api lambda/pdf-generator/index.mjs lambda/pdf-generator/__tests__ tooling/import_base44_snapshot.mjs tooling/import_base44_snapshot.test.mjs tooling/bootstrap_test_deployment_trust.mjs tooling/bootstrap_test_deployment_trust.test.mjs tooling/verify_sst_foundation.mjs tooling/verify_private_file_cutover.mjs tooling/configure_cognito_refresh_rotation.mjs tooling/verify_pdf_bundle.mjs tooling/verify_pdf_bundle.test.mjs tooling/verify_pdf_parity.mjs tooling/verify_pdf_parity.test.mjs --quiet --no-error-on-unmatched-pattern"
+    "lint:foundation": "eslint sst.config.ts infra/sst backend/api lambda/pdf-generator/index.mjs lambda/pdf-generator/__tests__ tooling/import_base44_snapshot.mjs tooling/import_base44_snapshot.test.mjs tooling/replay_base44_change_journal.mjs tooling/replay_base44_change_journal.test.mjs tooling/base44_replay_bridge.ts tooling/rehearsal_fixture_harness.ts tooling/rehearsal_fixture_harness.test.ts tooling/bootstrap_test_deployment_trust.mjs tooling/bootstrap_test_deployment_trust.test.mjs tooling/verify_sst_foundation.mjs tooling/verify_private_file_cutover.mjs tooling/configure_cognito_refresh_rotation.mjs tooling/verify_pdf_bundle.mjs tooling/verify_pdf_bundle.test.mjs tooling/verify_pdf_parity.mjs tooling/verify_pdf_parity.test.mjs --quiet --no-error-on-unmatched-pattern"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "3.1116.0",
@@ -134,6 +136,7 @@
     "postcss": "^8.5.3",
     "sst": "3.19.3",
     "tailwindcss": "^3.4.17",
+    "tsx": "4.20.5",
     "typescript": "^5.8.2",
     "typescript-eslint": "8.67.0",
     "vite": "^6.1.0",
