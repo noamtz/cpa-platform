@@ -856,3 +856,13 @@ checkpoint patterns are mature; external Base44 write behavior is explicitly iso
   residual invented row was removed by its observed destination ID and the owner-only baseline was restored. This
   blocks public questionnaire-link compatibility and therefore blocks maintenance bootstrap, replay, and issues #14/
   #15 until an approved compatibility design exists and the full capability matrix passes.
+- **2026-09-07 - assigned-ID compatibility and residual target-fidelity blocker:** The approved compatibility design
+  treats Base44 IDs/timestamps as destination-owned, stores AWS values in immutable `auditflow_source_*` aliases,
+  persists destination mappings, rewrites typed references, and resolves public Client links native-ID-first then
+  source-alias while retaining token validation. Live CRUD, alias/timestamp observation, pagination, private upload,
+  signing, and byte-for-byte read passed. Invitation acceptance remains external and two-phase. The ejected clone
+  rejected private-file deletion through both privileged CLI and a deployed backend-function probe; Base44's current
+  official Core integration reference does not document deletion. Failed probes left unenumerable file orphans, so
+  this target cannot produce accepted clean-state evidence. Rebind to a fresh native dashboard clone and require both
+  distinct invitation/login and observable file deletion before maintenance bootstrap; otherwise obtain a supported
+  Base44 deletion contract and keep issues #14/#15 blocked.

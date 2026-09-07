@@ -12,7 +12,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
@@ -32,9 +32,9 @@ import {
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 
-export const REPLAY_TOOL_VERSION = "1.0.0";
-export const REPLAY_CHECKPOINT_SCHEMA_VERSION = 1;
-export const BASE44_REPLAY_BRIDGE_VERSION = "1.0.0";
+export const REPLAY_TOOL_VERSION = "1.1.0";
+export const REPLAY_CHECKPOINT_SCHEMA_VERSION = 2;
+export const BASE44_REPLAY_BRIDGE_VERSION = "1.1.0";
 export const BASE44_CLI_VERSION = "0.1.14";
 export const DENO_VERSION = "2.9.5";
 export const AWS_REGION = "il-central-1";
@@ -49,6 +49,13 @@ export const ENTITY_NAMES = Object.freeze([
 export const REPLAYABLE_ENTITY_NAMES = Object.freeze(
   ENTITY_NAMES.filter((entity) => entity !== "SyncedDriveFile"),
 );
+const CAPABILITY_ENTITY_ORDER = Object.freeze([
+  "Client",
+  "PdfTemplate",
+  "QuestionnaireTemplate",
+  "Submission",
+  "SyncedDriveFile",
+]);
 export const BRIDGE_BEGIN = "__AUDITFLOW_REPLAY_JSON_BEGIN__";
 export const BRIDGE_END = "__AUDITFLOW_REPLAY_JSON_END__";
 const OWNER_GMAIL_PLUS_ALIAS = "__OWNER_GMAIL_PLUS_ALIAS__";
@@ -59,6 +66,16 @@ const bridgePath = resolve(scriptDirectory, "base44_replay_bridge.ts");
 const sha256Pattern = /^[a-f0-9]{64}$/;
 const sequencePattern = /^\d{20}$/;
 const missingSentinel = Object.freeze({ __auditflow_missing: true });
+const BASE44_SOURCE_ID_FIELD = "auditflow_source_id";
+const BASE44_SOURCE_CREATED_FIELD = "auditflow_source_created_date";
+const BASE44_SOURCE_UPDATED_FIELD = "auditflow_source_updated_date";
+const BASE44_DESTINATION_OWNED_FIELDS = new Set(["id", "created_date", "updated_date"]);
+const REFERENCE_ENTITY_BY_FIELD = Object.freeze({
+  client_id: "Client",
+  submission_id: "Submission",
+  template_id: "QuestionnaireTemplate",
+  pdf_template_id: "PdfTemplate",
+});
 
 export class ReplayFailure extends Error {
   constructor(category, cause, details = {}) {
@@ -66,6 +83,7 @@ export class ReplayFailure extends Error {
     this.name = "ReplayFailure";
     this.category = category;
     if (Number.isInteger(details.status)) this.status = details.status;
+    if (typeof details.operation === "string") this.operation = details.operation;
   }
 }
 
@@ -81,6 +99,23 @@ function npxInvocation(arguments_) {
   const npxCli = join(npmBinDirectory, "npx-cli.js");
   if (!existsSync(npxCli)) fail("npx_runtime_unavailable");
   return { executable: process.execPath, arguments: [npxCli, ...arguments_] };
+}
+
+function denoInvocation(arguments_) {
+  if (process.platform !== "win32") return { executable: "deno", arguments: arguments_ };
+  const installedExecutable = join(
+    process.env.ProgramFiles ?? "C:\\Program Files",
+    "nodejs",
+    "node_modules",
+    "deno",
+    "deno.exe",
+  );
+  if (existsSync(installedExecutable)) {
+    return { executable: installedExecutable, arguments: arguments_ };
+  }
+  const denoCli = join(dirname(process.execPath), "node_modules", "deno", "bin.cjs");
+  if (!existsSync(denoCli)) fail("deno_runtime_unavailable");
+  return { executable: process.execPath, arguments: [denoCli, ...arguments_] };
 }
 
 function isObservedMissingFile(error) {
@@ -529,17 +564,24 @@ function bridgeSource() {
 }
 
 export class Base44ReplayBridge {
-  constructor(target, { spawn = spawnSync, environment = process.env } = {}) {
+  constructor(
+    target,
+    { spawn = spawnSync, environment = process.env, dataEnvironment = "prod" } = {},
+  ) {
+    if (!["preview", "prod"].includes(dataEnvironment)) {
+      fail("base44_data_environment_invalid");
+    }
     this.target = target;
     this.spawn = spawn;
     this.environment = { ...environment };
+    this.dataEnvironment = dataEnvironment;
     this.source = bridgeSource();
     this.sourceSha256 = sha256(Buffer.from(this.source, "utf8"));
   }
 
   assertRuntimeVersions() {
-    const denoExecutable = process.platform === "win32" ? "deno.exe" : "deno";
-    const deno = this.spawn(denoExecutable, ["--version"], {
+    const denoCommand = denoInvocation(["--version"]);
+    const deno = this.spawn(denoCommand.executable, denoCommand.arguments, {
       cwd: this.target.value.local_paths.clone_root,
       encoding: "utf8",
       env: this.environment,
@@ -573,6 +615,11 @@ export class Base44ReplayBridge {
   }
 
   request(request) {
+    const denoCommand = denoInvocation([]);
+    const executablePath = dirname(denoCommand.executable);
+    const inheritedPath = Object.entries(this.environment).find(
+      ([key]) => key.toLowerCase() === "path",
+    )?.[1];
     const environment = {
       ...this.environment,
       AUDITFLOW_REPLAY_REQUEST_JSON: canonicalJson(request),
@@ -582,6 +629,10 @@ export class Base44ReplayBridge {
         `auditflow-base44-replay-deno-${DENO_VERSION}`,
       ),
     };
+    for (const key of Object.keys(environment)) {
+      if (key.toLowerCase() === "path") delete environment[key];
+    }
+    environment.PATH = `${executablePath}${delimiter}${inheritedPath ?? ""}`;
     const invocation = npxInvocation([
       "--yes",
       `base44@${BASE44_CLI_VERSION}`,
@@ -589,7 +640,7 @@ export class Base44ReplayBridge {
       "exec",
       "--privileged",
       "--data-env",
-      "prod",
+      this.dataEnvironment,
     ]);
     const result = this.spawn(
       invocation.executable,
@@ -624,6 +675,7 @@ export class Base44ReplayBridge {
     if (!isRecord(response) || response.ok !== true || !isRecord(response.result)) {
       throw new ReplayFailure("bridge_operation_failed", undefined, {
         status: isRecord(response) ? response.status : undefined,
+        operation: request.operation,
       });
     }
     return response.result;
@@ -865,7 +917,7 @@ export function writePrivateDryRun(context, plan) {
   const directory = join(root, context.control.run_id);
   const path = join(directory, "plan.json");
   const value = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     runFingerprint: sha256(context.control.run_id),
     range: plan.range,
     affectedEntities: plan.projection.actions
@@ -886,15 +938,20 @@ const INTERNAL_RECORD_FIELDS = new Set([
   "_auditflow_migration",
 ]);
 
-function rewriteValue(value, fileMappings) {
+function rewriteValue(value, fileMappings, idMappings = {}, fieldName) {
   if (typeof value === "string") {
     if (fileMappings[value]) return fileMappings[value].base44Uri;
+    const referenceEntity = REFERENCE_ENTITY_BY_FIELD[fieldName];
+    if (referenceEntity) {
+      const mapped = idMappings[`${referenceEntity}:${value}`];
+      if (mapped) return mapped;
+    }
     const trimmed = value.trim();
     if ((trimmed.startsWith("{") && trimmed.endsWith("}")) ||
         (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
       try {
         const parsed = JSON.parse(value);
-        const rewritten = rewriteValue(parsed, fileMappings);
+        const rewritten = rewriteValue(parsed, fileMappings, idMappings);
         return canonicalJson(rewritten);
       } catch {
         return value;
@@ -902,23 +959,51 @@ function rewriteValue(value, fileMappings) {
     }
     return value;
   }
-  if (Array.isArray(value)) return value.map((entry) => rewriteValue(entry, fileMappings));
+  if (Array.isArray(value)) {
+    return value.map((entry) => rewriteValue(entry, fileMappings, idMappings, fieldName));
+  }
   if (isRecord(value)) {
     return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [key, rewriteValue(entry, fileMappings)]),
+      Object.entries(value).map(([key, entry]) => [
+        key,
+        rewriteValue(entry, fileMappings, idMappings, key),
+      ]),
     );
   }
   return value;
 }
 
-export function projectBase44Record(record, fileMappings = {}) {
+export function projectBase44Record(record, fileMappings = {}, idMappings = {}) {
   if (!isRecord(record)) fail("entity_projection_invalid");
   return rewriteValue(
     Object.fromEntries(
       Object.entries(record).filter(([key]) => !INTERNAL_RECORD_FIELDS.has(key)),
     ),
     fileMappings,
+    idMappings,
   );
+}
+
+export function projectMappedBase44Record(
+  record,
+  fileMappings = {},
+  idMappings = {},
+) {
+  const projected = projectBase44Record(record, fileMappings, idMappings);
+  if (typeof projected.id !== "string" || !projected.id) {
+    fail("entity_source_id_missing");
+  }
+  const destination = Object.fromEntries(
+    Object.entries(projected).filter(([key]) => !BASE44_DESTINATION_OWNED_FIELDS.has(key)),
+  );
+  destination[BASE44_SOURCE_ID_FIELD] = projected.id;
+  if (typeof projected.created_date === "string" && projected.created_date) {
+    destination[BASE44_SOURCE_CREATED_FIELD] = projected.created_date;
+  }
+  if (typeof projected.updated_date === "string" && projected.updated_date) {
+    destination[BASE44_SOURCE_UPDATED_FIELD] = projected.updated_date;
+  }
+  return destination;
 }
 
 function desiredRecordObserved(actual, desired) {
@@ -929,11 +1014,12 @@ function desiredRecordObserved(actual, desired) {
 }
 
 function actionPriority(action) {
-  if (action.entity === "File") return action.operation === "delete" ? 5 : 0;
+  if (action.entity === "File") return action.operation === "delete" ? 6 : 0;
   if (["User", "Client"].includes(action.entity)) return 1;
-  if (["QuestionnaireTemplate", "PdfTemplate"].includes(action.entity)) return 2;
-  if (action.entity === "Submission") return 3;
-  return 4;
+  if (action.entity === "PdfTemplate") return 2;
+  if (action.entity === "QuestionnaireTemplate") return 3;
+  if (action.entity === "Submission") return 4;
+  return 5;
 }
 
 export function dependencyOrderActions(actions) {
@@ -966,6 +1052,28 @@ async function observeRecord(bridge, entity, id) {
     fail("base44_observation_invalid");
   }
   return result.records[0];
+}
+
+async function observeRecordBySourceId(bridge, entity, sourceId) {
+  const result = await bridge.request({
+    operation: "filter_source_id",
+    entity,
+    source_id: sourceId,
+  });
+  if (!Array.isArray(result.records) || result.records.length > 1) {
+    fail("base44_observation_invalid");
+  }
+  return result.records[0];
+}
+
+async function observeMappedRecord(bridge, entity, sourceId, mappedId) {
+  if (mappedId) {
+    const mapped = await observeRecord(bridge, entity, mappedId);
+    if (mapped) return mapped;
+  }
+  const bySource = await observeRecordBySourceId(bridge, entity, sourceId);
+  if (bySource) return bySource;
+  return observeRecord(bridge, entity, sourceId);
 }
 
 async function observeUserByEmail(bridge, email) {
@@ -1047,44 +1155,71 @@ async function convergeEntityAction(action, checkpoint, bridge) {
     return wrote;
   }
 
-  const desired = projectBase44Record(action.after, checkpoint.state.fileMappings);
-  const observed = await observeRecord(bridge, action.entity, mappedId ?? action.id);
+  const desired = projectMappedBase44Record(
+    action.after,
+    checkpoint.state.fileMappings,
+    checkpoint.state.idMappings,
+  );
+  let observed = await observeMappedRecord(
+    bridge,
+    action.entity,
+    action.id,
+    mappedId,
+  );
   if (action.operation === "create") {
     if (observed) {
       if (!desiredRecordObserved(observed, desired)) fail("base44_third_state");
+      if (typeof observed.id !== "string" || !observed.id) fail("base44_observation_invalid");
+      checkpoint.state.idMappings[`${action.entity}:${action.id}`] = observed.id;
       return false;
     }
+    let createResult;
     try {
       await assertReplayControl(checkpoint.context, { write: true });
-      await bridge.request({ operation: "create", entity: action.entity, record: desired });
+      createResult = await bridge.request({
+        operation: "create",
+        entity: action.entity,
+        record: desired,
+      });
     } catch {
-      const afterAmbiguous = await observeRecord(bridge, action.entity, action.id);
+      const afterAmbiguous = await observeRecordBySourceId(bridge, action.entity, action.id);
       if (!desiredRecordObserved(afterAmbiguous, desired)) fail("base44_ambiguous_result");
+      if (typeof afterAmbiguous.id !== "string" || !afterAmbiguous.id) {
+        fail("base44_observation_invalid");
+      }
+      checkpoint.state.idMappings[`${action.entity}:${action.id}`] = afterAmbiguous.id;
       return true;
     }
-    const after = await observeRecord(bridge, action.entity, action.id);
-    if (!desiredRecordObserved(after, desired) || after.id !== action.id) {
-      fail("base44_id_preservation_blocker");
+    const returnedId = createResult?.record?.id;
+    const after =
+      typeof returnedId === "string" && returnedId
+        ? await observeRecord(bridge, action.entity, returnedId)
+        : await observeRecordBySourceId(bridge, action.entity, action.id);
+    if (!desiredRecordObserved(after, desired)) {
+      fail("base44_create_not_observed");
     }
+    if (typeof after.id !== "string" || !after.id) fail("base44_observation_invalid");
     checkpoint.state.idMappings[`${action.entity}:${action.id}`] = after.id;
     return true;
   }
   if (!observed) fail("base44_record_missing");
+  if (typeof observed.id !== "string" || !observed.id) fail("base44_observation_invalid");
+  checkpoint.state.idMappings[`${action.entity}:${action.id}`] = observed.id;
   if (desiredRecordObserved(observed, desired)) return false;
   try {
     await assertReplayControl(checkpoint.context, { write: true });
     await bridge.request({
       operation: "update",
       entity: action.entity,
-      id: mappedId ?? action.id,
+      id: observed.id,
       record: desired,
     });
   } catch {
-    const afterAmbiguous = await observeRecord(bridge, action.entity, mappedId ?? action.id);
+    const afterAmbiguous = await observeRecord(bridge, action.entity, observed.id);
     if (!desiredRecordObserved(afterAmbiguous, desired)) fail("base44_ambiguous_result");
     return true;
   }
-  const after = await observeRecord(bridge, action.entity, mappedId ?? action.id);
+  const after = await observeRecord(bridge, action.entity, observed.id);
   if (!desiredRecordObserved(after, desired)) fail("base44_update_not_observed");
   return true;
 }
@@ -1321,14 +1456,32 @@ export async function reconcilePlan(
             observed,
             entity === "User"
               ? projectedUser(expectedRecord, checkpoint.state.fileMappings)
-              : projectBase44Record(expectedRecord, checkpoint.state.fileMappings),
+              : checkpoint.state.idMappings[`${entity}:${expectedRecord.id}`]
+                ? projectMappedBase44Record(
+                    expectedRecord,
+                    checkpoint.state.fileMappings,
+                    checkpoint.state.idMappings,
+                  )
+                : projectBase44Record(
+                    expectedRecord,
+                    checkpoint.state.fileMappings,
+                    checkpoint.state.idMappings,
+                  ),
           )
         ) {
           drift += 1;
         }
       }
-      for (const id of actualById.keys()) {
-        if (!expectedById.has(id)) extra += 1;
+      const unmatched = [...actualById.entries()].filter(([id]) => !expectedById.has(id));
+      if (
+        entity === "User" &&
+        unmatched.length === 1 &&
+        unmatched[0][1]?.role === "admin"
+      ) {
+        // A private Base44 application always retains one platform owner. It is
+        // operational target state, not an AWS business row.
+      } else {
+        extra += unmatched.length;
       }
       entityCounts[entity] = { expected: expected.length, actual: actual.length };
     }
@@ -1885,19 +2038,67 @@ export class OperatorMaintenanceControl {
 
 export async function runCapabilityMatrix(
   target,
-  { bridge = new Base44ReplayBridge(target), fixture, confirm = false, fetchImpl = fetch } = {},
+  {
+    bridge = new Base44ReplayBridge(target),
+    fixture,
+    confirm = false,
+    confirmInvitationLogin = false,
+    fetchImpl = fetch,
+  } = {},
 ) {
   bridge.assertRuntimeVersions?.();
+  const candidate = fixture ?? target.value.capability_probe;
+  if (confirm && !isRecord(candidate)) fail("capability_fixture_missing");
   const counts = {};
   const initialRecords = {};
   for (const entity of ENTITY_NAMES) {
     initialRecords[entity] = await bridge.listAll(entity, 1);
     counts[entity] = initialRecords[entity].length;
   }
-  const ownerUser = initialRecords.User[0];
+  let ownerUser = initialRecords.User[0];
+  let invitedUser = undefined;
+  let invitationEmail = undefined;
+  if (
+    counts.User === 2 &&
+    confirm &&
+    isRecord(candidate) &&
+    typeof candidate.invitation_email === "string"
+  ) {
+    for (const possibleOwner of initialRecords.User) {
+      if (
+        !isRecord(possibleOwner) ||
+        typeof possibleOwner.email !== "string" ||
+        !possibleOwner.email
+      ) {
+        continue;
+      }
+      let possibleInvitation;
+      try {
+        possibleInvitation = capabilityInvitationEmail(
+          candidate.invitation_email,
+          possibleOwner.email,
+        );
+      } catch {
+        continue;
+      }
+      const possibleInvited = initialRecords.User.find(
+        (record) =>
+          record !== possibleOwner &&
+          typeof record?.email === "string" &&
+          record.email.trim().toLowerCase() === possibleInvitation.trim().toLowerCase(),
+      );
+      if (possibleInvited) {
+        ownerUser = possibleOwner;
+        invitedUser = possibleInvited;
+        invitationEmail = possibleInvitation;
+        break;
+      }
+    }
+  }
   if (
     ENTITY_NAMES.filter((entity) => entity !== "User").some((entity) => counts[entity] !== 0) ||
-    counts.User !== 1 ||
+    ![1, 2].includes(counts.User) ||
+    (counts.User === 2 && (!invitedUser || !confirmInvitationLogin)) ||
     !isRecord(ownerUser) ||
     typeof ownerUser.id !== "string" ||
     !ownerUser.id ||
@@ -1910,8 +2111,7 @@ export async function runCapabilityMatrix(
   if (!confirm) {
     return { status: "read_only", entityCounts: counts, platformOwnerBaselineUsers: 1 };
   }
-  const candidate = fixture ?? target.value.capability_probe;
-  const crudEntities = ENTITY_NAMES.filter((entity) => entity !== "User");
+  const crudEntities = CAPABILITY_ENTITY_ORDER;
   if (
     !isRecord(candidate) ||
     !isRecord(candidate.entity_records) ||
@@ -1946,7 +2146,7 @@ export async function runCapabilityMatrix(
   ) {
     fail("capability_fixture_missing");
   }
-  const invitationEmail = capabilityInvitationEmail(candidate.invitation_email, ownerUser.email);
+  invitationEmail ??= capabilityInvitationEmail(candidate.invitation_email, ownerUser.email);
   if (invitationEmail.trim().toLowerCase() === ownerUser.email.trim().toLowerCase()) {
     fail("capability_fixture_missing");
   }
@@ -1956,93 +2156,133 @@ export async function runCapabilityMatrix(
       : join(target.value.local_paths.fixture_root, candidate.private_file_path),
   );
   const created = [];
-  let invitedUser;
+  const idMappings = {};
   let uploaded;
   let fileDeletionObserved = false;
+  let invitationPending = false;
   try {
     for (const entity of crudEntities) {
       const record = candidate.entity_records[entity];
       const cleanupRecord = { entity, id: record.id };
       created.push(cleanupRecord);
-      const result = await bridge.request({ operation: "create", entity, record });
-      if (typeof result.record?.id === "string" && result.record.id) {
+      const desired = projectMappedBase44Record(record, {}, idMappings);
+      let result;
+      try {
+        result = await bridge.request({ operation: "create", entity, record: desired });
+      } catch {
+        // An ambiguous create is safe only when its source alias is observable below.
+      }
+      if (typeof result?.record?.id === "string" && result.record.id) {
         cleanupRecord.id = result.record.id;
       }
-      const observed = await observeRecord(bridge, entity, record.id);
+      const observed = await observeRecordBySourceId(bridge, entity, record.id);
       if (
-        result.record?.id !== record.id ||
-        observed?.id !== record.id ||
-        !desiredRecordObserved(observed, record)
+        !desiredRecordObserved(observed, desired) ||
+        typeof observed?.id !== "string" ||
+        !observed.id
       ) {
-        fail("base44_id_preservation_blocker");
+        fail("base44_source_alias_blocker");
       }
+      cleanupRecord.id = observed.id;
+      idMappings[`${entity}:${record.id}`] = observed.id;
     }
     const paginationRecord = candidate.pagination_client_record;
     const paginationCleanup = { entity: "Client", id: paginationRecord.id };
     created.push(paginationCleanup);
-    const paginationResult = await bridge.request({
-      operation: "create",
-      entity: "Client",
-      record: paginationRecord,
-    });
-    if (typeof paginationResult.record?.id === "string" && paginationResult.record.id) {
+    const paginationDesired = projectMappedBase44Record(paginationRecord, {}, idMappings);
+    let paginationResult;
+    try {
+      paginationResult = await bridge.request({
+        operation: "create",
+        entity: "Client",
+        record: paginationDesired,
+      });
+    } catch {
+      // An ambiguous create is safe only when its source alias is observable below.
+    }
+    if (
+      typeof paginationResult?.record?.id === "string" &&
+      paginationResult.record.id
+    ) {
       paginationCleanup.id = paginationResult.record.id;
     }
+    const observedPagination = await observeRecordBySourceId(
+      bridge,
+      "Client",
+      paginationRecord.id,
+    );
+    if (
+      !desiredRecordObserved(observedPagination, paginationDesired) ||
+      typeof observedPagination?.id !== "string" ||
+      !observedPagination.id
+    ) {
+      fail("base44_source_alias_blocker");
+    }
+    paginationCleanup.id = observedPagination.id;
+    idMappings[`Client:${paginationRecord.id}`] = observedPagination.id;
     const paginatedClients = await bridge.listAll("Client", 1);
     const paginatedIds = new Set(paginatedClients.map((record) => record.id));
     if (
-      !paginatedIds.has(candidate.entity_records.Client.id) ||
-      !paginatedIds.has(paginationRecord.id)
+      !paginatedIds.has(idMappings[`Client:${candidate.entity_records.Client.id}`]) ||
+      !paginatedIds.has(idMappings[`Client:${paginationRecord.id}`])
     ) {
       fail("base44_pagination_blocker");
     }
     for (const entity of crudEntities) {
       const record = candidate.updated_entity_records[entity];
-      await bridge.request({ operation: "update", entity, id: record.id, record });
-      if (!desiredRecordObserved(await observeRecord(bridge, entity, record.id), record)) {
+      const desired = projectMappedBase44Record(record, {}, idMappings);
+      const assignedId = idMappings[`${entity}:${record.id}`];
+      await bridge.request({ operation: "update", entity, id: assignedId, record: desired });
+      if (!desiredRecordObserved(await observeRecord(bridge, entity, assignedId), desired)) {
         fail("base44_update_not_observed");
       }
     }
 
-    try {
+    if (!invitedUser) {
+      try {
+        await bridge.request({
+          operation: "invite_user",
+          email: invitationEmail,
+          role: "admin",
+        });
+      } catch {
+        // The invitation is accepted only after user activation is observed.
+      }
+      invitedUser = await observeUserByEmail(bridge, invitationEmail);
+    }
+    if (!invitedUser || !confirmInvitationLogin) {
+      invitationPending = true;
+    } else {
+      if (typeof invitedUser.id !== "string" || !invitedUser.id) {
+        fail("base44_invitation_unobservable");
+      }
+      try {
+        await bridge.request({
+          operation: "invite_user",
+          email: invitationEmail,
+          role: "admin",
+        });
+      } catch {
+        // Retry equivalence is proved by destination observation, not response shape.
+      }
+      const retriedUser = await observeUserByEmail(bridge, invitationEmail);
+      if (!retriedUser || retriedUser.id !== invitedUser.id) {
+        fail("base44_invitation_retry_blocker");
+      }
       await bridge.request({
-        operation: "invite_user",
-        email: invitationEmail,
-        role: "admin",
+        operation: "update",
+        entity: "User",
+        id: invitedUser.id,
+        record: candidate.user_update,
       });
-    } catch {
-      // A timeout is acceptable only when the user can be observed below.
-    }
-    invitedUser = await observeUserByEmail(bridge, invitationEmail);
-    if (!invitedUser || typeof invitedUser.id !== "string" || !invitedUser.id) {
-      fail("base44_invitation_unobservable");
-    }
-    try {
-      await bridge.request({
-        operation: "invite_user",
-        email: invitationEmail,
-        role: "admin",
-      });
-    } catch {
-      // Retry equivalence is proved by destination observation, not response shape.
-    }
-    const retriedUser = await observeUserByEmail(bridge, invitationEmail);
-    if (!retriedUser || retriedUser.id !== invitedUser.id) {
-      fail("base44_invitation_retry_blocker");
-    }
-    await bridge.request({
-      operation: "update",
-      entity: "User",
-      id: invitedUser.id,
-      record: candidate.user_update,
-    });
-    if (
-      !desiredRecordObserved(
-        await observeUserByEmail(bridge, invitationEmail),
-        candidate.user_update,
-      )
-    ) {
-      fail("base44_update_not_observed");
+      if (
+        !desiredRecordObserved(
+          await observeUserByEmail(bridge, invitationEmail),
+          candidate.user_update,
+        )
+      ) {
+        fail("base44_update_not_observed");
+      }
     }
 
     const originalBytes = readFileSync(filePath);
@@ -2076,11 +2316,13 @@ export async function runCapabilityMatrix(
       if (await observeRecord(bridge, record.entity, record.id)) fail("base44_delete_not_observed");
     }
     created.length = 0;
-    await bridge.request({ operation: "delete", entity: "User", id: invitedUser.id });
-    if (await observeUserByEmail(bridge, invitationEmail)) {
-      fail("base44_delete_not_observed");
+    if (!invitationPending) {
+      await bridge.request({ operation: "delete", entity: "User", id: invitedUser.id });
+      if (await observeUserByEmail(bridge, invitationEmail)) {
+        fail("base44_delete_not_observed");
+      }
+      invitedUser = undefined;
     }
-    invitedUser = undefined;
   } finally {
     if (uploaded && !fileDeletionObserved) {
       try {
@@ -2096,7 +2338,7 @@ export async function runCapabilityMatrix(
         // The next empty-enumeration gate exposes incomplete cleanup.
       }
     }
-    if (invitedUser?.id) {
+    if (invitedUser?.id && !invitationPending) {
       try {
         await bridge.request({ operation: "delete", entity: "User", id: invitedUser.id });
       } catch {
@@ -2108,6 +2350,26 @@ export async function runCapabilityMatrix(
     if ((await bridge.listAll(entity, 1)).length !== 0) fail("capability_cleanup_incomplete");
   }
   const retainedUsers = await bridge.listAll("User", 1);
+  if (invitationPending) {
+    if (
+      retainedUsers.length < 1 ||
+      retainedUsers.length > 2 ||
+      !retainedUsers.some((record) => record.id === ownerUser.id)
+    ) {
+      fail("capability_cleanup_incomplete");
+    }
+    return {
+      status: "pending_invitation_acceptance",
+      gates: {
+        assignedIdsMapped: true,
+        sourceAliasesObserved: true,
+        sourceTimestampsPreserved: true,
+        allEntityCrudObserved: true,
+        privateUploadReadDeleteObserved: true,
+        paginationObserved: true,
+      },
+    };
+  }
   if (
     retainedUsers.length !== 1 ||
     retainedUsers[0].id !== ownerUser.id
@@ -2115,7 +2377,7 @@ export async function runCapabilityMatrix(
     fail("capability_cleanup_incomplete");
   }
   const result = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     status: "passed",
     toolVersion: REPLAY_TOOL_VERSION,
     bridgeVersion: BASE44_REPLAY_BRIDGE_VERSION,
@@ -2124,7 +2386,9 @@ export async function runCapabilityMatrix(
     gates: {
       emptyBusinessStart: true,
       platformOwnerBaselineObserved: true,
-      exactIdPreserved: true,
+      assignedIdsMapped: true,
+      sourceAliasesObserved: true,
+      sourceTimestampsPreserved: true,
       allEntityCrudObserved: true,
       invitationObservedAndRetrySafe: true,
       privateUploadReadDeleteObserved: true,
@@ -2159,6 +2423,7 @@ const BOOLEAN_FLAGS = new Set([
   "dry-run",
   "resume",
   "confirm-controlled-rehearsal",
+  "confirm-invitation-login",
   "confirm-actual-rollback",
   "confirm-no-replay-writes",
 ]);
@@ -2343,10 +2608,14 @@ export async function assertNoReplayWritesForAbandonment(context, bridge) {
       fail("resume_aws_writes_forbidden");
     }
   }
-  for (const entity of ENTITY_NAMES) {
+  for (const entity of ENTITY_NAMES.filter((entity) => entity !== "User")) {
     if ((await bridge.listAll(entity, 5000)).length !== 0) {
       fail("resume_aws_writes_forbidden");
     }
+  }
+  const retainedUsers = await bridge.listAll("User", 5000);
+  if (retainedUsers.length !== 1 || retainedUsers[0]?.role !== "admin") {
+    fail("resume_aws_writes_forbidden");
   }
 }
 
@@ -2364,6 +2633,7 @@ export async function runCommand(arguments_, dependencies = {}) {
       bridge: dependencies.bridge ?? bridgeFactory(target),
       fixture,
       confirm: arguments_["confirm-controlled-rehearsal"] === true,
+      confirmInvitationLogin: arguments_["confirm-invitation-login"] === true,
       fetchImpl: dependencies.fetchImpl,
     });
   }
@@ -2531,7 +2801,11 @@ async function main() {
     process.stdout.write(`${canonicalJson(result)}\n`);
   } catch (error) {
     const category = error instanceof ReplayFailure ? error.category : "unexpected_safe_failure";
-    process.stderr.write(`Reverse replay failed: ${category}\n`);
+    const operation =
+      error instanceof ReplayFailure && typeof error.operation === "string"
+        ? ` (${error.operation})`
+        : "";
+    process.stderr.write(`Reverse replay failed: ${category}${operation}\n`);
     process.exitCode = category === "operator_pause_after_checkpoint" ? 2 : 1;
   }
 }

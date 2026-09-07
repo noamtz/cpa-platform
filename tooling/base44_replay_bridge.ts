@@ -15,6 +15,13 @@ const ENTITIES = new Set([
   "SyncedDriveFile",
   "User",
 ]);
+const SOURCE_ID_ENTITIES = new Set([
+  "Client",
+  "Submission",
+  "QuestionnaireTemplate",
+  "PdfTemplate",
+  "SyncedDriveFile",
+]);
 const BEGIN = "__AUDITFLOW_REPLAY_JSON_BEGIN__";
 const END = "__AUDITFLOW_REPLAY_JSON_END__";
 
@@ -78,6 +85,19 @@ async function dispatch(requestValue: unknown): Promise<unknown> {
     const name = entity(request.entity);
     const id = text(request.id, 512);
     const records = await base44.entities[name].filter({ id }, "id", 2, 0);
+    if (!Array.isArray(records) || records.length > 1) throw new Error("invalid_response");
+    return { records };
+  }
+  if (operation === "filter_source_id") {
+    const name = entity(request.entity);
+    if (!SOURCE_ID_ENTITIES.has(name)) throw new Error("invalid_request");
+    const sourceId = text(request.source_id, 512);
+    const records = await base44.entities[name].filter(
+      { auditflow_source_id: sourceId },
+      "id",
+      2,
+      0,
+    );
     if (!Array.isArray(records) || records.length > 1) throw new Error("invalid_response");
     return { records };
   }

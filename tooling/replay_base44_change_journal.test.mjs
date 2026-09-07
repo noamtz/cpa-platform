@@ -22,6 +22,7 @@ import {
   openReplayCheckpoint,
   parseArguments,
   projectBase44Record,
+  projectMappedBase44Record,
   projectJournal,
   queryJournalRange,
   reconcilePlan,
@@ -101,6 +102,36 @@ describe("reverse replay validation and projection", () => {
     expect(result._version).toBeUndefined();
     expect(result.file_reference).toBe("private/base44/file.pdf");
     expect(result.responses).toBe('[{"file_url":"private/base44/file.pdf"}]');
+  });
+
+  it("projects destination-owned IDs and timestamps into durable source aliases", () => {
+    const result = projectMappedBase44Record(
+      {
+        id: "submission-source",
+        client_id: "client-source",
+        template_id: "questionnaire-source",
+        responses: JSON.stringify({ pdf_template_id: "pdf-source" }),
+        created_date: "2026-09-07T00:00:00.000Z",
+        updated_date: "2026-09-07T00:01:00.000Z",
+      },
+      {},
+      {
+        "Client:client-source": "client-destination",
+        "QuestionnaireTemplate:questionnaire-source": "questionnaire-destination",
+        "PdfTemplate:pdf-source": "pdf-destination",
+      },
+    );
+    expect(result).toMatchObject({
+      auditflow_source_id: "submission-source",
+      auditflow_source_created_date: "2026-09-07T00:00:00.000Z",
+      auditflow_source_updated_date: "2026-09-07T00:01:00.000Z",
+      client_id: "client-destination",
+      template_id: "questionnaire-destination",
+      responses: '{"pdf_template_id":"pdf-destination"}',
+    });
+    expect(result).not.toHaveProperty("id");
+    expect(result).not.toHaveProperty("created_date");
+    expect(result).not.toHaveProperty("updated_date");
   });
 
   it("paginates GLOBAL query results", async () => {
@@ -194,15 +225,103 @@ function replayScenario() {
         const record = records[request.entity].get(request.id);
         return { records: record ? [record] : [] };
       }
+      if (request.operation === "filter_source_id") {
+        return {
+          records: [...records[request.entity].values()].filter(
+            (record) => record.auditflow_source_id === request.source_id,
+          ),
+        };
+      }
       if (request.operation === "update") {
-        records[request.entity].set(request.id, request.record);
-        return { record: request.record };
+        const record = {
+          ...(records[request.entity].get(request.id) ?? {}),
+          ...request.record,
+          id: request.id,
+        };
+        records[request.entity].set(request.id, record);
+        return { record };
       }
       throw new Error("unexpected bridge request");
     }),
     listAll: vi.fn(async (entity) => [...records[entity].values()]),
   };
   return { context, plan, bridge };
+}
+
+function assignedCreateScenario({ ambiguousCreate = false } = {}) {
+  const scenario = replayScenario();
+  const state = emptyState();
+  const after = {
+    id: "client-source",
+    full_name: "Invented client",
+    token: "invented-token",
+    created_date: "2026-09-07T00:00:00.000Z",
+    updated_date: "2026-09-07T00:00:00.000Z",
+  };
+  const entry = {
+    scope: "GLOBAL",
+    sequence: "00000000000000000001",
+    item_type: "ENTRY",
+    entity_type: "Client",
+    entity_key: `Client#${after.id}`,
+    operation_type: "create",
+    operation_id: "operation-create",
+    operation_index: 0,
+    operation_count: 1,
+    before: null,
+    after,
+    before_hash: null,
+    after_hash: hashRecord(after),
+  };
+  const baseline = {
+    manifestSha256: "a".repeat(64),
+    projectionSha256: hashProjection(state),
+    lastAppliedGlobalCursor: 0,
+    state,
+  };
+  scenario.context.baseline = baseline;
+  scenario.context.control = {
+    ...scenario.context.control,
+    baseline_projection_sha256: baseline.projectionSha256,
+  };
+  scenario.plan = buildReplayPlan({
+    baseline,
+    control: scenario.context.control,
+    entries: [entry],
+  });
+  const records = Object.fromEntries(ENTITY_NAMES.map((entity) => [entity, new Map()]));
+  records.User.set("owner-user", {
+    id: "owner-user",
+    email: "owner@example.invalid",
+    role: "admin",
+  });
+  let createAttempted = false;
+  scenario.bridge = {
+    sourceSha256: "b".repeat(64),
+    request: vi.fn(async (request) => {
+      if (request.operation === "filter_id") {
+        const record = records[request.entity].get(request.id);
+        return { records: record ? [record] : [] };
+      }
+      if (request.operation === "filter_source_id") {
+        return {
+          records: [...records[request.entity].values()].filter(
+            (record) => record.auditflow_source_id === request.source_id,
+          ),
+        };
+      }
+      if (request.operation === "create") {
+        createAttempted = true;
+        const record = { ...request.record, id: "client-assigned" };
+        records.Client.set(record.id, record);
+        if (ambiguousCreate) throw new Error("simulated timeout after acceptance");
+        return { record };
+      }
+      throw new Error("unexpected bridge request");
+    }),
+    listAll: vi.fn(async (entity) => [...records[entity].values()]),
+  };
+  return { ...scenario, createAttempted: () => createAttempted };
 }
 
 describe("durable replay and reconciliation", () => {
@@ -233,6 +352,23 @@ describe("durable replay and reconciliation", () => {
     expect(
       bridge.request.mock.calls.filter(([request]) => request.operation === "update"),
     ).toHaveLength(1);
+  });
+
+  it("recovers an assigned-ID create after an ambiguous response", async () => {
+    const { context, plan, bridge, createAttempted } = assignedCreateScenario({
+      ambiguousCreate: true,
+    });
+    await expect(replayPlan(context, plan, { bridge })).resolves.toMatchObject({ writes: 1 });
+    expect(createAttempted()).toBe(true);
+    await expect(replayPlan(context, plan, { bridge, resume: true })).resolves.toMatchObject({
+      writes: 0,
+    });
+    await expect(reconcilePlan(context, plan, { bridge })).resolves.toMatchObject({
+      status: "passed",
+      missing: 0,
+      extra: 0,
+      drift: 0,
+    });
   });
 
   it("reconciles all entities and permits only aggregate evidence", async () => {
@@ -297,7 +433,7 @@ describe("durable replay and reconciliation", () => {
 });
 
 describe("controlled target capabilities", () => {
-  it("cleans up the observed assigned ID when exact-ID preservation fails", async () => {
+  it("cleans up an observed assigned ID when a later alias gate fails", async () => {
     const { context } = replayScenario();
     const filePath = join(context.target.value.local_paths.fixture_root, "assigned-id.bin");
     writeFileSync(filePath, "invented fixture");
@@ -332,10 +468,18 @@ describe("controlled target capabilities", () => {
             : [],
       ),
       request: vi.fn(async (request) => {
-        if (request.operation === "create" && request.entity === "Client") {
+        if (request.operation === "create") {
+          if (request.entity !== "Client") throw new Error("simulated ambiguous failure");
           const record = { ...request.record, id: "assigned-client-id" };
           clients.set(record.id, record);
           return { record };
+        }
+        if (request.operation === "filter_source_id") {
+          return {
+            records: [...clients.values()].filter(
+              (record) => record.auditflow_source_id === request.source_id,
+            ),
+          };
         }
         if (request.operation === "filter_id") {
           return { records: clients.has(request.id) ? [clients.get(request.id)] : [] };
@@ -350,7 +494,7 @@ describe("controlled target capabilities", () => {
 
     await expect(
       runCapabilityMatrix(context.target, { bridge, fixture, confirm: true }),
-    ).rejects.toMatchObject({ category: "base44_id_preservation_blocker" });
+    ).rejects.toMatchObject({ category: "base44_source_alias_blocker" });
     expect(clients.size).toBe(0);
   });
 
@@ -382,7 +526,7 @@ describe("controlled target capabilities", () => {
     ).rejects.toMatchObject({ category: "base44_file_delete_unobservable" });
   });
 
-  it("proves CRUD, exact IDs, invitation, pagination, and file round-trip", async () => {
+  it("proves assigned-ID CRUD, two-phase invitation, pagination, and file round-trip", async () => {
     const { context } = replayScenario();
     const filePath = join(context.target.value.local_paths.fixture_root, "capability.bin");
     writeFileSync(filePath, "invented fixture");
@@ -393,11 +537,12 @@ describe("controlled target capabilities", () => {
       role: "admin",
     });
     let storedFile = false;
+    let assignedId = 0;
     const bridge = {
       listAll: vi.fn(async (entity) => [...records[entity].values()]),
       request: vi.fn(async (request) => {
         if (request.operation === "create" || request.operation === "update") {
-          const id = request.id ?? request.record.id;
+          const id = request.id ?? `assigned-${request.entity}-${++assignedId}`;
           const record = { ...(records[request.entity].get(id) ?? {}), ...request.record, id };
           records[request.entity].set(id, record);
           return { record };
@@ -407,6 +552,13 @@ describe("controlled target capabilities", () => {
             records: records[request.entity].has(request.id)
               ? [records[request.entity].get(request.id)]
               : [],
+          };
+        }
+        if (request.operation === "filter_source_id") {
+          return {
+            records: [...records[request.entity].values()].filter(
+              (record) => record.auditflow_source_id === request.source_id,
+            ),
           };
         }
         if (request.operation === "filter_user_email") {
@@ -452,45 +604,69 @@ describe("controlled target capabilities", () => {
     };
     const fetchImpl = vi
       .fn()
-      .mockResolvedValue(new Response(readFileSync(filePath), { status: 200 }));
+      .mockImplementation(async () => new Response(readFileSync(filePath), { status: 200 }));
+    const fixture = {
+      entity_records: Object.fromEntries(
+        ENTITY_NAMES.filter((entity) => entity !== "User").map((entity) => [
+          entity,
+          {
+            id: `capability-${entity.toLowerCase()}`,
+            marker: "created",
+            created_date: "2026-09-07T00:00:00.000Z",
+            updated_date: "2026-09-07T00:00:00.000Z",
+          },
+        ]),
+      ),
+      updated_entity_records: Object.fromEntries(
+        ENTITY_NAMES.filter((entity) => entity !== "User").map((entity) => [
+          entity,
+          {
+            id: `capability-${entity.toLowerCase()}`,
+            marker: "updated",
+            created_date: "2026-09-07T00:00:00.000Z",
+            updated_date: "2026-09-07T00:01:00.000Z",
+          },
+        ]),
+      ),
+      pagination_client_record: {
+        id: "capability-client-second",
+        marker: "pagination",
+      },
+      user_update: { drive_base_path: "capability-only" },
+      invitation_email: "disposable@example.invalid",
+      private_file_path: filePath,
+    };
     await expect(
       runCapabilityMatrix(context.target, {
         bridge,
-        fixture: {
-          entity_records: Object.fromEntries(
-            ENTITY_NAMES.filter((entity) => entity !== "User").map((entity) => [
-              entity,
-              {
-                id: `capability-${entity.toLowerCase()}`,
-                marker: "created",
-                created_date: "2026-09-07T00:00:00.000Z",
-                updated_date: "2026-09-07T00:00:00.000Z",
-              },
-            ]),
-          ),
-          updated_entity_records: Object.fromEntries(
-            ENTITY_NAMES.filter((entity) => entity !== "User").map((entity) => [
-              entity,
-              {
-                id: `capability-${entity.toLowerCase()}`,
-                marker: "updated",
-                created_date: "2026-09-07T00:00:00.000Z",
-                updated_date: "2026-09-07T00:01:00.000Z",
-              },
-            ]),
-          ),
-          pagination_client_record: {
-            id: "capability-client-second",
-            marker: "pagination",
-          },
-          user_update: { drive_base_path: "capability-only" },
-          invitation_email: "disposable@example.invalid",
-          private_file_path: filePath,
-        },
+        fixture,
         confirm: true,
         fetchImpl,
       }),
-    ).resolves.toMatchObject({ status: "passed" });
+    ).resolves.toMatchObject({
+      status: "pending_invitation_acceptance",
+      gates: {
+        privateUploadReadDeleteObserved: true,
+      },
+    });
+    expect(records.User.size).toBe(2);
+
+    await expect(
+      runCapabilityMatrix(context.target, {
+        bridge,
+        fixture,
+        confirm: true,
+        confirmInvitationLogin: true,
+        fetchImpl,
+      }),
+    ).resolves.toMatchObject({
+      status: "passed",
+      gates: {
+        assignedIdsMapped: true,
+        sourceAliasesObserved: true,
+        sourceTimestampsPreserved: true,
+      },
+    });
   });
 
   it("binds a target fingerprint and rejects production without explicit confirmation", () => {
@@ -553,6 +729,7 @@ describe("controlled target capabilities", () => {
   it("keeps the bridge fixed and allowlisted", () => {
     const source = readFileSync(new URL("./base44_replay_bridge.ts", import.meta.url), "utf8");
     expect(source).toContain('throw new Error("invalid_request")');
+    expect(source).toContain('operation === "filter_source_id"');
     expect(source).toContain('operation === "filter_user_email"');
     expect(source).not.toMatch(/\beval\s*\(|new\s+Function\s*\(/);
     expect(source).not.toContain("request.code");

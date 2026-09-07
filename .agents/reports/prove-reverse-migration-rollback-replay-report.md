@@ -17,13 +17,21 @@ validated, the application runtime remains AWS-only, and production AWS, Base44,
 
 The owner deleted the exact mismatched private clone and read back its absence. The selected rehearsal clone then
 passed live enumeration with zero rows in all five business collections and exactly one mandatory app-owner User.
-The controlled capability matrix was started with invented private fixtures and failed closed on its first Client:
-Base44 preserved the business fields but reassigned the caller-supplied ID, `created_date`, and `updated_date`. The
-residual invented Client was deleted by its observed destination ID and the owner-only baseline was read back.
+The assigned-ID blocker is resolved in code. Every replayed business record now stores immutable AWS source-ID and
+source-timestamp aliases, the checkpoint persists destination IDs, typed references are rewritten in dependency order,
+and the five public Base44 functions resolve Client links by native ID and then source alias while retaining the
+original Client token check. A repeatable guarded installer applies this compatibility layer only to the named private
+rehearsal clone.
 
-This is the plan's critical public-link compatibility blocker, not a successful rehearsal. Existing questionnaire
-URLs embed AWS Client IDs, so maintenance bootstrap, guarded deployment, AWS fixture mutation, replay, and evidence
-generation were not attempted. `AGENTS.md` was intentionally not advanced.
+The expanded live matrix proved entity CRUD, assigned-ID/source-alias recovery, timestamp aliases, pagination, private
+upload, signing, and byte-for-byte read. It then failed closed because Base44 rejected private-file deletion. The same
+operation failed through privileged CLI execution and a temporary deployed backend-function probe; the official Core
+integration reference documents private upload and signed reads but no delete API. The invitation was sent but has not
+materialized as a distinct signed-in User. All business rows were cleaned and the mandatory owner-only User baseline
+was restored, but the disposable target now contains unenumerable probe-file orphans and must be replaced.
+
+This remains a target-fidelity blocker, not a successful rehearsal. Maintenance bootstrap, guarded deployment, AWS
+fixture mutation, replay, and evidence generation were not attempted. `AGENTS.md` was intentionally not advanced.
 
 ## Implementation
 
@@ -39,6 +47,11 @@ generation were not attempted. `AGENTS.md` was intentionally not advanced.
   lease or write an archive, and worker IAM now has only the required journal-table read/transaction permissions.
 - Added a fixed Deno/Base44 bridge with an exact entity and operation allowlist. It exposes no arbitrary-code channel
   and uses the CLI-managed credential profile without reading or serializing its token store.
+- Added deterministic Windows Deno discovery/PATH normalization so pinned CLI execution works under the required Node
+  20 runtime.
+- Added Base44-assigned-ID recovery by immutable source aliases, source-timestamp preservation, typed-reference
+  rewriting, owner-row-aware reconciliation, and public-link compatibility installation for the five token-protected
+  public functions.
 - Added strict target/source fingerprint validation, independent strongly consistent AWS baseline reconciliation,
   contiguous GLOBAL journal reconstruction, complete logical-operation grouping, coverage rejection, dependency
   ordering, User invitation/email ID mapping, nested reference rewriting, exact S3 version reads, private uploads,
@@ -62,8 +75,9 @@ generation were not attempted. `AGENTS.md` was intentionally not advanced.
 ## Task status
 
 - Tasks 1 and 3–14: complete locally.
-- Task 2: live capability execution produced a protected immutable blocker: Base44 does not preserve caller-supplied
-  entity IDs or system timestamps on create.
+- Task 2: the assigned-ID/system-timestamp incompatibility is resolved through source aliases and public-link
+  resolution. Live capability execution now blocks on unsupported private-file deletion and a still-unaccepted
+  disposable invitation.
 - Task 15: not executed because the controlled rehearsal prerequisites fail closed.
 - Task 16: this report records the result; committed evidence and migration-status changes remain intentionally pending
   until an accepted rehearsal.
@@ -80,15 +94,24 @@ generation were not attempted. `AGENTS.md` was intentionally not advanced.
 - Abandonment reopen is test-stage only and additionally proves no Dynamo replay receipt, no local completed operation,
   and an empty six-entity target. Successful rollback instead remains terminal and write-disabled.
 - The bridge is pinned to Base44 CLI 0.1.14 and Deno 2.9.5, matching the provisioned target contract.
+- Base44 owns native IDs and system timestamps. The compatibility contract preserves their AWS values in ordinary
+  `auditflow_source_*` fields and never attempts to overwrite destination-owned fields.
+- Capability execution is two-phase around the external invitation acceptance. Phase one cleans business fixtures and
+  returns a pending result; phase two requires `--confirm-invitation-login`, proves retry/update/delete, and restores
+  the owner-only User baseline.
 
 ## Controlled rehearsal blockers
 
-- The selected Base44 create API assigns a new Client ID instead of preserving the AWS ID. Because public questionnaire
-  URLs contain the AWS Client ID, the existing ID-map/reference-rewrite mechanism cannot preserve those external links.
-- Base44 also assigns both system timestamps; the controlled probe records this separately from the ID blocker.
-- The probe stopped before invitation, pagination, and private-file gates, so those remain unproven rather than failed.
+- The public-link blocker is resolved by native-ID-first/source-alias-second Client lookup with the original token
+  validation unchanged.
+- Base44 private upload, signed read, and byte equality pass, but private-file deletion is rejected by both privileged
+  CLI and deployed-function paths. This blocks replay of reachable file deletions.
+- The invitation has not materialized as a second User because the disposable invited identity has not completed a
+  distinct login. The mandatory app owner must not be removed.
+- Failed deletion probes left unenumerable orphan files in the disposable target, so a fresh native dashboard clone is
+  required before another accepted matrix.
 - A dedicated invented baseline snapshot and rehearsal fixture remain required after an approved link-compatibility
-  design exists. No production-derived client data may be copied into the rehearsal clone.
+  target exists. No production-derived client data may be copied into the rehearsal clone.
 
 The protected target descriptor and private aggregate blocker evidence record this result. No maintenance bootstrap,
 guarded test deployment, AWS rehearsal fixture mutation, replay, committed verification evidence, or delivery-status
@@ -99,8 +122,8 @@ update occurred.
 - Node 20.17.0 clean `npm ci`: PASS; existing peer/engine/deprecation and 36 audit findings remain.
 - Application: PASS, 110 tests in 13 files.
 - PDF: PASS, 22 tests in 3 files.
-- Reverse replay: PASS, 31 tests in 3 files.
-- Foundation: PASS, 340 tests in 43 files.
+- Reverse replay: PASS, 36 tests in 4 files.
+- Foundation: PASS, 347 tests in 44 files.
 - Foundation typecheck and lint: PASS.
 - Production build: PASS. The first concurrent Windows build hit a transient `dist/assets` `ENOTEMPTY`; the immediate
   sequential rerun passed.
@@ -113,9 +136,10 @@ update occurred.
 
 ## Required handoff
 
-Before resuming task 15, approve and implement a public-link compatibility design that does not depend on Base44
-preserving caller-supplied Client IDs, then rerun the entire capability matrix from the verified owner-only baseline.
-Only after every capability passes should the owner provide the protected invented baseline/rehearsal fixture and
-authorize guarded deployment, maintenance closure, interrupted/resumed replay, zero-write rerun, zero-drift
-reconciliation, evidence read-back, and the separate abort/abandonment scenario. The current result blocks issues #14
-and #15.
+Before resuming task 15, create a fresh native dashboard clone, bind a distinct disposable invitation identity, apply
+the compatibility installer, and rerun the entire capability matrix from its verified owner-only baseline. The target
+must demonstrate an observable private-file delete; if the native clone also lacks it, Base44 platform support or a
+documented supported delete API is required and issues #14/#15 remain blocked. Only after every capability passes
+should the owner provide the protected invented baseline/rehearsal fixture and authorize guarded deployment,
+maintenance closure, interrupted/resumed replay, zero-write rerun, zero-drift reconciliation, evidence read-back, and
+the separate abort/abandonment scenario.

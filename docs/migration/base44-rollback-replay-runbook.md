@@ -34,9 +34,10 @@ Before any fixture write:
    Any additional row blocks fixture writes; a documented empty-clone expectation is not sufficient.
 5. Supply a disposable, observable, non-client invitation inbox and invented capability file in the protected fixture
    root. Never reconnect production notifications or integrations.
-6. Run the capability matrix. Exact caller-supplied Client ID preservation, create/update/delete visibility,
-   pagination, invitation/login equivalence, private upload/read/delete, and retry observability must all pass. Any
-   unsupported result blocks issues #14 and #15.
+6. Install and deploy the rollback compatibility fields/functions in the disposable clone. Then run the capability
+   matrix. Assigned-ID mapping, immutable source aliases/timestamps, public-link resolution, create/update/delete
+   visibility, pagination, invitation/login equivalence, private upload/read/delete, and retry observability must all
+   pass. Any unsupported result blocks issues #14 and #15.
 
 ## Local and contract validation
 
@@ -72,7 +73,16 @@ Read-only doctor and the controlled capability probe:
 
 ```powershell
 npm run reverse-replay -- doctor --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath
+npm run install:base44-rollback-compat -- --target-descriptor $targetDescriptorPath --apply --confirm-controlled-rehearsal
+$cloneRoot = (Get-Content $targetDescriptorPath -Raw | ConvertFrom-Json).local_paths.clone_root
+Push-Location $cloneRoot
+npx --yes base44@0.1.14 entities push
+npx --yes base44@0.1.14 functions deploy getClientByToken updateClientSubmission uploadFile getSignedPdfUrl getTemplateFileUrl
+Pop-Location
+npm run install:base44-rollback-compat -- --target-descriptor $targetDescriptorPath
 npm run reverse-replay -- capabilities --stage test --target-descriptor $targetDescriptorPath --fixture $capabilityFixturePath --confirm-controlled-rehearsal
+# After the invited user accepts the invitation and signs in:
+npm run reverse-replay -- capabilities --stage test --target-descriptor $targetDescriptorPath --fixture $capabilityFixturePath --confirm-controlled-rehearsal --confirm-invitation-login
 ```
 
 The capability fixture contains invented create/update records for the five ordinary entity surfaces, a second Client
@@ -81,13 +91,19 @@ capability command mutates only the approved owner-only clone, verifies each eff
 removes every disposable record and file, proves the target returned to its owner-only baseline, and stores aggregate
 results outside the repository. It stops if a business collection is nonempty, the owner baseline changes, an effect
 is unobservable, or cleanup is incomplete. Verify delivery/login at the disposable inbox before accepting the
-invitation gate; do not use a client address.
+invitation gate; do not use a client address. The first run may return `pending_invitation_acceptance` after cleaning
+all business records and files. Only the explicit second command accepts the activated invited User, proves retry and
+update behavior, deletes that disposable User, and writes the passing capability evidence.
 
-Current controlled-target result (2026-09-07): **BLOCKED**. Base44 accepted the invented Client fields but reassigned
-the caller-supplied entity ID plus `created_date` and `updated_date`. The residual invented Client was deleted by its
-observed destination ID and the owner-only baseline was read back. Do not bootstrap maintenance or continue the
-rehearsal until an approved link-compatibility design removes the dependency on preserved AWS Client IDs in public
-questionnaire URLs and the capability matrix passes from a clean owner-only baseline.
+Current controlled-target result (2026-09-07): **BLOCKED ON TARGET FIDELITY**. The approved compatibility design now
+stores the AWS ID and timestamps in ordinary immutable alias fields, records Base44-assigned IDs, rewrites references,
+and resolves public Client links by native ID then source alias without weakening token validation. Live entity CRUD,
+alias observation, assigned-ID mapping, pagination, private upload, signing, and byte-for-byte read passed. The
+invitation was sent but has not materialized as a distinct signed-in User. Base44 rejected private-file deletion both
+from privileged CLI execution and from a deployed backend-function probe; its current official Core integration
+reference documents private upload and signed read but no delete method. The owner-only entity baseline was restored,
+but the disposable clone's unenumerable file storage now contains probe orphans. Rebind to a fresh native dashboard
+clone and rerun; do not bootstrap maintenance until invitation/login and private-file deletion both pass.
 
 ## Exact start and maintenance boundary
 
