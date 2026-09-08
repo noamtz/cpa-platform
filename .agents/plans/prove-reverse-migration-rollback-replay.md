@@ -866,3 +866,10 @@ checkpoint patterns are mature; external Base44 write behavior is explicitly iso
   this target cannot produce accepted clean-state evidence. Rebind to a fresh native dashboard clone and require both
   distinct invitation/login and observable file deletion before maintenance bootstrap; otherwise obtain a supported
   Base44 deletion contract and keep issues #14/#15 blocked.
+- **2026-09-08 - disposable cleanup waiver:** The owner explicitly classified deletion of unreachable disposable
+  capability-probe resources as non-blocking for shipping. This supersedes the earlier requirement to replace the
+  clone solely because probe-file cleanup cannot be observed. The capability matrix must still prove private upload,
+  signed read, and byte equality, must restore the owner-only entity baseline, and must record whether best-effort blob
+  deletion was observed. This waiver does not weaken real rollback behavior: an encountered journaled file deletion
+  remains fail-closed unless the destination blob's absence is observed. Invitation/login and the controlled rehearsal
+  remain separate gates.

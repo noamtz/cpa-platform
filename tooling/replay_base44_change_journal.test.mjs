@@ -12,6 +12,7 @@ import {
   assertBaselineMatchesAws,
   assertAggregateEvidencePrivacy,
   assertBase44FileAbsent,
+  attemptDisposableFileCleanup,
   assertNoReplayWritesForAbandonment,
   buildAggregateEvidence,
   buildReplayPlan,
@@ -526,7 +527,20 @@ describe("controlled target capabilities", () => {
     ).rejects.toMatchObject({ category: "base44_file_delete_unobservable" });
   });
 
-  it("proves assigned-ID CRUD, two-phase invitation, pagination, and file round-trip", async () => {
+  it("treats disposable capability-file cleanup as best effort", async () => {
+    const bridge = {
+      request: vi.fn(async (request) => {
+        if (request.operation === "delete_file") throw new Error("unsupported");
+        throw new Error("unexpected bridge request");
+      }),
+    };
+
+    await expect(
+      attemptDisposableFileCleanup(bridge, "private/disposable-capability-file"),
+    ).resolves.toBe(false);
+  });
+
+  it("proves required capabilities when disposable file cleanup is unsupported", async () => {
     const { context } = replayScenario();
     const filePath = join(context.target.value.local_paths.fixture_root, "capability.bin");
     writeFileSync(filePath, "invented fixture");
@@ -596,8 +610,7 @@ describe("controlled target capabilities", () => {
           return { signed_url: "https://fixture.invalid" };
         }
         if (request.operation === "delete_file") {
-          storedFile = false;
-          return { result: { success: true } };
+          throw new Error("unsupported disposable cleanup");
         }
         throw new Error("unexpected bridge request");
       }),
@@ -646,7 +659,9 @@ describe("controlled target capabilities", () => {
     ).resolves.toMatchObject({
       status: "pending_invitation_acceptance",
       gates: {
-        privateUploadReadDeleteObserved: true,
+        privateUploadReadObserved: true,
+        disposableFileDeletionObserved: false,
+        disposableFileDeletionRequired: false,
       },
     });
     expect(records.User.size).toBe(2);
@@ -665,6 +680,9 @@ describe("controlled target capabilities", () => {
         assignedIdsMapped: true,
         sourceAliasesObserved: true,
         sourceTimestampsPreserved: true,
+        privateUploadReadObserved: true,
+        disposableFileDeletionObserved: false,
+        disposableFileDeletionRequired: false,
       },
     });
   });

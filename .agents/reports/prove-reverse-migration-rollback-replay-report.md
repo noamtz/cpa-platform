@@ -6,7 +6,7 @@
 
 **Tracker**: issue #12 under epic #1; issues #5, #6, #8, #10, and #11 revalidated closed
 
-**Status**: IMPLEMENTATION COMPLETE; CONTROLLED LIVE REHEARSAL BLOCKED
+**Status**: IMPLEMENTATION COMPLETE; CONTROLLED LIVE REHEARSAL PENDING
 
 ## Summary
 
@@ -24,13 +24,13 @@ original Client token check. A repeatable guarded installer applies this compati
 rehearsal clone.
 
 The expanded live matrix proved entity CRUD, assigned-ID/source-alias recovery, timestamp aliases, pagination, private
-upload, signing, and byte-for-byte read. It then failed closed because Base44 rejected private-file deletion. The same
-operation failed through privileged CLI execution and a temporary deployed backend-function probe; the official Core
-integration reference documents private upload and signed reads but no delete API. The invitation was sent but has not
-materialized as a distinct signed-in User. All business rows were cleaned and the mandatory owner-only User baseline
-was restored, but the disposable target now contains unenumerable probe-file orphans and must be replaced.
+upload, signing, and byte-for-byte read. Base44 rejected private-file deletion through privileged CLI execution and a
+temporary deployed backend-function probe; the official Core integration reference documents private upload and
+signed reads but no delete API. The owner explicitly accepted deletion of unreachable disposable probe blobs as
+best-effort, so those orphans no longer invalidate the target or block shipping. Real journaled file deletion remains
+fail-closed. The invitation was sent but has not materialized as a distinct signed-in User.
 
-This remains a target-fidelity blocker, not a successful rehearsal. Maintenance bootstrap, guarded deployment, AWS
+This remains a pending rehearsal, not a successful rehearsal. Maintenance bootstrap, guarded deployment, AWS
 fixture mutation, replay, and evidence generation were not attempted. `AGENTS.md` was intentionally not advanced.
 
 ## Implementation
@@ -76,8 +76,8 @@ fixture mutation, replay, and evidence generation were not attempted. `AGENTS.md
 
 - Tasks 1 and 3–14: complete locally.
 - Task 2: the assigned-ID/system-timestamp incompatibility is resolved through source aliases and public-link
-  resolution. Live capability execution now blocks on unsupported private-file deletion and a still-unaccepted
-  disposable invitation.
+  resolution. Unsupported disposable probe-file cleanup is an owner-accepted non-blocking limitation; live capability
+  execution still awaits acceptance of the disposable invitation.
 - Task 15: not executed because the controlled rehearsal prerequisites fail closed.
 - Task 16: this report records the result; committed evidence and migration-status changes remain intentionally pending
   until an accepted rehearsal.
@@ -100,16 +100,17 @@ fixture mutation, replay, and evidence generation were not attempted. `AGENTS.md
   returns a pending result; phase two requires `--confirm-invitation-login`, proves retry/update/delete, and restores
   the owner-only User baseline.
 
-## Controlled rehearsal blockers
+## Controlled rehearsal prerequisites
 
 - The public-link blocker is resolved by native-ID-first/source-alias-second Client lookup with the original token
   validation unchanged.
-- Base44 private upload, signed read, and byte equality pass, but private-file deletion is rejected by both privileged
-  CLI and deployed-function paths. This blocks replay of reachable file deletions.
+- Base44 private upload, signed read, and byte equality pass. Deletion is rejected by both privileged CLI and
+  deployed-function paths, but cleanup of unreachable disposable probe blobs is best effort by explicit owner waiver.
+  Real journaled file deletions remain fail-closed and are not covered by this waiver.
 - The invitation has not materialized as a second User because the disposable invited identity has not completed a
   distinct login. The mandatory app owner must not be removed.
-- Failed deletion probes left unenumerable orphan files in the disposable target, so a fresh native dashboard clone is
-  required before another accepted matrix.
+- Failed deletion probes left unenumerable orphan files in the disposable target; they are accepted disposable residue
+  and no longer require a fresh native dashboard clone.
 - A dedicated invented baseline snapshot and rehearsal fixture remain required after an approved link-compatibility
   target exists. No production-derived client data may be copied into the rehearsal clone.
 
@@ -122,7 +123,7 @@ update occurred.
 - Node 20.17.0 clean `npm ci`: PASS; existing peer/engine/deprecation and 36 audit findings remain.
 - Application: PASS, 110 tests in 13 files.
 - PDF: PASS, 22 tests in 3 files.
-- Reverse replay: PASS, 36 tests in 4 files.
+- Reverse replay: PASS, 37 tests in 4 files.
 - Foundation: PASS, 347 tests in 44 files.
 - Foundation typecheck and lint: PASS.
 - Production build: PASS. The first concurrent Windows build hit a transient `dist/assets` `ENOTEMPTY`; the immediate
@@ -136,10 +137,9 @@ update occurred.
 
 ## Required handoff
 
-Before resuming task 15, create a fresh native dashboard clone, bind a distinct disposable invitation identity, apply
-the compatibility installer, and rerun the entire capability matrix from its verified owner-only baseline. The target
-must demonstrate an observable private-file delete; if the native clone also lacks it, Base44 platform support or a
-documented supported delete API is required and issues #14/#15 remain blocked. Only after every capability passes
+Before resuming task 15, complete the distinct disposable invitation login and rerun the capability matrix from its
+verified owner-only entity baseline. Observable cleanup of the unreachable capability-probe blob is not required; the
+evidence records whether it succeeded. Only after every required capability passes
 should the owner provide the protected invented baseline/rehearsal fixture and authorize guarded deployment,
 maintenance closure, interrupted/resumed replay, zero-write rerun, zero-drift reconciliation, evidence read-back, and
 the separate abort/abandonment scenario.

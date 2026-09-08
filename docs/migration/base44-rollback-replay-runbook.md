@@ -88,22 +88,26 @@ npm run reverse-replay -- capabilities --stage test --target-descriptor $targetD
 The capability fixture contains invented create/update records for the five ordinary entity surfaces, a second Client
 record for forced one-row pagination, a disposable invitation address plus User update, and a private binary path. The
 capability command mutates only the approved owner-only clone, verifies each effect across all six entity surfaces,
-removes every disposable record and file, proves the target returned to its owner-only baseline, and stores aggregate
-results outside the repository. It stops if a business collection is nonempty, the owner baseline changes, an effect
-is unobservable, or cleanup is incomplete. Verify delivery/login at the disposable inbox before accepting the
-invitation gate; do not use a client address. The first run may return `pending_invitation_acceptance` after cleaning
-all business records and files. Only the explicit second command accepts the activated invited User, proves retry and
-update behavior, deletes that disposable User, and writes the passing capability evidence.
+removes every disposable record, attempts best-effort cleanup of the unreachable probe file, proves the target returned
+to its owner-only entity baseline, and stores aggregate results outside the repository. It stops if a business
+collection is nonempty, the owner baseline changes, or a required business effect is unobservable. Failure to delete
+the disposable probe blob is recorded as `disposableFileDeletionObserved: false` but is not a shipping blocker. Verify
+delivery/login at the disposable inbox before accepting the invitation gate; do not use a client address. The first
+run may return `pending_invitation_acceptance` after cleaning all business records and attempting best-effort
+probe-file cleanup. Only the explicit second command accepts the activated invited User, proves retry and update
+behavior, deletes that disposable User, and writes the passing capability evidence.
 
-Current controlled-target result (2026-09-07): **BLOCKED ON TARGET FIDELITY**. The approved compatibility design now
+Current controlled-target result (updated 2026-09-08): **PENDING INVITATION ACCEPTANCE**. The approved compatibility
+design now
 stores the AWS ID and timestamps in ordinary immutable alias fields, records Base44-assigned IDs, rewrites references,
 and resolves public Client links by native ID then source alias without weakening token validation. Live entity CRUD,
 alias observation, assigned-ID mapping, pagination, private upload, signing, and byte-for-byte read passed. The
 invitation was sent but has not materialized as a distinct signed-in User. Base44 rejected private-file deletion both
 from privileged CLI execution and from a deployed backend-function probe; its current official Core integration
-reference documents private upload and signed read but no delete method. The owner-only entity baseline was restored,
-but the disposable clone's unenumerable file storage now contains probe orphans. Rebind to a fresh native dashboard
-clone and rerun; do not bootstrap maintenance until invitation/login and private-file deletion both pass.
+reference documents private upload and signed read but no delete method. By owner decision, cleanup of unreachable
+disposable probe blobs is best effort and does not require a fresh clone. This waiver does not change real replay
+semantics: a journaled file deletion remains fail-closed unless absence is observed. Do not bootstrap maintenance
+until the invitation/login gate passes.
 
 ## Exact start and maintenance boundary
 

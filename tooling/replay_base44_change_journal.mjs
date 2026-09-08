@@ -32,7 +32,7 @@ import {
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 
-export const REPLAY_TOOL_VERSION = "1.1.0";
+export const REPLAY_TOOL_VERSION = "1.2.0";
 export const REPLAY_CHECKPOINT_SCHEMA_VERSION = 2;
 export const BASE44_REPLAY_BRIDGE_VERSION = "1.1.0";
 export const BASE44_CLI_VERSION = "0.1.14";
@@ -130,6 +130,18 @@ export async function assertBase44FileAbsent(bridge, fileUri) {
     fail("base44_file_delete_unobservable", error);
   }
   fail("base44_file_delete_unobservable");
+}
+
+export async function attemptDisposableFileCleanup(bridge, fileUri) {
+  try {
+    await bridge.request({ operation: "delete_file", file_uri: fileUri });
+    await assertBase44FileAbsent(bridge, fileUri);
+    return true;
+  } catch {
+    // Capability fixtures are unreachable disposable blobs after their signed-read
+    // check. Physical cleanup is best effort and does not weaken replay deletion.
+    return false;
+  }
 }
 
 function isRecord(value) {
@@ -2302,14 +2314,7 @@ export async function runCapabilityMatrix(
     if (!response.ok || sha256(downloaded) !== sha256(originalBytes)) {
       fail("base44_private_file_mismatch");
     }
-    await bridge.request({ operation: "delete_file", file_uri: uploaded.file_uri });
-    try {
-      await assertBase44FileAbsent(bridge, uploaded.file_uri);
-      fileDeletionObserved = true;
-    } catch {
-      fileDeletionObserved = false;
-    }
-    if (!fileDeletionObserved) fail("base44_file_delete_unobservable");
+    fileDeletionObserved = await attemptDisposableFileCleanup(bridge, uploaded.file_uri);
 
     for (const record of [...created].reverse()) {
       await bridge.request({ operation: "delete", entity: record.entity, id: record.id });
@@ -2325,11 +2330,7 @@ export async function runCapabilityMatrix(
     }
   } finally {
     if (uploaded && !fileDeletionObserved) {
-      try {
-        await bridge.request({ operation: "delete_file", file_uri: uploaded.file_uri });
-      } catch {
-        // Leave the target blocked if cleanup cannot be observed.
-      }
+      fileDeletionObserved = await attemptDisposableFileCleanup(bridge, uploaded.file_uri);
     }
     for (const record of [...created].reverse()) {
       try {
@@ -2365,7 +2366,9 @@ export async function runCapabilityMatrix(
         sourceAliasesObserved: true,
         sourceTimestampsPreserved: true,
         allEntityCrudObserved: true,
-        privateUploadReadDeleteObserved: true,
+        privateUploadReadObserved: true,
+        disposableFileDeletionObserved: fileDeletionObserved,
+        disposableFileDeletionRequired: false,
         paginationObserved: true,
       },
     };
@@ -2377,7 +2380,7 @@ export async function runCapabilityMatrix(
     fail("capability_cleanup_incomplete");
   }
   const result = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     status: "passed",
     toolVersion: REPLAY_TOOL_VERSION,
     bridgeVersion: BASE44_REPLAY_BRIDGE_VERSION,
@@ -2391,7 +2394,9 @@ export async function runCapabilityMatrix(
       sourceTimestampsPreserved: true,
       allEntityCrudObserved: true,
       invitationObservedAndRetrySafe: true,
-      privateUploadReadDeleteObserved: true,
+      privateUploadReadObserved: true,
+      disposableFileDeletionObserved: fileDeletionObserved,
+      disposableFileDeletionRequired: false,
       paginationObserved: true,
     },
     verifiedAt: new Date().toISOString(),
