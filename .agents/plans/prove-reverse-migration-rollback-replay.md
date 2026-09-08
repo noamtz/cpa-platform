@@ -692,87 +692,83 @@ reconcile, zero-write rerun, and render evidence. Exercise `abort-replay` plus s
 
 ```powershell
 $targetDescriptorPath = 'C:\Users\ntzur\Documents\Codex\AuditFlow\rollback-replay\rehearsal-target.json'
-npm run reverse-replay -- capabilities --stage test --target-descriptor $targetDescriptorPath --confirm-controlled-rehearsal
+npm run reverse-replay -- capabilities --stage test --target-descriptor $targetDescriptorPath --confirm-controlled-rehearsal --waive-invitation-verification
+npm run provision:isolated-rehearsal -- --artifact-root $artifactRoot --outputs $outputsPath
 npm run reverse-replay -- maintenance-bootstrap --stage test --target-descriptor $targetDescriptorPath --outputs $outputsPath --confirm-controlled-rehearsal
 npm run reverse-replay -- mark-cutover-start --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --confirm-controlled-rehearsal
 npm run reverse-replay -- rehearsal-fixtures --stage test --target-descriptor $targetDescriptorPath --fixture $rehearsalFixturePath --outputs $outputsPath --confirm-controlled-rehearsal
 npm run reverse-replay -- maintenance-close --stage test --target-descriptor $targetDescriptorPath --outputs $outputsPath --confirm-controlled-rehearsal
 npm run reverse-replay -- maintenance-status --stage test --target-descriptor $targetDescriptorPath --outputs $outputsPath
 npm run reverse-replay -- plan --dry-run --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath
-npm run reverse-replay -- replay --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --confirm-controlled-rehearsal
-# Interrupt only after durable progress, then resume the exact bound run.
+npm run reverse-replay -- replay --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --pause-after-operations 1 --confirm-controlled-rehearsal
+# The test-only pause exits after durable progress; resume the exact bound run.
 npm run reverse-replay -- replay --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --resume --confirm-controlled-rehearsal
-npm run reverse-replay -- reconcile --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath
+npm run reverse-replay -- reconcile --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --confirm-controlled-rehearsal
 npm run reverse-replay -- replay --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --resume --confirm-controlled-rehearsal
 npm run reverse-replay -- evidence --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --output docs/migration/base44-reverse-replay-verification.json
+npm run reverse-replay -- successful-rollback --stage test --target-descriptor $targetDescriptorPath --outputs $outputsPath --confirm-controlled-rehearsal
 ```
 
 ---
 
 ## ACCEPTANCE CRITERIA
 
-- [ ] **AC 1 — Complete coverage:** Every reachable AWS mutation has a tested explicit mapping, including invitation
+- [x] **AC 1 — Complete coverage:** Every reachable AWS mutation has a tested explicit mapping, including invitation
   and reference changes, or is a release blocker. Unknown future combinations fail closed.
-- [ ] **AC 2 — Ordered/resumable/idempotent:** The reconciled baseline cursor/hash is atomically bound to an exact
+- [x] **AC 2 — Ordered/resumable/idempotent:** The reconciled baseline cursor/hash is atomically bound to an exact
   contiguous range; generation fencing prevents boundary races; complete logical operations replay in order, exact
   state resumes, ambiguous results are observed, and completed rerun writes zero.
-- [ ] **AC 3 — Files:** Additions/replacements/relevant versioned deletions copy exact bytes, persist URI maps, rewrite
+- [x] **AC 3 — Files:** Additions/replacements/relevant versioned deletions copy exact bytes, persist URI maps, rewrite
   all pointers, protect shared refs, and reconcile count/size/hash. ZIP artifacts are explicitly excluded.
-- [ ] **AC 4 — Rehearsal:** Controlled isolated Base44 demonstrates record create/update, file create/replace/delete,
+- [x] **AC 4 — Rehearsal:** Controlled isolated Base44 demonstrates record create/update, file create/replace,
   interruption/resume, ordered convergence, zero-write rerun, and zero-drift reconciliation with invented fixtures.
-- [ ] **AC 5 — Privacy:** Dry-run makes zero AWS/Base44 mutations and its protected outside-repository artifact clearly
+  Live invitation and disposable file deletion are omitted under the recorded owner waivers; their real replay paths
+  remain fail-closed and covered by adapter tests.
+- [x] **AC 5 — Privacy:** Dry-run makes zero AWS/Base44 mutations and its protected outside-repository artifact clearly
   lists affected entity IDs/files without client record values or file contents. Terminal output and committed evidence
   remain aggregate/redacted and contain no PII, raw IDs, tokens, URLs/URIs, paths, filenames, credentials, snapshots,
   checkpoint/resource details.
-- [ ] **AC 6 — Runbook:** Names who enables/communicates maintenance, exact start/end, external activity/presign/ZIP
+- [x] **AC 6 — Runbook:** Names who enables/communicates maintenance, exact start/end, external activity/presign/ZIP
   drain, validation, DNS prerequisite, terminal successful rollback, and abandonment-only
   abort-replay/resume-aws-writes behavior.
-- [ ] **AC 7 — Fail closed:** Dependency/capability/control/range/hash/journal/mapping/file/Base44/checkpoint/privacy/
+- [x] **AC 7 — Fail closed:** Dependency/capability/control/range/hash/journal/mapping/file/Base44/checkpoint/privacy/
   reconciliation failure stops replay and blocks #14/#15. After replay starts, maintenance remains until owner action.
-- [ ] Application runtime stays AWS-only; exporter stays read-only; no runtime dual-write exists.
-- [ ] Focused/full validation has no new regression beyond the documented inherited frontend baseline.
+- [x] Application runtime stays AWS-only; exporter stays read-only; no runtime dual-write exists.
+- [x] Focused/full validation has no new regression beyond the documented inherited frontend baseline.
 
 ---
 
 ## COMPLETION CHECKLIST
 
-- [ ] Issue/epic/Wiki/dependencies/evidence revalidated; implementation branch created.
-- [ ] Controlled Base44 capability matrix passed or blockers recorded.
-- [ ] Provisioned clone is private, exact-source fingerprinted, live-enumerated empty, and the mismatched extra clone is
+- [x] Issue/epic/Wiki/dependencies/evidence revalidated; implementation branch created.
+- [x] Controlled Base44 capability matrix passed or blockers recorded.
+- [x] Provisioned clone is private, exact-source fingerprinted, live-enumerated empty, and the mismatched extra clone is
   removed before rehearsal.
-- [ ] Maintenance generation condition covers every business transaction and side-effecting route.
-- [ ] Upload drain/orphan and ZIP quiescence proven.
-- [ ] Journal groups/hashes reconstruct from exact baseline.
-- [ ] Coverage registry includes core/public/file/CPA/template/user paths.
-- [ ] Entity/invitation/file/JSON/deletion maps are durable and tested.
-- [ ] Every crash window resumes without double-applying reachable state.
-- [ ] Private dry-run lists affected IDs/files without contents; terminal/evidence privacy checks pass.
-- [ ] Runbook defines authority, boundaries, validation, abort-replay, resume-aws-writes, and DNS prohibition.
-- [ ] Node 20.17.0 validation passes.
-- [ ] Authorized controlled rehearsal, interruption/resume, zero-write rerun, reconciliation/evidence read-back pass.
-- [ ] Production AWS/Base44/DNS/Terraform remain untouched.
-- [ ] Report/status state proven result and blockers honestly.
+- [x] Maintenance generation condition covers every business transaction and side-effecting route.
+- [x] Upload drain/orphan and ZIP quiescence proven.
+- [x] Journal groups/hashes reconstruct from exact baseline.
+- [x] Coverage registry includes core/public/file/CPA/template/user paths.
+- [x] Entity/invitation/file/JSON/deletion maps are durable and tested.
+- [x] Every crash window resumes without double-applying reachable state.
+- [x] Private dry-run lists affected IDs/files without contents; terminal/evidence privacy checks pass.
+- [x] Runbook defines authority, boundaries, validation, abort-replay, resume-aws-writes, and DNS prohibition.
+- [x] Node 20.17.0 validation passes.
+- [x] Authorized controlled rehearsal, interruption/resume, zero-write rerun, reconciliation/evidence read-back pass.
+- [x] Production AWS/Base44/DNS/Terraform remain untouched.
+- [x] Report/status state proven result and blockers honestly.
 
 ---
 
-## OPEN QUESTIONS / ASSUMPTIONS
+## RESOLVED QUESTIONS / ASSUMPTIONS
 
-- **Critical — Base44-assigned IDs:** Docs do not prove callers can preserve `id`/timestamps. An internal ID map handles
-  relationships but cannot preserve a questionnaire URL already containing a new AWS Client ID. The probe must prove
-  preservation or cutover is blocked absent an approved link-compatibility architecture.
-- **Critical — User invitation:** AWS User creation follows Cognito invitation. Base44 row creation alone does not
-  restore login. Prove/reconcile `users.inviteUser` or block cutover while post-cutover invitations are possible.
-- **Critical — files:** Docs establish private upload/signed read but not enumeration/idempotency/delete/recovery/hash.
-  Source evidences `DeleteFile`; the controlled probe must prove actual behavior. An unobservable ambiguous upload is a
-  blocker, not nominal idempotence.
-- **Clone readiness:** The correct private clone exists and matches the source inventory, but live empty-state read-back
-  is still blocked by the current CLI `exec`/Deno resolution failure. Fixing the supported bridge and proving six empty
-  entity enumerations is mandatory before the first fixture write.
-- **Clone fidelity:** Base44 says CLI backend projects are not app-editor-integrated. The ejected target is acceptable
-  only if the controlled capability matrix proves the rollback-critical entity, invitation/login, and private-file
-  semantics. Otherwise use a native dashboard clone; this does not authorize production access.
-- **Invitation inbox:** A disposable non-client address with observable delivery/login remains a required owner-provided
-  rehearsal input. Its value belongs only in the protected descriptor/operator environment, never this plan or logs.
+- **Base44-assigned IDs:** Base44 owns IDs/timestamps. Immutable source aliases, destination ID checkpoints, reference
+  rewriting, and native-ID/source-alias public lookup passed the controlled capability and replay gates.
+- **User invitation:** The owner explicitly waived live invitation/login proof. The invented journal contains no
+  invitation, while actual invitation replay remains fail-closed and adapter-tested.
+- **Files:** Private upload, signed read, byte equality, mapping, pointer replacement, and reconciliation passed.
+  Disposable target-file cleanup is best effort by owner waiver; real journaled deletion remains fail-closed.
+- **Clone readiness/fidelity:** The private target matched the pinned inventory, enumerated owner-only before every
+  accepted run, and passed the waiver-bound capability matrix. Production integrations remained disconnected.
 - **Legacy notification automation:** `notifySubmissionCompleted` does not deploy into a Workflows-enabled clone. It
   carries no rollback record/file state and production integrations must not be reconnected for rehearsal; document the
   exclusion in capability evidence rather than weakening the core mutation/file proof.
@@ -886,3 +882,10 @@ checkpoint patterns are mature; external Base44 write behavior is explicitly iso
   successful CRUD, assigned-ID/source-alias/timestamp mapping, pagination, private upload/read/byte equality, best-effort
   deletion not observed/not required, and invitation verification waived/not required. The controlled rollback/replay
   rehearsal is now gated only by an isolated invented AWS baseline/fixture and execution of Task 15.
+- **2026-09-08 - controlled rehearsal accepted:** Task 15 passed on fresh, tagged AWS resources containing only invented
+  data. Two precursor runs failed closed and were aborted without bypassing checkpoint bindings; they exposed and fixed
+  direct native-ID probing for newly created AWS records and projection of Base44-owned `created_by`. The accepted run
+  closed after the 15-minute drain, bound 9 entries/8 operations, deliberately paused after one durable checkpoint,
+  resumed to 9 total writes, reconciled twice at zero drift, reran with zero writes, emitted aggregate-only evidence,
+  and terminalized as `ROLLED_BACK`. A distinct no-write run also proved abort-preserved maintenance and guarded
+  abandonment reopen. Production AWS, Base44, DNS, and Terraform remained untouched.

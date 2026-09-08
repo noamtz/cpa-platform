@@ -68,8 +68,12 @@ Evidence paths below are relative to this repository. The external production-so
   and selected deterministic active-guard winners without deleting duplicate source submissions. Issue #11's runtime
   changes are deployed to the test stage; protected manifest-bound enablement, imported public read/file acceptance,
   rollback disablement, and re-enablement are verified. Legacy reads are currently enabled only for reconciled,
-  per-record-bound references. Broader data seeding, every production action, and deployment beyond already
-  authorized issue paths still require explicit authorization.
+  per-record-bound references. Issue #12's isolated invented-data reverse-replay rehearsal passed: maintenance close,
+  deterministic interruption/resume, ordered record/file convergence, zero-write rerun, zero-drift reconciliation,
+  aggregate-only evidence, terminal rollback, and a distinct zero-write abort/abandonment path were observed. Live
+  invitation/login verification and disposable Base44 probe-file deletion were explicitly waived for shipping; their
+  real replay paths remain fail-closed. Production AWS, Base44, DNS, and Terraform were untouched. Broader data seeding,
+  every production action, and deployment beyond already authorized issue paths still require explicit authorization.
 - **Source integrity:** Make rewrite changes here; treat `C:\Users\ntzur\workspace-antigravity\auditflow` as read-only unless the user explicitly requests changes there. Reproduce and verify the imported baseline through `tooling/import_auditflow_source.py` and `docs/migration/auditflow-source-manifest.json`. Evidence: rewrite/input boundary in `.agents/references/auditflow-rewrite-target.md`.
 - **Parity:** Add evidence before replacing behavior, and keep the working Base44 path until its AWS replacement has verified parity and a rollback-safe cutover. Evidence: rewrite-workspace `.agents/references/auditflow-rewrite-target.md` and source `.agents/AGENTS.md`.
 - **Git:** Use feature branches for major work, reserve direct `main` changes for hotfixes, and prefix commits with `feat:`, `fix:`, `refactor:`, `infra:`, `test:`, or `docs:`. Evidence: source `.agents/AGENTS.md` and this repository's accepted documentation history.

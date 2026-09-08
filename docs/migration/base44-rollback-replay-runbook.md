@@ -32,12 +32,14 @@ Before any fixture write:
 4. Run live enumeration of all six entities. The five business collections must be zero and `User` must contain
    exactly one identified app-owner row with an administrator role. Base44 does not permit removing the app owner.
    Any additional row blocks fixture writes; a documented empty-clone expectation is not sufficient.
-5. Supply a disposable, observable, non-client invitation inbox and invented capability file in the protected fixture
-   root. Never reconnect production notifications or integrations.
+5. Supply an invented capability file in the protected fixture root. Supply a disposable, observable, non-client
+   invitation inbox unless the owner explicitly waives live invitation verification. Never reconnect production
+   notifications or integrations.
 6. Install and deploy the rollback compatibility fields/functions in the disposable clone. Then run the capability
    matrix. Assigned-ID mapping, immutable source aliases/timestamps, public-link resolution, create/update/delete
-   visibility, pagination, invitation/login equivalence, private upload/read/delete, and retry observability must all
-   pass. Any unsupported result blocks issues #14 and #15.
+   visibility, pagination, private upload/read, and retry observability must pass. Invitation/login and disposable
+   probe-file cleanup may be omitted only under the recorded owner waivers; real replay remains fail-closed for those
+   operations. Any other unsupported result blocks issues #14 and #15.
 
 ## Local and contract validation
 
@@ -66,7 +68,16 @@ $targetDescriptorPath = 'C:\Users\ntzur\Documents\Codex\AuditFlow\rollback-repla
 $snapshotPath = '<absolute protected invented snapshot directory>'
 $capabilityFixturePath = '<absolute protected capability fixture file>'
 $rehearsalFixturePath = '<absolute protected invented fixture file>'
-$outputsPath = '.sst/outputs.json'
+$artifactRoot = '<absolute protected isolated rehearsal root>'
+$outputsPath = '.sst/rehearsal-outputs.json'
+```
+
+Provision isolated, tagged test resources before the rehearsal. This writes no production-derived data and refuses
+to use an artifact root inside the repository. A distinct `--outputs` file and artifact root are required for a
+second abort/abandonment scenario.
+
+```powershell
+npm run provision:isolated-rehearsal -- --artifact-root $artifactRoot --outputs $outputsPath
 ```
 
 Read-only doctor and the controlled capability probe:
@@ -162,10 +173,11 @@ plan lists exact affected entity and file identifiers but no client values or co
 
 ```powershell
 npm run reverse-replay -- plan --dry-run --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath
-npm run reverse-replay -- replay --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --confirm-controlled-rehearsal
+npm run reverse-replay -- replay --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --pause-after-operations 1 --confirm-controlled-rehearsal
 ```
 
-Interrupt only after at least one durable operation receipt. Resume the exact immutable binding:
+The test-only pause flag exits with code `2` immediately after the requested number of durable operation receipts.
+Resume the exact immutable binding:
 
 ```powershell
 npm run reverse-replay -- replay --stage test --target-descriptor $targetDescriptorPath --snapshot $snapshotPath --outputs $outputsPath --resume --confirm-controlled-rehearsal
@@ -210,8 +222,16 @@ For an actual successful rollback, do not run `resume-aws-writes`. After accepte
 the control as `ROLLED_BACK`; AWS remains write-disabled:
 
 ```powershell
+npm run reverse-replay -- successful-rollback --stage test --target-descriptor $targetDescriptorPath --outputs $outputsPath --confirm-controlled-rehearsal
+# Production requires a new, explicit owner authorization:
 npm run reverse-replay -- successful-rollback --stage production --target-descriptor <owner-approved-production-descriptor> --outputs $outputsPath --confirm-actual-rollback
 ```
+
+Current controlled result (2026-09-08): **PASSED**. The invented range contained 9 entries in 8 logical operations,
+replay resumed after one durable checkpoint, total destination writes were 9, the completed rerun wrote zero,
+reconciliation reported zero missing/extra/drift, aggregate evidence reported zero blockers, and the control read back
+as terminal `ROLLED_BACK`. A distinct zero-write scenario also passed abort-preserved maintenance and guarded
+abandonment reopen. Production remained untouched.
 
 Only issue #15 may then restore DNS to Base44, after the owner verifies Base44 is authoritative and communicates the end
 of maintenance. Never reopen AWS writes after DNS points users to Base44. Any capability, range, journal, hash, mapping,

@@ -6,7 +6,7 @@
 
 **Tracker**: issue #12 under epic #1; issues #5, #6, #8, #10, and #11 revalidated closed
 
-**Status**: IMPLEMENTATION COMPLETE; CONTROLLED LIVE REHEARSAL READY
+**Status**: COMPLETE; CONTROLLED LIVE REHEARSAL PASSED
 
 ## Summary
 
@@ -33,8 +33,13 @@ that live capability proof so the controlled rehearsal can proceed without a sec
 matrix then passed live, restored the owner-only entity baseline, and wrote protected capability evidence. Actual replay
 still fails closed if an encountered invitation cannot be observed and converged.
 
-This remains a ready but not yet successful rehearsal. Maintenance bootstrap, guarded deployment, AWS
-fixture mutation, replay, and evidence generation were not attempted. `AGENTS.md` was intentionally not advanced.
+The owner-authorized controlled rehearsal passed on isolated, tagged AWS test resources containing only invented
+data. The immutable range contained 9 entries in 8 logical operation groups. Replay deliberately paused after its
+first durable checkpoint, resumed to 9 total destination writes, reconciled with zero missing/extra/drifted records
+or files, and reran with zero writes. Aggregate-only evidence was generated and the isolated control terminalized as
+`ROLLED_BACK`; AWS writes remain disabled for that run. A distinct no-write scenario also proved that `abort-replay`
+preserves maintenance and that abandonment reopens AWS only after the explicit zero-write check. Production AWS,
+Base44, DNS, and Terraform were not touched.
 
 ## Implementation
 
@@ -63,6 +68,14 @@ fixture mutation, replay, and evidence generation were not attempted. `AGENTS.md
   rechecks the exact maintenance run/generation/range, allowing safe interruption/resume while making abort fail closed.
 - Added destination-observed idempotence for ambiguous results. Private file deletion counts as observed only after an
   explicit Base44 `404` or `410`; timeouts and other bridge failures remain blockers.
+- Added a test-only operator pause flag that exits only after a durable operation receipt, making the interruption
+  proof deterministic instead of relying on process timing.
+- Corrected create observation to use the immutable source alias rather than probing an unassigned AWS ID through
+  Base44's native-ID filter, and excluded AWS `created_by` because Base44 owns that audit field. Both cases are covered
+  by replay projection/resume tests.
+- Added a resumable isolated-rehearsal provisioner for seven tagged on-demand DynamoDB tables, a private versioned S3
+  bucket, an empty manifest-bound snapshot, and invented no-invitation/no-delete fixtures. Protected resource bindings
+  stay outside version control.
 - Added read-only dry-run output outside the repository, aggregate-only privacy-validated evidence generation, strict
   production confirmation separation, and operator commands for bootstrap, start, close, status, replay, reconcile,
   abort, abandonment reopen, and terminal rollback.
@@ -78,13 +91,13 @@ fixture mutation, replay, and evidence generation were not attempted. `AGENTS.md
 
 ## Task status
 
-- Tasks 1 and 3–14: complete locally.
-- Task 2: complete. The assigned-ID/system-timestamp incompatibility is resolved through source aliases and public-link
-  resolution. Unsupported disposable probe-file cleanup and live invitation verification are explicit owner-accepted
-  limitations recorded by passing protected capability evidence without weakening real replay failure handling.
-- Task 15: not executed because the controlled rehearsal prerequisites fail closed.
-- Task 16: this report records the result; committed evidence and migration-status changes remain intentionally pending
-  until an accepted rehearsal.
+- Tasks 1-16: complete.
+- Task 2's assigned-ID/system-timestamp incompatibility is resolved through source aliases and public-link resolution.
+  Unsupported disposable probe-file cleanup and live invitation verification are explicit owner-accepted limitations
+  recorded by passing protected capability evidence without weakening real replay failure handling.
+- Task 15 passed with invented fixtures on isolated AWS resources: boundary close, deterministic interruption/resume,
+  zero-write rerun, zero-drift reconciliation, aggregate evidence, terminal rollback, and the distinct no-write
+  abort/abandonment path were all observed live.
 
 ## Plan amendments and implementation decisions
 
@@ -104,24 +117,26 @@ fixture mutation, replay, and evidence generation were not attempted. `AGENTS.md
   returns a pending result; phase two requires `--confirm-invitation-login`, proves retry/update/delete, and restores
   the owner-only User baseline.
 
-## Controlled rehearsal prerequisites
+## Controlled rehearsal result
 
-- The public-link blocker is resolved by native-ID-first/source-alias-second Client lookup with the original token
+- The public-link blocker remains resolved by native-ID-first/source-alias-second Client lookup with the original token
   validation unchanged.
-- Base44 private upload, signed read, and byte equality pass. Deletion is rejected by both privileged CLI and
-  deployed-function paths, but cleanup of unreachable disposable probe blobs is best effort by explicit owner waiver.
-  Real journaled file deletions remain fail-closed and are not covered by this waiver.
-- The invitation did not materialize as a second User. The owner waived this live proof for shipping; the mandatory app
-  owner remains the sole baseline User and must not be removed.
-- Failed deletion probes left unenumerable orphan files in the disposable target; they are accepted disposable residue
-  and no longer require a fresh native dashboard clone.
-- A dedicated invented AWS baseline snapshot and rehearsal fixture remain required. The current test tables contain the
-  accepted issue #11 production-derived import, which must not be copied into the empty rehearsal clone or destroyed to
-  manufacture an empty baseline.
-
-The protected target descriptor and private aggregate blocker evidence record this result. No maintenance bootstrap,
-guarded test deployment, AWS rehearsal fixture mutation, replay, committed verification evidence, or delivery-status
-update occurred.
+- Base44 private upload, signed read, and byte equality passed. Deletion of unreachable disposable probe blobs and live
+  invitation/login verification were omitted under the owner's explicit waivers. The journal contained neither
+  operation; real replay still fails closed if either is encountered and cannot be observed.
+- The mandatory app owner remained the sole baseline User. No production-derived test-table row was copied or deleted;
+  all rehearsal AWS state lived in separately provisioned, tagged resources and all fixture values were invented.
+- The main range closed only after the required 15-minute presigned-upload drain and quiescence/orphan checks. Dry-run
+  reported 9 mutations across 8 logical operations and 2 files without printing protected identifiers or values.
+- A first isolated attempt exposed an unsafe direct native-ID probe for new AWS IDs and was aborted in maintenance. A
+  second exposed Base44 ownership of `created_by`, was also aborted, and its single invented Client was removed. Neither
+  checkpoint was bypassed. The corrected final run started from a newly enumerated owner-only target and fresh isolated
+  AWS resources.
+- Final replay paused after one durable checkpoint, resumed through all 8 operations, independently reconciled at zero
+  missing/extra/drift, reran with zero writes, reconciled again, generated aggregate-only evidence, and terminalized as
+  `ROLLED_BACK` with AWS writes disabled.
+- A distinct zero-write scenario proved `abort-replay` leaves maintenance active and `resume-aws-writes` reopens only
+  after the explicit abandonment confirmation, zero receipt/checkpoint proof, and owner-only Base44 enumeration.
 
 ## Validation
 
@@ -129,7 +144,7 @@ update occurred.
 - Application: PASS, 110 tests in 13 files.
 - PDF: PASS, 22 tests in 3 files.
 - Reverse replay: PASS, 38 tests in 4 files.
-- Foundation: PASS, 347 tests in 44 files.
+- Foundation: PASS, 349 tests in 44 files.
 - Foundation typecheck and lint: PASS.
 - Production build: PASS. The first concurrent Windows build hit a transient `dist/assets` `ENOTEMPTY`; the immediate
   sequential rerun passed.
@@ -142,7 +157,5 @@ update occurred.
 
 ## Required handoff
 
-Before resuming task 15, prepare the protected invented baseline/rehearsal fixture and proceed with guarded deployment,
-maintenance closure, interrupted/resumed replay, zero-write rerun, zero-drift reconciliation,
-evidence read-back, and
-the separate abort/abandonment scenario.
+No implementation or rehearsal gate remains. Review and merge PR #35 when CI and review are green. Issue #15 still
+requires a separate explicit production rollback authorization before any production replay or DNS action.

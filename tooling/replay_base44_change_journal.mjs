@@ -32,7 +32,7 @@ import {
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 
-export const REPLAY_TOOL_VERSION = "1.3.0";
+export const REPLAY_TOOL_VERSION = "1.5.0";
 export const REPLAY_CHECKPOINT_SCHEMA_VERSION = 2;
 export const BASE44_REPLAY_BRIDGE_VERSION = "1.1.0";
 export const BASE44_CLI_VERSION = "0.1.14";
@@ -947,6 +947,7 @@ const INTERNAL_RECORD_FIELDS = new Set([
   "_version",
   "record_type",
   "cognito_sub",
+  "created_by",
   "_auditflow_migration",
 ]);
 
@@ -1078,13 +1079,13 @@ async function observeRecordBySourceId(bridge, entity, sourceId) {
   return result.records[0];
 }
 
-async function observeMappedRecord(bridge, entity, sourceId, mappedId) {
+async function observeMappedRecord(bridge, entity, sourceId, mappedId, { allowDirectId = true } = {}) {
   if (mappedId) {
     const mapped = await observeRecord(bridge, entity, mappedId);
     if (mapped) return mapped;
   }
   const bySource = await observeRecordBySourceId(bridge, entity, sourceId);
-  if (bySource) return bySource;
+  if (bySource || !allowDirectId) return bySource;
   return observeRecord(bridge, entity, sourceId);
 }
 
@@ -1177,6 +1178,7 @@ async function convergeEntityAction(action, checkpoint, bridge) {
     action.entity,
     action.id,
     mappedId,
+    { allowDirectId: action.operation !== "create" },
   );
   if (action.operation === "create") {
     if (observed) {
@@ -1185,10 +1187,9 @@ async function convergeEntityAction(action, checkpoint, bridge) {
       checkpoint.state.idMappings[`${action.entity}:${action.id}`] = observed.id;
       return false;
     }
-    let createResult;
     try {
       await assertReplayControl(checkpoint.context, { write: true });
-      createResult = await bridge.request({
+      await bridge.request({
         operation: "create",
         entity: action.entity,
         record: desired,
@@ -1202,11 +1203,7 @@ async function convergeEntityAction(action, checkpoint, bridge) {
       checkpoint.state.idMappings[`${action.entity}:${action.id}`] = afterAmbiguous.id;
       return true;
     }
-    const returnedId = createResult?.record?.id;
-    const after =
-      typeof returnedId === "string" && returnedId
-        ? await observeRecord(bridge, action.entity, returnedId)
-        : await observeRecordBySourceId(bridge, action.entity, action.id);
+    const after = await observeRecordBySourceId(bridge, action.entity, action.id);
     if (!desiredRecordObserved(after, desired)) {
       fail("base44_create_not_observed");
     }
@@ -2451,6 +2448,7 @@ const VALUE_FLAGS = new Set([
   "fixture",
   "from-exclusive",
   "to-inclusive",
+  "pause-after-operations",
 ]);
 
 function rejectSensitiveArguments(argv) {
@@ -2494,6 +2492,17 @@ export function parseArguments(argv) {
   if (parsed.command === "plan" && parsed["dry-run"] !== true) fail("dry_run_required");
   if (parsed.command !== "plan" && parsed["dry-run"]) fail("invalid_arguments");
   if (parsed.command !== "replay" && parsed.resume) fail("invalid_arguments");
+  if (parsed["pause-after-operations"] !== undefined) {
+    if (
+      parsed.command !== "replay" ||
+      parsed.stage !== "test" ||
+      !/^\d+$/.test(parsed["pause-after-operations"]) ||
+      Number(parsed["pause-after-operations"]) < 1
+    ) {
+      fail("invalid_arguments");
+    }
+    parsed["pause-after-operations"] = Number(parsed["pause-after-operations"]);
+  }
   if (parsed.command === "evidence" && !parsed.output) fail("invalid_arguments");
   if (parsed.command !== "evidence" && parsed.output) fail("invalid_arguments");
   return parsed;
@@ -2751,7 +2760,8 @@ export async function runCommand(arguments_, dependencies = {}) {
     return replayPlan(context, plan, {
       bridge,
       resume: arguments_.resume === true,
-      pauseAfterOperations: dependencies.pauseAfterOperations,
+      pauseAfterOperations:
+        dependencies.pauseAfterOperations ?? arguments_["pause-after-operations"],
     });
   }
   if (arguments_.command === "reconcile") {

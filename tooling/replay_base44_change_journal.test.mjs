@@ -112,6 +112,7 @@ describe("reverse replay validation and projection", () => {
         client_id: "client-source",
         template_id: "questionnaire-source",
         responses: JSON.stringify({ pdf_template_id: "pdf-source" }),
+        created_by: "aws-actor",
         created_date: "2026-09-07T00:00:00.000Z",
         updated_date: "2026-09-07T00:01:00.000Z",
       },
@@ -133,6 +134,7 @@ describe("reverse replay validation and projection", () => {
     expect(result).not.toHaveProperty("id");
     expect(result).not.toHaveProperty("created_date");
     expect(result).not.toHaveProperty("updated_date");
+    expect(result).not.toHaveProperty("created_by");
   });
 
   it("paginates GLOBAL query results", async () => {
@@ -370,6 +372,11 @@ describe("durable replay and reconciliation", () => {
       extra: 0,
       drift: 0,
     });
+    expect(
+      bridge.request.mock.calls.some(
+        ([request]) => request.operation === "filter_id" && request.id === "client-source",
+      ),
+    ).toBe(false);
   });
 
   it("reconciles all entities and permits only aggregate evidence", async () => {
@@ -767,6 +774,28 @@ describe("controlled target capabilities", () => {
         descriptorPath,
       ]),
     ).toThrowError(expect.objectContaining({ category: "production_confirmation_required" }));
+    expect(
+      parseArguments([
+        "replay",
+        "--stage",
+        "test",
+        "--target-descriptor",
+        descriptorPath,
+        "--pause-after-operations",
+        "1",
+      ])["pause-after-operations"],
+    ).toBe(1);
+    expect(() =>
+      parseArguments([
+        "replay",
+        "--stage",
+        "test",
+        "--target-descriptor",
+        descriptorPath,
+        "--pause-after-operations",
+        "0",
+      ]),
+    ).toThrowError(expect.objectContaining({ category: "invalid_arguments" }));
   });
 
   it("keeps the bridge fixed and allowlisted", () => {
