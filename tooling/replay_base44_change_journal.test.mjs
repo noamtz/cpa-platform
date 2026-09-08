@@ -685,6 +685,31 @@ describe("controlled target capabilities", () => {
         disposableFileDeletionRequired: false,
       },
     });
+
+    const waivedEvidenceRoot = join(
+      context.target.value.local_paths.private_evidence_root,
+      "invitation-waived",
+    );
+    mkdirSync(waivedEvidenceRoot);
+    context.target.value.local_paths.private_evidence_root = waivedEvidenceRoot;
+    await expect(
+      runCapabilityMatrix(context.target, {
+        bridge,
+        fixture,
+        confirm: true,
+        waiveInvitationVerification: true,
+        fetchImpl,
+      }),
+    ).resolves.toMatchObject({
+      status: "passed",
+      gates: {
+        invitationObservedAndRetrySafe: false,
+        invitationVerificationRequired: false,
+        invitationVerificationWaived: true,
+        privateUploadReadObserved: true,
+      },
+    });
+    expect(records.User.size).toBe(1);
   });
 
   it("binds a target fingerprint and rejects production without explicit confirmation", () => {

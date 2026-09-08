@@ -873,3 +873,16 @@ checkpoint patterns are mature; external Base44 write behavior is explicitly iso
   deletion was observed. This waiver does not weaken real rollback behavior: an encountered journaled file deletion
   remains fail-closed unless the destination blob's absence is observed. Invitation/login and the controlled rehearsal
   remain separate gates.
+- **2026-09-08 - live invitation verification waiver:** The owner explicitly omitted the disposable invited-user
+  login/retry/update proof from the shipping gate so the controlled rollback/replay rehearsal can proceed without a
+  second Google identity. The capability command requires an explicit `--waive-invitation-verification` flag, sends no
+  new invitation in that mode, and records the unverified capability as an accepted limitation. This does not make an
+  unobservable real invitation safe: replay still fails closed if a selected journal range contains an invitation that
+  cannot be observed and converged in Base44. The rehearsal fixture may omit invitation creation under this waiver and
+  may omit its disposable physical file-deletion mutation under the separate cleanup waiver; create/upload/read and
+  reference replacement remain mandatory.
+- **2026-09-08 - waiver-bound capability accepted:** The controlled matrix passed live against the approved private
+  clone, restored its owner-only entity baseline, and wrote protected capability evidence. The aggregate result records
+  successful CRUD, assigned-ID/source-alias/timestamp mapping, pagination, private upload/read/byte equality, best-effort
+  deletion not observed/not required, and invitation verification waived/not required. The controlled rollback/replay
+  rehearsal is now gated only by an isolated invented AWS baseline/fixture and execution of Task 15.

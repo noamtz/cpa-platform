@@ -95,4 +95,84 @@ describe("controlled rehearsal fixture harness", () => {
     expect(dependencies.files.deleteOwnedFile).toHaveBeenCalledTimes(1);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
+
+  it("supports an owner-waived rehearsal without invitation or physical file deletion", async () => {
+    const root = mkdtempSync(join(tmpdir(), "auditflow-fixture-waiver-"));
+    const originalPath = join(root, "original.bin");
+    const replacementPath = join(root, "replacement.bin");
+    writeFileSync(originalPath, "original");
+    writeFileSync(replacementPath, "replacement");
+    let submissionRevision = 0;
+    let upload = 0;
+    const dependencies = {
+      entities: {
+        createClient: vi.fn().mockResolvedValue({ id: "client-test", token: "fixture-token" }),
+        updateClient: vi.fn().mockResolvedValue({}),
+      },
+      templates: { saveQuestionnaire: vi.fn().mockResolvedValue({}) },
+      publicQuestionnaire: {
+        updateClientSubmission: vi.fn(async () => ({
+          submission: { id: "submission-test", _version: (submissionRevision += 1) },
+        })),
+      },
+      files: {
+        initiateCpaUpload: vi.fn(async () => ({
+          upload_id: `private://files/test-${(upload += 1)}`,
+          upload_url: "https://upload.invalid",
+          headers: { "content-type": "application/pdf" },
+        })),
+        completeCpaUpload: vi.fn(async (input) => ({ file_uri: input.upload_id })),
+        deleteOwnedFile: vi.fn().mockResolvedValue({ deleted: true }),
+      },
+      userService: { invite: vi.fn().mockResolvedValue({}) },
+    } as unknown as ApiDependencies;
+
+    await expect(
+      runRehearsalFixtures(
+        {
+          control: { run_id: "run-test" },
+          outputs: {
+            value: {
+              tableNames: {},
+              bucketNames: {},
+              userPoolId: "unused",
+              userPoolClientId: "unused",
+            },
+          },
+        },
+        {
+          actor: {
+            user_id: "actor-test",
+            email: "actor@example.invalid",
+            full_name: "Invented Operator",
+            cognito_subject: "subject-test",
+          },
+          client: {
+            full_name: "Invented Client",
+            email: "client@example.invalid",
+            tax_year: 2026,
+          },
+          client_update: { notes: "Invented update" },
+          questionnaire_steps: [
+            { id: "proof", title: "Proof", question: "Attach an invented file" },
+          ],
+          delete_original_file: false,
+          original_file: { path: originalPath, content_type: "application/pdf" },
+          replacement_file: { path: replacementPath, content_type: "application/pdf" },
+        },
+        {
+          dependencies,
+          fetchImpl: vi.fn().mockResolvedValue(new Response(null, { status: 200 })),
+        },
+      ),
+    ).resolves.toMatchObject({
+      status: "fixtures_created",
+      entityMutations: 6,
+      fileCreates: 2,
+      fileDeletes: 0,
+      invitations: 0,
+    });
+    expect(dependencies.files.deleteOwnedFile).not.toHaveBeenCalled();
+    expect(dependencies.userService.invite).not.toHaveBeenCalled();
+  });
 });

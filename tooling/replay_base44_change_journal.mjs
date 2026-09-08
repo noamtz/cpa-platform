@@ -32,7 +32,7 @@ import {
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 
-export const REPLAY_TOOL_VERSION = "1.2.0";
+export const REPLAY_TOOL_VERSION = "1.3.0";
 export const REPLAY_CHECKPOINT_SCHEMA_VERSION = 2;
 export const BASE44_REPLAY_BRIDGE_VERSION = "1.1.0";
 export const BASE44_CLI_VERSION = "0.1.14";
@@ -2055,6 +2055,7 @@ export async function runCapabilityMatrix(
     fixture,
     confirm = false,
     confirmInvitationLogin = false,
+    waiveInvitationVerification = false,
     fetchImpl = fetch,
   } = {},
 ) {
@@ -2110,7 +2111,8 @@ export async function runCapabilityMatrix(
   if (
     ENTITY_NAMES.filter((entity) => entity !== "User").some((entity) => counts[entity] !== 0) ||
     ![1, 2].includes(counts.User) ||
-    (counts.User === 2 && (!invitedUser || !confirmInvitationLogin)) ||
+    (counts.User === 2 &&
+      (!invitedUser || (!confirmInvitationLogin && !waiveInvitationVerification))) ||
     !isRecord(ownerUser) ||
     typeof ownerUser.id !== "string" ||
     !ownerUser.id ||
@@ -2250,50 +2252,52 @@ export async function runCapabilityMatrix(
       }
     }
 
-    if (!invitedUser) {
-      try {
+    if (!waiveInvitationVerification) {
+      if (!invitedUser) {
+        try {
+          await bridge.request({
+            operation: "invite_user",
+            email: invitationEmail,
+            role: "admin",
+          });
+        } catch {
+          // The invitation is accepted only after user activation is observed.
+        }
+        invitedUser = await observeUserByEmail(bridge, invitationEmail);
+      }
+      if (!invitedUser || !confirmInvitationLogin) {
+        invitationPending = true;
+      } else {
+        if (typeof invitedUser.id !== "string" || !invitedUser.id) {
+          fail("base44_invitation_unobservable");
+        }
+        try {
+          await bridge.request({
+            operation: "invite_user",
+            email: invitationEmail,
+            role: "admin",
+          });
+        } catch {
+          // Retry equivalence is proved by destination observation, not response shape.
+        }
+        const retriedUser = await observeUserByEmail(bridge, invitationEmail);
+        if (!retriedUser || retriedUser.id !== invitedUser.id) {
+          fail("base44_invitation_retry_blocker");
+        }
         await bridge.request({
-          operation: "invite_user",
-          email: invitationEmail,
-          role: "admin",
+          operation: "update",
+          entity: "User",
+          id: invitedUser.id,
+          record: candidate.user_update,
         });
-      } catch {
-        // The invitation is accepted only after user activation is observed.
-      }
-      invitedUser = await observeUserByEmail(bridge, invitationEmail);
-    }
-    if (!invitedUser || !confirmInvitationLogin) {
-      invitationPending = true;
-    } else {
-      if (typeof invitedUser.id !== "string" || !invitedUser.id) {
-        fail("base44_invitation_unobservable");
-      }
-      try {
-        await bridge.request({
-          operation: "invite_user",
-          email: invitationEmail,
-          role: "admin",
-        });
-      } catch {
-        // Retry equivalence is proved by destination observation, not response shape.
-      }
-      const retriedUser = await observeUserByEmail(bridge, invitationEmail);
-      if (!retriedUser || retriedUser.id !== invitedUser.id) {
-        fail("base44_invitation_retry_blocker");
-      }
-      await bridge.request({
-        operation: "update",
-        entity: "User",
-        id: invitedUser.id,
-        record: candidate.user_update,
-      });
-      if (
-        !desiredRecordObserved(
-          await observeUserByEmail(bridge, invitationEmail),
-          candidate.user_update,
-        )
-      ) {
-        fail("base44_update_not_observed");
+        if (
+          !desiredRecordObserved(
+            await observeUserByEmail(bridge, invitationEmail),
+            candidate.user_update,
+          )
+        ) {
+          fail("base44_update_not_observed");
+        }
       }
     }
 
@@ -2321,7 +2325,7 @@ export async function runCapabilityMatrix(
       if (await observeRecord(bridge, record.entity, record.id)) fail("base44_delete_not_observed");
     }
     created.length = 0;
-    if (!invitationPending) {
+    if (!invitationPending && invitedUser?.id) {
       await bridge.request({ operation: "delete", entity: "User", id: invitedUser.id });
       if (await observeUserByEmail(bridge, invitationEmail)) {
         fail("base44_delete_not_observed");
@@ -2366,6 +2370,9 @@ export async function runCapabilityMatrix(
         sourceAliasesObserved: true,
         sourceTimestampsPreserved: true,
         allEntityCrudObserved: true,
+        invitationObservedAndRetrySafe: false,
+        invitationVerificationRequired: true,
+        invitationVerificationWaived: false,
         privateUploadReadObserved: true,
         disposableFileDeletionObserved: fileDeletionObserved,
         disposableFileDeletionRequired: false,
@@ -2380,7 +2387,7 @@ export async function runCapabilityMatrix(
     fail("capability_cleanup_incomplete");
   }
   const result = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     status: "passed",
     toolVersion: REPLAY_TOOL_VERSION,
     bridgeVersion: BASE44_REPLAY_BRIDGE_VERSION,
@@ -2393,7 +2400,9 @@ export async function runCapabilityMatrix(
       sourceAliasesObserved: true,
       sourceTimestampsPreserved: true,
       allEntityCrudObserved: true,
-      invitationObservedAndRetrySafe: true,
+      invitationObservedAndRetrySafe: !waiveInvitationVerification,
+      invitationVerificationRequired: !waiveInvitationVerification,
+      invitationVerificationWaived: waiveInvitationVerification,
       privateUploadReadObserved: true,
       disposableFileDeletionObserved: fileDeletionObserved,
       disposableFileDeletionRequired: false,
@@ -2429,6 +2438,7 @@ const BOOLEAN_FLAGS = new Set([
   "resume",
   "confirm-controlled-rehearsal",
   "confirm-invitation-login",
+  "waive-invitation-verification",
   "confirm-actual-rollback",
   "confirm-no-replay-writes",
 ]);
@@ -2634,11 +2644,18 @@ export async function runCommand(arguments_, dependencies = {}) {
     const fixture = arguments_.fixture
       ? readJson(requirePrivatePath(arguments_.fixture), "fixture_invalid")
       : dependencies.capabilityFixture;
+    if (
+      arguments_["confirm-invitation-login"] === true &&
+      arguments_["waive-invitation-verification"] === true
+    ) {
+      fail("invitation_flag_conflict");
+    }
     return runCapabilityMatrix(target, {
       bridge: dependencies.bridge ?? bridgeFactory(target),
       fixture,
       confirm: arguments_["confirm-controlled-rehearsal"] === true,
       confirmInvitationLogin: arguments_["confirm-invitation-login"] === true,
+      waiveInvitationVerification: arguments_["waive-invitation-verification"] === true,
       fetchImpl: dependencies.fetchImpl,
     });
   }

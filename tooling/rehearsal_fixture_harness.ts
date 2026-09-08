@@ -50,7 +50,8 @@ const fixtureSchema = z
       )
       .min(1)
       .max(200),
-    invitation_email: z.string().email().max(512),
+    invitation_email: z.string().email().max(512).optional(),
+    delete_original_file: z.boolean().default(true),
     original_file: privateFileSchema.strict(),
     replacement_file: privateFileSchema.strict(),
   })
@@ -231,23 +232,27 @@ export async function runRehearsalFixtures(
     },
     `${requestPrefix}-submission-replacement`,
   );
-  await dependencies.files.deleteOwnedFile({
-    reference: original.file_uri,
-    ownerType: "submission",
-    ownerId: submissionId,
-    actor,
-    requestId: `${requestPrefix}-file-delete`,
-  });
-  await dependencies.userService.invite(
-    actor,
-    `${requestPrefix}-invite`,
-    { email: fixture.invitation_email, role: "admin" },
-  );
+  if (fixture.delete_original_file) {
+    await dependencies.files.deleteOwnedFile({
+      reference: original.file_uri,
+      ownerType: "submission",
+      ownerId: submissionId,
+      actor,
+      requestId: `${requestPrefix}-file-delete`,
+    });
+  }
+  if (fixture.invitation_email) {
+    await dependencies.userService.invite(
+      actor,
+      `${requestPrefix}-invite`,
+      { email: fixture.invitation_email, role: "admin" },
+    );
+  }
   return {
     status: "fixtures_created",
-    entityMutations: 7,
+    entityMutations: fixture.invitation_email ? 7 : 6,
     fileCreates: 2,
-    fileDeletes: 1,
-    invitations: 1,
+    fileDeletes: fixture.delete_original_file ? 1 : 0,
+    invitations: fixture.invitation_email ? 1 : 0,
   } as const;
 }

@@ -6,7 +6,7 @@
 
 **Tracker**: issue #12 under epic #1; issues #5, #6, #8, #10, and #11 revalidated closed
 
-**Status**: IMPLEMENTATION COMPLETE; CONTROLLED LIVE REHEARSAL PENDING
+**Status**: IMPLEMENTATION COMPLETE; CONTROLLED LIVE REHEARSAL READY
 
 ## Summary
 
@@ -28,9 +28,12 @@ upload, signing, and byte-for-byte read. Base44 rejected private-file deletion t
 temporary deployed backend-function probe; the official Core integration reference documents private upload and
 signed reads but no delete API. The owner explicitly accepted deletion of unreachable disposable probe blobs as
 best-effort, so those orphans no longer invalidate the target or block shipping. Real journaled file deletion remains
-fail-closed. The invitation was sent but has not materialized as a distinct signed-in User.
+fail-closed. The invitation was sent but did not materialize as a distinct signed-in User; the owner explicitly waived
+that live capability proof so the controlled rehearsal can proceed without a second Google identity. The waiver-bound
+matrix then passed live, restored the owner-only entity baseline, and wrote protected capability evidence. Actual replay
+still fails closed if an encountered invitation cannot be observed and converged.
 
-This remains a pending rehearsal, not a successful rehearsal. Maintenance bootstrap, guarded deployment, AWS
+This remains a ready but not yet successful rehearsal. Maintenance bootstrap, guarded deployment, AWS
 fixture mutation, replay, and evidence generation were not attempted. `AGENTS.md` was intentionally not advanced.
 
 ## Implementation
@@ -65,7 +68,8 @@ fixture mutation, replay, and evidence generation were not attempted. `AGENTS.md
   abort, abandonment reopen, and terminal rollback.
 - Added an owner-only fixture harness using existing runtime services for invented Client, QuestionnaireTemplate,
   Submission, invitation, private-file replacement, and versioned deletion behavior; no product-only delete route was
-  introduced.
+  introduced. The harness can explicitly omit invitation and disposable physical deletion for the waiver-bound
+  rehearsal while retaining create/update/upload/reference-replacement coverage.
 - Added `reverse-replay` and `test:reverse-replay` scripts, pinned the TypeScript runner, expanded foundation test/lint
   scope and SST contract verification, and added relevant CI path filters and tests without Base44 write credentials.
 - Added `docs/migration/base44-rollback-replay-runbook.md` with operator/CPA roles, private-input rules, the 15-minute
@@ -75,9 +79,9 @@ fixture mutation, replay, and evidence generation were not attempted. `AGENTS.md
 ## Task status
 
 - Tasks 1 and 3–14: complete locally.
-- Task 2: the assigned-ID/system-timestamp incompatibility is resolved through source aliases and public-link
-  resolution. Unsupported disposable probe-file cleanup is an owner-accepted non-blocking limitation; live capability
-  execution still awaits acceptance of the disposable invitation.
+- Task 2: complete. The assigned-ID/system-timestamp incompatibility is resolved through source aliases and public-link
+  resolution. Unsupported disposable probe-file cleanup and live invitation verification are explicit owner-accepted
+  limitations recorded by passing protected capability evidence without weakening real replay failure handling.
 - Task 15: not executed because the controlled rehearsal prerequisites fail closed.
 - Task 16: this report records the result; committed evidence and migration-status changes remain intentionally pending
   until an accepted rehearsal.
@@ -107,12 +111,13 @@ fixture mutation, replay, and evidence generation were not attempted. `AGENTS.md
 - Base44 private upload, signed read, and byte equality pass. Deletion is rejected by both privileged CLI and
   deployed-function paths, but cleanup of unreachable disposable probe blobs is best effort by explicit owner waiver.
   Real journaled file deletions remain fail-closed and are not covered by this waiver.
-- The invitation has not materialized as a second User because the disposable invited identity has not completed a
-  distinct login. The mandatory app owner must not be removed.
+- The invitation did not materialize as a second User. The owner waived this live proof for shipping; the mandatory app
+  owner remains the sole baseline User and must not be removed.
 - Failed deletion probes left unenumerable orphan files in the disposable target; they are accepted disposable residue
   and no longer require a fresh native dashboard clone.
-- A dedicated invented baseline snapshot and rehearsal fixture remain required after an approved link-compatibility
-  target exists. No production-derived client data may be copied into the rehearsal clone.
+- A dedicated invented AWS baseline snapshot and rehearsal fixture remain required. The current test tables contain the
+  accepted issue #11 production-derived import, which must not be copied into the empty rehearsal clone or destroyed to
+  manufacture an empty baseline.
 
 The protected target descriptor and private aggregate blocker evidence record this result. No maintenance bootstrap,
 guarded test deployment, AWS rehearsal fixture mutation, replay, committed verification evidence, or delivery-status
@@ -123,7 +128,7 @@ update occurred.
 - Node 20.17.0 clean `npm ci`: PASS; existing peer/engine/deprecation and 36 audit findings remain.
 - Application: PASS, 110 tests in 13 files.
 - PDF: PASS, 22 tests in 3 files.
-- Reverse replay: PASS, 37 tests in 4 files.
+- Reverse replay: PASS, 38 tests in 4 files.
 - Foundation: PASS, 347 tests in 44 files.
 - Foundation typecheck and lint: PASS.
 - Production build: PASS. The first concurrent Windows build hit a transient `dist/assets` `ENOTEMPTY`; the immediate
@@ -137,9 +142,7 @@ update occurred.
 
 ## Required handoff
 
-Before resuming task 15, complete the distinct disposable invitation login and rerun the capability matrix from its
-verified owner-only entity baseline. Observable cleanup of the unreachable capability-probe blob is not required; the
-evidence records whether it succeeded. Only after every required capability passes
-should the owner provide the protected invented baseline/rehearsal fixture and authorize guarded deployment,
-maintenance closure, interrupted/resumed replay, zero-write rerun, zero-drift reconciliation, evidence read-back, and
+Before resuming task 15, prepare the protected invented baseline/rehearsal fixture and proceed with guarded deployment,
+maintenance closure, interrupted/resumed replay, zero-write rerun, zero-drift reconciliation,
+evidence read-back, and
 the separate abort/abandonment scenario.

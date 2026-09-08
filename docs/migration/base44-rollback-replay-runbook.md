@@ -83,6 +83,8 @@ npm run install:base44-rollback-compat -- --target-descriptor $targetDescriptorP
 npm run reverse-replay -- capabilities --stage test --target-descriptor $targetDescriptorPath --fixture $capabilityFixturePath --confirm-controlled-rehearsal
 # After the invited user accepts the invitation and signs in:
 npm run reverse-replay -- capabilities --stage test --target-descriptor $targetDescriptorPath --fixture $capabilityFixturePath --confirm-controlled-rehearsal --confirm-invitation-login
+# Or, only after an explicit owner decision to omit live invitation proof:
+npm run reverse-replay -- capabilities --stage test --target-descriptor $targetDescriptorPath --fixture $capabilityFixturePath --confirm-controlled-rehearsal --waive-invitation-verification
 ```
 
 The capability fixture contains invented create/update records for the five ordinary entity surfaces, a second Client
@@ -94,11 +96,13 @@ collection is nonempty, the owner baseline changes, or a required business effec
 the disposable probe blob is recorded as `disposableFileDeletionObserved: false` but is not a shipping blocker. Verify
 delivery/login at the disposable inbox before accepting the invitation gate; do not use a client address. The first
 run may return `pending_invitation_acceptance` after cleaning all business records and attempting best-effort
-probe-file cleanup. Only the explicit second command accepts the activated invited User, proves retry and update
-behavior, deletes that disposable User, and writes the passing capability evidence.
+probe-file cleanup. The explicit second command accepts the activated invited User, proves retry and update behavior,
+deletes that disposable User, and writes passing capability evidence. When the owner explicitly omits that live proof,
+the waiver command does not send another invitation and instead records `invitationVerificationWaived: true`. Actual
+replay remains fail-closed if its journal contains an invitation that cannot be observed at the destination.
 
-Current controlled-target result (updated 2026-09-08): **PENDING INVITATION ACCEPTANCE**. The approved compatibility
-design now
+Current controlled-target result (updated 2026-09-08): **PASSED WITH OWNER WAIVERS**. The approved
+compatibility design now
 stores the AWS ID and timestamps in ordinary immutable alias fields, records Base44-assigned IDs, rewrites references,
 and resolves public Client links by native ID then source alias without weakening token validation. Live entity CRUD,
 alias observation, assigned-ID mapping, pagination, private upload, signing, and byte-for-byte read passed. The
@@ -106,8 +110,10 @@ invitation was sent but has not materialized as a distinct signed-in User. Base4
 from privileged CLI execution and from a deployed backend-function probe; its current official Core integration
 reference documents private upload and signed read but no delete method. By owner decision, cleanup of unreachable
 disposable probe blobs is best effort and does not require a fresh clone. This waiver does not change real replay
-semantics: a journaled file deletion remains fail-closed unless absence is observed. Do not bootstrap maintenance
-until the invitation/login gate passes.
+semantics: a journaled file deletion remains fail-closed unless absence is observed. The owner also waived live
+invitation/login verification for this rehearsal. The rerun restored the owner-only entity baseline and wrote protected
+capability evidence recording both waivers; maintenance bootstrap may proceed once the isolated invented AWS baseline
+and fixture exist.
 
 ## Exact start and maintenance boundary
 
@@ -127,9 +133,11 @@ npm run reverse-replay -- mark-cutover-start --stage test --target-descriptor $t
 npm run reverse-replay -- rehearsal-fixtures --stage test --target-descriptor $targetDescriptorPath --fixture $rehearsalFixturePath --outputs $outputsPath --confirm-controlled-rehearsal
 ```
 
-The invented fixture must exercise Client/Submission/User/template create and update, questionnaire JSON-string state,
-native file create and reference replacement, and versioned file delete. Every journaled transaction and direct guard
-repair is conditioned on the exact OPEN generation.
+The invented fixture must exercise Client/Submission/template create and update, questionnaire JSON-string state,
+native file creation, and reference replacement. By default it also exercises User invitation and versioned file
+deletion. Under the recorded owner waivers, omit `invitation_email` and set `delete_original_file` to `false`; this
+keeps those unverified capabilities out of the rehearsal journal while preserving fail-closed production behavior.
+Every journaled transaction and direct guard repair is conditioned on the exact OPEN generation.
 
 Start the communicated maintenance window, stop new API mutations, and wait at least 15 minutes from the last issued
 upload URL. Then inspect every active external intent, presigned upload capability, unlinked Cognito identity,
