@@ -8,6 +8,8 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { Upload } from "@aws-sdk/lib-storage";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { resolveLegacyFileRuntimeConfig } from "../core/runtime-config";
 import type { S3Event } from "aws-lambda";
 import JSZip from "jszip";
@@ -26,6 +28,8 @@ import {
   type ZipStatus,
 } from "../contracts/files";
 import type { S3CommandClient } from "../services/files";
+import { MaintenanceService } from "../services/maintenance";
+import type { ExternalActivityIntent } from "../contracts/maintenance";
 
 interface ObjectBody {
   readonly Body?: NodeJS.ReadableStream & {
@@ -76,6 +80,7 @@ export interface ZipWorkerOptions {
     milliseconds: number,
   ) => unknown;
   readonly cancelLeaseRenewal?: (handle: unknown) => void;
+  readonly maintenance?: MaintenanceService;
 }
 
 function isMissingObject(error: unknown) {
@@ -314,6 +319,63 @@ async function processJob(
   }
   const existing = await optionalStatus(options, jobId);
   if (existing) return;
+  let request: ObjectBody;
+  try {
+    request = (await options.s3.send(
+      new GetObjectCommand({
+        Bucket: options.temporaryOutputsBucketName,
+        Key: requestKey,
+      }),
+    )) as ObjectBody;
+  } catch {
+    throw new ZipWorkerRetryError();
+  }
+  let manifest;
+  try {
+    manifest = zipManifestSchema.parse(JSON.parse(await textBody(request)));
+  } catch {
+    if (options.maintenance) {
+      const intent = await options.maintenance.getExternalActivity(`zip-job:${jobId}`);
+      const control = await options.maintenance.getControl();
+      if (
+        intent?.status === "ACTIVE" &&
+        control?.mode === "OPEN" &&
+        control.generation === intent.generation
+      ) {
+        await options.maintenance.cancelExternalActivity(intent);
+      }
+    }
+    return;
+  }
+  let activityIntent: ExternalActivityIntent | undefined;
+  if (options.maintenance) {
+    const control = await options.maintenance.getControl();
+    activityIntent = await options.maintenance.getExternalActivity(`zip-job:${jobId}`);
+    if (
+      manifest.job_id !== jobId ||
+      new Date(manifest.expires_at).getTime() <= clock().getTime() ||
+      !control ||
+      control.mode !== "OPEN" ||
+      manifest.maintenance_generation !== control.generation ||
+      !activityIntent ||
+      activityIntent.status !== "ACTIVE" ||
+      manifest.activity_intent_sequence !== activityIntent.sequence
+    ) {
+      if (
+        activityIntent?.status === "ACTIVE" &&
+        control?.mode === "OPEN" &&
+        control.generation === activityIntent.generation
+      ) {
+        await options.maintenance.cancelExternalActivity(activityIntent);
+      }
+      return;
+    }
+  } else if (
+    manifest.job_id !== jobId ||
+    new Date(manifest.expires_at).getTime() <= clock().getTime()
+  ) {
+    return;
+  }
   const acquired = await acquireProcessingLease(
     options,
     jobId,
@@ -325,24 +387,9 @@ async function processJob(
   const lease = createLeaseController(options, acquired, clock);
   const resultKey = zipResultKey(jobId, acquired.record.owner_id);
   let upload: ArchiveUpload | undefined;
+  let terminalized = false;
   try {
-    const request = (await options.s3.send(
-      new GetObjectCommand({
-        Bucket: options.temporaryOutputsBucketName,
-        Key: requestKey,
-      }),
-    )) as ObjectBody;
     lease.assertOwned();
-    const manifest = zipManifestSchema.parse(
-      JSON.parse(await textBody(request)),
-    );
-    if (
-      manifest.job_id !== jobId ||
-      new Date(manifest.expires_at).getTime() <= clock().getTime()
-    ) {
-      throw new InvalidZipJobError();
-    }
-
     const zip = new JSZip();
     for (const entry of manifest.entries) {
       const { key: sourceKey, name } = entry;
@@ -375,6 +422,7 @@ async function processJob(
         completed_at: clock().toISOString(),
       }),
     );
+    terminalized = true;
   } catch (error) {
     if (upload) await upload.abort().catch(() => undefined);
     await options.s3
@@ -396,6 +444,7 @@ async function processJob(
         completed_at: clock().toISOString(),
       }),
     );
+    terminalized = true;
     console.error("AuditFlow ZIP job failed", {
       jobId,
       failureClass: code,
@@ -403,6 +452,9 @@ async function processJob(
     });
   } finally {
     await lease.release();
+    if (terminalized && activityIntent) {
+      await options.maintenance?.resolveExternalActivity(activityIntent);
+    }
   }
 }
 
@@ -448,6 +500,9 @@ function requiredEnvironment(name: string) {
 
 function createRuntimeHandler() {
   const sdkS3 = new S3Client({});
+  const sdkDynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
+    marshallOptions: { removeUndefinedValues: true },
+  });
   const legacyFileRuntime = resolveLegacyFileRuntimeConfig();
   const temporaryOutputsBucketName = requiredEnvironment(
     "TEMPORARY_OUTPUTS_BUCKET_NAME",
@@ -457,6 +512,10 @@ function createRuntimeHandler() {
     filesBucketName: requiredEnvironment("FILES_BUCKET_NAME"),
     temporaryOutputsBucketName,
     legacyFileReadsEnabled: legacyFileRuntime.legacyFileReadsEnabled,
+    maintenance: new MaintenanceService({
+      client: { send: (command) => sdkDynamo.send(command as never) },
+      tableName: requiredEnvironment("CHANGE_JOURNAL_TABLE_NAME"),
+    }),
     createUpload(key, body) {
       const upload = new Upload({
         client: sdkS3,

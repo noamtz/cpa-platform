@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 
-import { PutCommand } from "@aws-sdk/lib-dynamodb";
 
 import type { CpaActor } from "../auth/cpa-context";
 import type { MutationChange } from "../contracts/change-journal";
@@ -162,16 +161,17 @@ export class CpaWorkflowService {
         _version: 1,
       };
       try {
-        await this.options.templates.client.send(
-          new PutCommand({
+        await this.options.journal.commitOperationalAction({
+          Put: {
             TableName: this.options.templates.tableName,
             Item: created,
             ConditionExpression: "attribute_not_exists(#id)",
             ExpressionAttributeNames: { "#id": "id" },
-          }),
-        );
+          },
+        });
         guard = created;
-      } catch {
+      } catch (error) {
+        if (error instanceof ApiError && error.statusCode === 503) throw error;
         guard = await this.options.templates.getActiveGuard();
         if (!guard) throw internalError();
       }

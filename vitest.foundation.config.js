@@ -10,6 +10,7 @@ export default defineConfig({
       "backend/api/__tests__/**/*.test.ts",
       "lambda/pdf-generator/__tests__/**/*.test.mjs",
       "tooling/**/*.test.mjs",
+      "tooling/**/*.test.ts",
     ],
     exclude: ["node_modules", "dist", ".sst"],
   },

@@ -121,6 +121,7 @@ export function createApplication(
       retention: stage.isProduction ? "1 month" : "2 weeks",
     },
     environment: {
+      CHANGE_JOURNAL_TABLE_NAME: storage.tables.ChangeJournalTable.name,
       FILES_BUCKET_NAME: storage.buckets.FilesBucket.name,
       TEMPORARY_OUTPUTS_BUCKET_NAME:
         storage.buckets.TemporaryOutputsBucket.name,
@@ -139,6 +140,10 @@ export function createApplication(
         resources: [
           $interpolate`${storage.buckets.TemporaryOutputsBucket.arn}/${zipWorkerContract.permissions.temporaryPrefix}`,
         ],
+      },
+      {
+        actions: [...zipWorkerContract.permissions.journalActions],
+        resources: [storage.tables.ChangeJournalTable.arn],
       },
     ],
     transform: {

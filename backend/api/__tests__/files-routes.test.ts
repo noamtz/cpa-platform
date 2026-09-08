@@ -184,6 +184,7 @@ describe("assembled file routes", () => {
     expect(files.requestZipDownload).toHaveBeenCalledWith(
       "submission-test",
       expect.objectContaining({ userId: "user-test" }),
+      "request-test",
     );
     expect(files.mirrorCpaTemplateFile).toHaveBeenCalledWith(
       expect.objectContaining({

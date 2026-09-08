@@ -280,6 +280,12 @@ function verifyContract(contract, stage) {
       contract.zipWorker.processingLease.terminalStatusFenced === true &&
       JSON.stringify(contract.zipWorker.permissions.filesActions) ===
         JSON.stringify(["s3:GetObject"]) &&
+      JSON.stringify(contract.zipWorker.permissions.journalActions) ===
+        JSON.stringify([
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:TransactWriteItems",
+        ]) &&
       JSON.stringify(contract.zipWorker.permissions.temporaryActions) ===
         JSON.stringify([
           "s3:AbortMultipartUpload",
@@ -844,13 +850,15 @@ async function verifyLive(
   );
   const zipEnvironment = zipWorker.Environment?.Variables ?? {};
   assert(
-    zipEnvironment[
+    zipEnvironment.CHANGE_JOURNAL_TABLE_NAME ===
+      outputs.tableNames.ChangeJournalTable &&
+      zipEnvironment[
       contract.deploymentGates.privateFilesImport.environmentVariable
     ] === (legacyFileReads === "enabled" ? "true" : "false") &&
       (zipEnvironment[
         contract.deploymentGates.privateFilesImport.manifestEnvironmentVariable
       ] ?? "") === expectedLegacyManifestSha256,
-    "ZIP worker legacy file-read mode or manifest binding has drifted.",
+    "ZIP worker maintenance or legacy file-read binding has drifted.",
   );
   const notification = runAws([
     "s3api",

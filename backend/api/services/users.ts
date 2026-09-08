@@ -14,7 +14,7 @@ import {
   updateMeSchema,
   type EntitySort,
 } from "../contracts/entities";
-import { conflict, internalError, notFound } from "../core/errors";
+import { ApiError, conflict, internalError, notFound } from "../core/errors";
 import type { UserRepository } from "../repositories/user";
 import type { ChangeJournalService, TransactionItem } from "./change-journal";
 
@@ -130,6 +130,12 @@ export class UserService {
       throw conflict();
     }
 
+    const operationId = this.operationIdGenerator();
+    const externalIntent = await this.options.journal.beginExternalActivity?.({
+      activityType: "COGNITO_INVITATION",
+      operationId,
+      sequenceSeed: `cognito-invitation:${operationId}`,
+    });
     let subject: string | undefined;
     let cognitoCreated = false;
     try {
@@ -160,6 +166,7 @@ export class UserService {
         retryExisting.cognito_sub === subject &&
         retryExisting.role === input.role
       ) {
+        await this.options.journal.resolveExternalActivity?.(externalIntent);
         return publicRecord(retryExisting);
       }
       throw conflict();
@@ -183,7 +190,7 @@ export class UserService {
       await this.options.journal.commit({
         actorId: actor.userId,
         requestId,
-        operationId: this.operationIdGenerator(),
+        operationId,
         businessActions: [userPut(this.options.users.tableName, record)],
         changes: [
           {
@@ -194,9 +201,12 @@ export class UserService {
             after: record,
           },
         ],
+        maintenanceGeneration: externalIntent?.generation,
+        resolveExternalActivity: externalIntent,
       });
       return publicRecord(record);
-    } catch {
+    } catch (journalError) {
+      let compensated = !cognitoCreated;
       if (cognitoCreated) {
         try {
           await this.options.cognito.send(
@@ -205,6 +215,7 @@ export class UserService {
               Username: input.email,
             }),
           );
+          compensated = true;
         } catch {
           this.logger?.error("Cognito invitation compensation failed", {
             operation: "invite-user-compensation",
@@ -212,6 +223,17 @@ export class UserService {
           });
         }
       }
+      if (compensated) {
+        try {
+          await this.options.journal.resolveExternalActivity?.(externalIntent);
+        } catch {
+          this.logger?.error("Cognito invitation compensation settlement failed", {
+            operation: "invite-user-compensation-settlement",
+            requestId,
+          });
+        }
+      }
+      if (journalError instanceof ApiError) throw journalError;
       throw internalError();
     }
   }
