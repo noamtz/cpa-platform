@@ -7,6 +7,7 @@ import CompletionScreen from "@/components/questionnaire/CompletionScreen";
 import StepSelector from "@/components/questionnaire/StepSelector";
 import { DEFAULT_STEPS, resolveYearPlaceholders, getActiveSteps, filterStepsByClientConditions } from "@/lib/questionnaire-template";
 import { loadActiveCpaSubmission } from "@/lib/cpa-fill";
+import { captureOperationalEvent } from "@/lib/analytics";
 import { getResponses } from "@/lib/submission-compat";
 import { buildSteps, parseSignedPdfs, getResumeStepIndex, deriveStepStatuses } from "@/lib/questionnaire-steps";
 import { AlertTriangle, ArrowRight } from "lucide-react";
@@ -179,7 +180,18 @@ export default function CpaFillQuestionnaire() {
       step_completed: STEPS.length - 1,
       completed_at: new Date().toISOString(),
     }, true);
-    if (!saved) return;
+    if (!saved) {
+      captureOperationalEvent("cpa_workflow_complete", {
+        outcome: "failure",
+        milestone: "assisted_questionnaire",
+        failure_category: "persistence",
+      });
+      return;
+    }
+    captureOperationalEvent("cpa_workflow_complete", {
+      outcome: "success",
+      milestone: "assisted_questionnaire",
+    });
     setCurrentStep(STEPS.length - 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };

@@ -7,6 +7,7 @@ import UntypedLightweightSignaturePad from "@/components/questionnaire/Lightweig
 import { invokePublicFunction, loadPublicPdfTemplate } from "@/api/function-client";
 import { fileClient } from "@/api/file-client";
 import { generatePdf, renderPdfPages, resolvePdfApiUrl } from "@/lib/pdf-api";
+import { captureOperationalEvent } from "@/lib/analytics";
 
 const PDF_API = resolvePdfApiUrl({
   configured: import.meta.env.VITE_PDF_API_URL,
@@ -15,6 +16,12 @@ const PDF_API = resolvePdfApiUrl({
 
 const Button = /** @type {React.ComponentType<any>} */ (UntypedButton);
 const LightweightSignaturePad = /** @type {React.ComponentType<any>} */ (UntypedLightweightSignaturePad);
+
+const PDF_SIGN_FAILURE = Object.freeze({
+  validation: "validation",
+  generation: "service",
+  persistence: "persistence",
+});
 
 // ─── Downstream PDF helper (owned by issue #9) ──────────────────────────────
 const getTemplateFileUrl = async (payload) => {
@@ -421,12 +428,18 @@ export default function PdfSignIframeOverlay() {
     });
 
     if (missing.length > 0) {
+      captureOperationalEvent("pdf_sign", {
+        outcome: "failure",
+        failure_category: PDF_SIGN_FAILURE.validation,
+      });
       alert(`יש למלא את השדות הבאים:\n• ${missing.map((f) => f.name).join("\n• ")}`);
       return;
     }
 
     setSubmitting(true);
 
+    /** @type {"validation" | "service" | "persistence"} */
+    let signFailureCategory = PDF_SIGN_FAILURE.validation;
     try {
       const mergedInputs = {};
 
@@ -460,13 +473,25 @@ export default function PdfSignIframeOverlay() {
       const processedTemplateJson = JSON.stringify(parsedTemplate);
 
       console.log("[PdfSignIframeOverlay] Sending to PDF API...");
-      const pdfBlob = await generatePdf({
-        baseUrl: PDF_API,
-        templateJson: processedTemplateJson,
-        basePdfUrl,
-        inputs: [mergedInputs],
-      });
+      let pdfBlob;
+      try {
+        pdfBlob = await generatePdf({
+          baseUrl: PDF_API,
+          templateJson: processedTemplateJson,
+          basePdfUrl,
+          inputs: [mergedInputs],
+        });
+        captureOperationalEvent("pdf_generate", { outcome: "success" });
+      } catch (generationError) {
+        signFailureCategory = PDF_SIGN_FAILURE.generation;
+        captureOperationalEvent("pdf_generate", {
+          outcome: "failure",
+          failure_category: PDF_SIGN_FAILURE.generation,
+        });
+        throw generationError;
+      }
       console.log(`[PdfSignIframeOverlay] PDF generated: ${pdfBlob.size} bytes`);
+      signFailureCategory = PDF_SIGN_FAILURE.persistence;
 
       let pdfFileUrl = null;
       if (pdfBlob.size > 0) {
@@ -519,6 +544,12 @@ export default function PdfSignIframeOverlay() {
         data: { signed_pdfs: updatedSignedPdfs },
       });
       const acknowledgedSubmission = saveResult.submission;
+      captureOperationalEvent("pdf_sign", acknowledgedSubmission
+        ? { outcome: "success" }
+        : {
+            outcome: "failure",
+            failure_category: PDF_SIGN_FAILURE.persistence,
+          });
       setSubmission(acknowledgedSubmission);
 
       setDone(true);
@@ -530,6 +561,10 @@ export default function PdfSignIframeOverlay() {
         );
       }, 2000);
     } catch (e) {
+      captureOperationalEvent("pdf_sign", {
+        outcome: "failure",
+        failure_category: signFailureCategory,
+      });
       console.error("[PdfSignIframeOverlay] Submit error:", e);
       alert(`שגיאה: ${e.message}`);
     } finally {

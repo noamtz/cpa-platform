@@ -465,6 +465,16 @@ describe("foundation resource contract", () => {
     expect(applicationSource.match(/privateFileCutover\.manifestSha256/g)).toHaveLength(2);
   });
 
+  it("passes only the optional PostHog project key into the static-site build", () => {
+    const applicationSource = readFileSync(
+      new URL("../application.ts", import.meta.url),
+      "utf8",
+    );
+    expect(applicationSource).toContain(
+      'VITE_POSTHOG_KEY: process.env.VITE_POSTHOG_KEY ?? ""',
+    );
+  });
+
   it("defines an alert-only production budget and safe outputs", () => {
     expect(costContract).toMatchObject({
       stage: "production",

@@ -103,6 +103,7 @@ jobs:
       AWS_DEFAULT_REGION: il-central-1
       SST_STAGE: test
       AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      VITE_POSTHOG_KEY: ${{ vars.VITE_POSTHOG_KEY }}
       EXPECTED_OIDC_AUDIENCE: sts.amazonaws.com
       EXPECTED_OIDC_SUBJECT: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_legacy_file_reads && 'repo:noamtz@2631641/cpa-platform@1332935468:environment:test-legacy-read-enable' || 'repo:noamtz@2631641/cpa-platform@1332935468:environment:test' }}
       AUDITFLOW_ENABLE_LEGACY_FILE_READS: ${{ github.event_name == 'workflow_dispatch' && inputs.enable_legacy_file_reads && 'true' || 'false' }}

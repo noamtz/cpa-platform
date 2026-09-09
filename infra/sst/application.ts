@@ -226,6 +226,7 @@ export function createApplication(
       VITE_COGNITO_CALLBACK_URL: authentication.callbackUrl,
       VITE_COGNITO_LOGOUT_URL: authentication.logoutUrl,
       VITE_COGNITO_SCOPE: authentication.scope,
+      VITE_POSTHOG_KEY: process.env.VITE_POSTHOG_KEY ?? "",
     },
     router: {
       instance: router,

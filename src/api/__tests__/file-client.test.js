@@ -33,11 +33,13 @@ describe("private file client", () => {
       .mockResolvedValueOnce({ file_uri: "private://files/synthetic.pdf" });
     const { xhr, factory } = xhrHarness();
     const progress = vi.fn();
+    const captureEvent = vi.fn();
     const client = createFileClient({
       http: { request: vi.fn() },
       invokePublic,
       xhrFactory: factory,
       clock: () => new Date("2026-01-01T00:00:00.000Z"),
+      captureEvent,
     });
     const file = new File(["pdf"], "tax.pdf", { type: "application/pdf" });
 
@@ -73,6 +75,13 @@ describe("private file client", () => {
         upload_id: "private://files/synthetic.pdf",
       }),
     ]);
+    expect(captureEvent).toHaveBeenCalledWith("file_upload", {
+      outcome: "success",
+      surface: "public",
+    });
+    expect(captureEvent.mock.invocationCallOrder[0]).toBeGreaterThan(
+      invokePublic.mock.invocationCallOrder[1],
+    );
   });
 
   it("rejects an expired initiation without sending bytes", async () => {
@@ -101,6 +110,66 @@ describe("private file client", () => {
       }),
     ).rejects.toThrow("Upload URL expired");
     expect(xhr.send).not.toHaveBeenCalled();
+  });
+
+  it("reports CPA upload completion without exposing file metadata", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        upload_id: "private://files/cpa-synthetic.pdf",
+        upload_url: "https://signed.example.test/put",
+        headers: {},
+        expires_at: "2026-01-01T00:15:00.000Z",
+      })
+      .mockResolvedValueOnce({ file_uri: "private://files/cpa-synthetic.pdf" });
+    const captureEvent = vi.fn();
+    const { factory } = xhrHarness();
+    const client = createFileClient({
+      http: { request },
+      xhrFactory: factory,
+      clock: () => new Date("2026-01-01T00:00:00.000Z"),
+      captureEvent,
+    });
+
+    await client.uploadCpaFile({
+      file: new File(["private tax content"], "private-tax.pdf", { type: "application/pdf" }),
+      ownerType: "submission",
+      ownerId: "private-client-id",
+      purpose: "questionnaire_document",
+    });
+
+    expect(captureEvent).toHaveBeenCalledWith("file_upload", {
+      outcome: "success",
+      surface: "cpa",
+    });
+    expect(JSON.stringify(captureEvent.mock.calls)).not.toContain("private");
+  });
+
+  it("reports one safe failure and rethrows the identical upload error", async () => {
+    const failure = Object.assign(new Error("private server detail"), { status: 503 });
+    const captureEvent = vi.fn();
+    const client = createFileClient({
+      http: { request: vi.fn() },
+      invokePublic: vi.fn().mockRejectedValue(failure),
+      captureEvent,
+    });
+
+    const upload = client.uploadPublicFile({
+      file: new File(["pdf"], "private-tax.pdf", { type: "application/pdf" }),
+      clientId: "private-client-id",
+      token: "private-token",
+      submissionId: "private-submission-id",
+      purpose: "questionnaire_document",
+    });
+
+    await expect(upload).rejects.toBe(failure);
+    expect(captureEvent).toHaveBeenCalledOnce();
+    expect(captureEvent).toHaveBeenCalledWith("file_upload", {
+      outcome: "failure",
+      surface: "public",
+      failure_category: "service",
+    });
+    expect(captureEvent.mock.calls.flat()).not.toContain(failure);
   });
 
   it("polls a server-side ZIP job and downloads only the ready result", async () => {

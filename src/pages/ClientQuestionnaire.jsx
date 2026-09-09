@@ -10,6 +10,7 @@ import { getResponses } from "@/lib/submission-compat";
 import { buildSteps, parseSignedPdfs, getResumeStepIndex, deriveStepStatuses } from "@/lib/questionnaire-steps";
 import { createRecoverableSaveQueue } from "@/lib/questionnaire-save-queue";
 import { startQuestionnaireWithSubmission } from "@/lib/questionnaire-start";
+import { captureOperationalEvent } from "@/lib/analytics";
 import { postPublicFunction } from "@/api/function-client";
 import { fileClient } from "@/api/file-client";
 import { useToast } from "@/components/ui/use-toast";
@@ -175,6 +176,9 @@ export default function ClientQuestionnaire() {
         // If the client has started (at least one answer), skip the welcome screen
         const hasStarted = Object.keys(responses).length > 0 || Object.keys(signedPdfsById).length > 0;
         setCurrentStep(hasStarted ? resumeIdx : 0);
+        if (hasStarted) {
+          captureOperationalEvent("questionnaire_resume", { outcome: "success" });
+        }
       }
     } else {
       setCurrentStep(0);
@@ -278,12 +282,17 @@ export default function ClientQuestionnaire() {
     return savedSubmission;
   };
 
-  const handleStart = () =>
-    startQuestionnaireWithSubmission({
+  const handleStart = async () => {
+    const startedSubmission = await startQuestionnaireWithSubmission({
       submission,
       createSubmission: () => updateSubmission({}),
       showFirstStep: () => setCurrentStep(1),
     });
+    captureOperationalEvent("questionnaire_start", startedSubmission
+      ? { outcome: "success" }
+      : { outcome: "failure", failure_category: "persistence" });
+    return startedSubmission;
+  };
 
   const handleComplete = async (stepData) => {
     const finalData = {
@@ -294,7 +303,14 @@ export default function ClientQuestionnaire() {
       template_id: templateId,
     };
     const savedSubmission = await updateSubmission(finalData, true);
-    if (!savedSubmission) return false;
+    if (!savedSubmission) {
+      captureOperationalEvent("questionnaire_complete", {
+        outcome: "failure",
+        failure_category: "persistence",
+      });
+      return false;
+    }
+    captureOperationalEvent("questionnaire_complete", { outcome: "success" });
     setCurrentStep(STEPS.length - 1);
     window.scrollTo({ top: 0, behavior: "smooth" });
     return savedSubmission;

@@ -4,6 +4,10 @@ import { fileClient } from "@/api/file-client";
 import { getStepProgress, getAllFiles, getStepSummary } from "@/lib/submission-compat";
 import { DEFAULT_STEPS, getActiveSteps } from "@/lib/default-template";
 import { filterStepsByClientConditions } from "@/lib/questionnaire-template";
+import {
+  captureOperationalEvent,
+  classifyOperationalFailure,
+} from "@/lib/analytics";
 
 import { useToast } from "@/components/ui/use-toast";
 import { Badge as UntypedBadge } from "@/components/ui/badge";
@@ -756,12 +760,25 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                   onClick={async (e) => {
                     e.stopPropagation();
                     if (!submission) return;
-                    await base44.functions.invoke("transitionSubmissionStatus", {
-                      client_id: client.id,
-                      submission_id: submission.id,
-                      status: "ready_for_ira",
-                    });
-                    onRefresh();
+                    try {
+                      await base44.functions.invoke("transitionSubmissionStatus", {
+                        client_id: client.id,
+                        submission_id: submission.id,
+                        status: "ready_for_ira",
+                      });
+                      captureOperationalEvent("cpa_workflow_complete", {
+                        outcome: "success",
+                        milestone: "ready_for_filing",
+                      });
+                      onRefresh();
+                    } catch (transitionError) {
+                      captureOperationalEvent("cpa_workflow_complete", {
+                        outcome: "failure",
+                        milestone: "ready_for_filing",
+                        failure_category: classifyOperationalFailure(transitionError),
+                      });
+                      throw transitionError;
+                    }
                   }}
                   className="text-xs bg-purple-600 text-white hover:bg-purple-700 rounded-lg px-3 py-1.5 font-medium flex items-center gap-1"
                 >
@@ -773,12 +790,25 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                   onClick={async (e) => {
                     e.stopPropagation();
                     if (!submission) return;
-                    await base44.functions.invoke("transitionSubmissionStatus", {
-                      client_id: client.id,
-                      submission_id: submission.id,
-                      status: "reviewed",
-                    });
-                    onRefresh();
+                    try {
+                      await base44.functions.invoke("transitionSubmissionStatus", {
+                        client_id: client.id,
+                        submission_id: submission.id,
+                        status: "reviewed",
+                      });
+                      captureOperationalEvent("cpa_workflow_complete", {
+                        outcome: "success",
+                        milestone: "filed",
+                      });
+                      onRefresh();
+                    } catch (transitionError) {
+                      captureOperationalEvent("cpa_workflow_complete", {
+                        outcome: "failure",
+                        milestone: "filed",
+                        failure_category: classifyOperationalFailure(transitionError),
+                      });
+                      throw transitionError;
+                    }
                   }}
                   className="text-xs bg-gray-600 text-white hover:bg-gray-700 rounded-lg px-3 py-1.5 font-medium flex items-center gap-1"
                 >
