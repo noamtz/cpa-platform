@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createCognitoAuth, OIDC_SCOPE, sanitizeReturnPath } from "../cognito-auth";
 
-function setup() {
+function setup({ captureEvent = vi.fn() } = {}) {
   const location = {
     origin: "https://app.example.test",
     pathname: "/clients",
@@ -35,10 +35,11 @@ function setup() {
     },
     storage: {},
     location,
+    captureEvent,
     UserManagerClass: Manager,
     StateStoreClass: StateStore,
   });
-  return { auth, manager: auth.manager, location };
+  return { auth, manager: auth.manager, location, captureEvent };
 }
 
 describe("Cognito browser auth", () => {
@@ -68,12 +69,45 @@ describe("Cognito browser auth", () => {
   });
 
   it("validates callback state through the library and restores the safe path", async () => {
-    const { auth, manager, location } = setup();
+    const { auth, manager, location, captureEvent } = setup();
     manager.signinRedirectCallback.mockResolvedValue({
       state: { returnPath: "/settings" },
     });
     await expect(auth.completeCallback()).resolves.toBe("/settings");
+    expect(captureEvent).toHaveBeenCalledWith("cpa_sign_in", {
+      outcome: "success",
+    });
+    expect(captureEvent.mock.invocationCallOrder[0]).toBeLessThan(
+      location.replace.mock.invocationCallOrder[0],
+    );
     expect(location.replace).toHaveBeenCalledWith("/settings");
+  });
+
+  it("reports a classified callback failure and rethrows the identical error", async () => {
+    const { auth, manager, captureEvent, location } = setup();
+    const failure = Object.assign(new Error("private callback detail"), {
+      status: 401,
+    });
+    manager.signinRedirectCallback.mockRejectedValue(failure);
+
+    await expect(auth.completeCallback()).rejects.toBe(failure);
+    expect(captureEvent).toHaveBeenCalledWith("cpa_sign_in", {
+      outcome: "failure",
+      failure_category: "authentication",
+    });
+    expect(captureEvent.mock.calls.flat()).not.toContain(failure);
+    expect(location.replace).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    vi.fn(() => { throw new Error("analytics unavailable"); }),
+    vi.fn(() => Promise.reject(new Error("analytics unavailable"))),
+  ])("keeps callback navigation when analytics fails", async (captureEvent) => {
+    const { auth, manager, location } = setup({ captureEvent });
+    manager.signinRedirectCallback.mockResolvedValue({ state: {} });
+
+    await expect(auth.completeCallback()).resolves.toBe("/");
+    expect(location.replace).toHaveBeenCalledWith("/");
   });
 
   it("refreshes an expired session once and clears an unusable session", async () => {

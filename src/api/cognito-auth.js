@@ -1,4 +1,8 @@
 import { UserManager, WebStorageStateStore } from "oidc-client-ts";
+import {
+  captureOperationalEvent,
+  classifyOperationalFailure,
+} from "../lib/analytics";
 
 export const OIDC_SCOPE = "openid auditflow-api/cpa";
 const STORAGE_PREFIX = "auditflow_oidc.";
@@ -18,6 +22,7 @@ export function createCognitoAuth({
   config,
   storage,
   location,
+  captureEvent = captureOperationalEvent,
   UserManagerClass = UserManager,
   StateStoreClass = WebStorageStateStore,
 }) {
@@ -53,6 +58,14 @@ export function createCognitoAuth({
       location.origin,
     );
 
+  const captureSafely = (eventName, properties) => {
+    try {
+      Promise.resolve(captureEvent(eventName, properties)).catch(() => {});
+    } catch {
+      // Analytics must not change authentication behavior.
+    }
+  };
+
   async function getSession({ refresh = false } = {}) {
     let user = await manager.getUser();
     if (refresh || user?.expired) {
@@ -83,7 +96,16 @@ export function createCognitoAuth({
       await manager.signinRedirect({ state: { returnPath } });
     },
     async completeCallback() {
-      const user = await manager.signinRedirectCallback();
+      let user;
+      try {
+        user = await manager.signinRedirectCallback();
+      } catch (error) {
+        captureSafely("cpa_sign_in", {
+          outcome: "failure",
+          failure_category: classifyOperationalFailure(error),
+        });
+        throw error;
+      }
       const callbackState =
         user?.state && typeof user.state === "object"
           ? user.state
@@ -94,6 +116,7 @@ export function createCognitoAuth({
           : undefined,
         location.origin,
       );
+      captureSafely("cpa_sign_in", { outcome: "success" });
       location.replace(returnPath);
       return returnPath;
     },

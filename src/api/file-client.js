@@ -1,6 +1,10 @@
 import { cognitoAuth } from "./cognito-auth";
 import { invokePublicFunction } from "./function-client";
 import { createHttpClient } from "./http-client";
+import {
+  captureOperationalEvent,
+  classifyOperationalFailure,
+} from "../lib/analytics";
 
 const CONTENT_TYPES = {
   pdf: "application/pdf",
@@ -57,16 +61,34 @@ export function createFileClient(options) {
     delay = (milliseconds) =>
       new Promise((resolve) => globalThis.setTimeout(resolve, milliseconds)),
     documentRef = globalThis.document,
+    captureEvent = captureOperationalEvent,
   } = options;
-  async function upload({ initiate, complete, file, onProgress }) {
-    const initiated = await initiate({
-      size: file.size,
-      content_type: contentTypeFor(file),
-    });
-    await putFile(xhrFactory, initiated, file, onProgress, clock);
-    const completed = await complete(initiated.upload_id);
-    onProgress?.(100);
-    return completed.file_uri;
+  const captureSafely = (eventName, properties) => {
+    try {
+      Promise.resolve(captureEvent(eventName, properties)).catch(() => {});
+    } catch {
+      // Analytics must not change file operations.
+    }
+  };
+  async function upload({ initiate, complete, file, onProgress, surface }) {
+    try {
+      const initiated = await initiate({
+        size: file.size,
+        content_type: contentTypeFor(file),
+      });
+      await putFile(xhrFactory, initiated, file, onProgress, clock);
+      const completed = await complete(initiated.upload_id);
+      onProgress?.(100);
+      captureSafely("file_upload", { outcome: "success", surface });
+      return completed.file_uri;
+    } catch (error) {
+      captureSafely("file_upload", {
+        outcome: "failure",
+        surface,
+        failure_category: classifyOperationalFailure(error),
+      });
+      throw error;
+    }
   }
 
   return {
@@ -87,6 +109,7 @@ export function createFileClient(options) {
       return upload({
         file,
         onProgress,
+        surface: "public",
         initiate: (metadata) =>
           invokePublic("uploadFile", {
             operation: "initiate",
@@ -115,6 +138,7 @@ export function createFileClient(options) {
       return upload({
         file,
         onProgress,
+        surface: "cpa",
         initiate: (metadata) =>
           http.request("/cpa/files/uploads/initiate", {
             method: "POST",

@@ -4,6 +4,9 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
 import '@/index.css'
+import { initializeAnalytics } from '@/lib/analytics'
+
+void initializeAnalytics()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <Sentry.ErrorBoundary fallback={<div dir="rtl" style={{padding: '2rem', textAlign: 'center'}}>אירעה שגיאה. אנא נסו שוב.</div>}>
