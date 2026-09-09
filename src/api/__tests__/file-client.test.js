@@ -82,6 +82,20 @@ describe("private file client", () => {
     expect(captureEvent.mock.invocationCallOrder[0]).toBeGreaterThan(
       invokePublic.mock.invocationCallOrder[1],
     );
+    const capturedJson = JSON.stringify(captureEvent.mock.calls);
+    for (const sensitiveValue of [
+      "tax.pdf",
+      "client-test",
+      "opaque-test-token",
+      "submission-test",
+      "questionnaire_document",
+      "step-test",
+      "private://files/synthetic.pdf",
+      "https://signed.example.test/put",
+      "application/pdf",
+    ]) {
+      expect(capturedJson).not.toContain(sensitiveValue);
+    }
   });
 
   it("rejects an expired initiation without sending bytes", async () => {
@@ -171,6 +185,139 @@ describe("private file client", () => {
     });
     expect(captureEvent.mock.calls.flat()).not.toContain(failure);
   });
+
+  it("reports a signed PUT rejection once and does not call completion", async () => {
+    const invokePublic = vi.fn().mockResolvedValue({
+      upload_id: "private://files/put-failure.pdf",
+      upload_url: "https://signed.example.test/put-failure",
+      headers: {},
+      expires_at: "2026-01-01T00:15:00.000Z",
+    });
+    const captureEvent = vi.fn();
+    const { factory } = xhrHarness(503);
+    const progress = vi.fn();
+    const client = createFileClient({
+      http: { request: vi.fn() },
+      invokePublic,
+      xhrFactory: factory,
+      clock: () => new Date("2026-01-01T00:00:00.000Z"),
+      captureEvent,
+    });
+
+    await expect(client.uploadPublicFile({
+      file: new File(["private content"], "private-put.pdf", { type: "application/pdf" }),
+      clientId: "private-client-id",
+      token: "private-token",
+      submissionId: "private-submission-id",
+      purpose: "questionnaire_document",
+      onProgress: progress,
+    })).rejects.toThrow("Upload failed: 503");
+
+    expect(invokePublic).toHaveBeenCalledOnce();
+    expect(progress.mock.calls).toEqual([[45]]);
+    expect(captureEvent).toHaveBeenCalledOnce();
+    expect(captureEvent).toHaveBeenCalledWith("file_upload", {
+      outcome: "failure",
+      surface: "public",
+      failure_category: "unknown",
+    });
+    expect(JSON.stringify(captureEvent.mock.calls)).not.toContain("private");
+  });
+
+  it("reports a completion rejection once and preserves its error identity", async () => {
+    const failure = Object.assign(new Error("private completion detail"), { status: 409 });
+    const invokePublic = vi
+      .fn()
+      .mockResolvedValueOnce({
+        upload_id: "private://files/complete-failure.pdf",
+        upload_url: "https://signed.example.test/complete-failure",
+        headers: {},
+        expires_at: "2026-01-01T00:15:00.000Z",
+      })
+      .mockRejectedValueOnce(failure);
+    const captureEvent = vi.fn();
+    const { factory } = xhrHarness();
+    const progress = vi.fn();
+    const client = createFileClient({
+      http: { request: vi.fn() },
+      invokePublic,
+      xhrFactory: factory,
+      clock: () => new Date("2026-01-01T00:00:00.000Z"),
+      captureEvent,
+    });
+
+    const upload = client.uploadPublicFile({
+      file: new File(["private content"], "private-complete.pdf", { type: "application/pdf" }),
+      clientId: "private-client-id",
+      token: "private-token",
+      submissionId: "private-submission-id",
+      purpose: "questionnaire_document",
+      onProgress: progress,
+    });
+
+    await expect(upload).rejects.toBe(failure);
+    expect(progress.mock.calls).toEqual([[45]]);
+    expect(captureEvent).toHaveBeenCalledOnce();
+    expect(captureEvent).toHaveBeenCalledWith("file_upload", {
+      outcome: "failure",
+      surface: "public",
+      failure_category: "conflict",
+    });
+    expect(captureEvent.mock.calls.flat()).not.toContain(failure);
+  });
+
+  it.each(["throw", "reject"])(
+    "ignores capture %s without changing upload success or failure behavior",
+    async (captureFailureMode) => {
+      const analyticsFailure = new Error("analytics unavailable");
+      const captureEvent = captureFailureMode === "throw"
+        ? vi.fn(() => { throw analyticsFailure; })
+        : vi.fn(() => Promise.reject(analyticsFailure));
+      const invokePublic = vi
+        .fn()
+        .mockResolvedValueOnce({
+          upload_id: "private://files/success.pdf",
+          upload_url: "https://signed.example.test/success",
+          headers: {},
+          expires_at: "2026-01-01T00:15:00.000Z",
+        })
+        .mockResolvedValueOnce({ file_uri: "private://files/success.pdf" });
+      const { factory } = xhrHarness();
+      const progress = vi.fn();
+      const successClient = createFileClient({
+        http: { request: vi.fn() },
+        invokePublic,
+        xhrFactory: factory,
+        clock: () => new Date("2026-01-01T00:00:00.000Z"),
+        captureEvent,
+      });
+
+      await expect(successClient.uploadPublicFile({
+        file: new File(["pdf"], "success.pdf", { type: "application/pdf" }),
+        clientId: "client-test",
+        token: "token-test",
+        submissionId: "submission-test",
+        purpose: "questionnaire_document",
+        onProgress: progress,
+      })).resolves.toBe("private://files/success.pdf");
+      expect(progress.mock.calls).toEqual([[45], [100]]);
+
+      const productFailure = Object.assign(new Error("service unavailable"), { status: 503 });
+      const failureClient = createFileClient({
+        http: { request: vi.fn() },
+        invokePublic: vi.fn().mockRejectedValue(productFailure),
+        captureEvent,
+      });
+      await expect(failureClient.uploadPublicFile({
+        file: new File(["pdf"], "failure.pdf", { type: "application/pdf" }),
+        clientId: "client-test",
+        token: "token-test",
+        submissionId: "submission-test",
+        purpose: "questionnaire_document",
+      })).rejects.toBe(productFailure);
+      expect(captureEvent).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it("polls a server-side ZIP job and downloads only the ready result", async () => {
     const request = vi

@@ -32,7 +32,7 @@ export const OPERATIONAL_EVENT_SCHEMAS = Object.freeze({
 });
 
 const RESERVED_PROPERTY_VALIDATORS = Object.freeze({
-  $distinct_id: (value) => typeof value === "string" && value.length > 0,
+  distinct_id: (value) => typeof value === "string" && value.length > 0,
   $lib: (value) => typeof value === "string" && value.length > 0,
   $lib_version: (value) => typeof value === "string" && value.length > 0,
   $process_person_profile: (value) => value === false,
@@ -97,8 +97,17 @@ export function classifyOperationalFailure(error) {
   return "unknown";
 }
 
-export function filterPostHogEvent(event) {
+export function filterPostHogEvent(event, projectKey) {
   if (!isPlainObject(event) || typeof event.event !== "string") return null;
+  if (
+    typeof projectKey !== "string" ||
+    projectKey.length === 0 ||
+    event.properties?.token !== projectKey ||
+    !RESERVED_PROPERTY_VALIDATORS.distinct_id(event.properties?.distinct_id) ||
+    event.properties?.$process_person_profile !== false
+  ) {
+    return null;
+  }
   const applicationProperties = validateApplicationProperties(
     event.event,
     event.properties,
@@ -106,7 +115,7 @@ export function filterPostHogEvent(event) {
   );
   if (!applicationProperties) return null;
 
-  const properties = { ...applicationProperties };
+  const properties = { ...applicationProperties, token: projectKey };
   for (const [key, validate] of Object.entries(RESERVED_PROPERTY_VALIDATORS)) {
     const value = event.properties[key];
     if (validate(value)) properties[key] = value;
@@ -114,9 +123,6 @@ export function filterPostHogEvent(event) {
   const filteredEvent = { event: event.event, properties };
   if (typeof event.uuid === "string" && event.uuid.length > 0) {
     filteredEvent.uuid = event.uuid;
-  }
-  if (event.timestamp instanceof Date && Number.isFinite(event.timestamp.getTime())) {
-    filteredEvent.timestamp = event.timestamp;
   }
   return filteredEvent;
 }
@@ -156,7 +162,7 @@ export function createAnalytics({ apiKey, loadSdk = () => import("posthog-js") }
             disable_conversations: true,
             disable_external_dependency_loading: true,
             ip: false,
-            before_send: filterPostHogEvent,
+            before_send: (event) => filterPostHogEvent(event, projectKey),
             on_request_error: () => {},
           });
           client = initialized ?? sdk;
