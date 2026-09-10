@@ -94,7 +94,10 @@ describe("production readiness verifier", () => {
   it("fails when the production workflow cannot inspect Environment protection", () => {
     const root = contractFixture();
     const path = join(root, ".github/workflows/deploy-sst-production.yml");
-    writeFileSync(path, readFileSync(path, "utf8").replace("  actions: read\n", ""));
+    const workflow = readFileSync(path, "utf8");
+    const workflowWithoutActionsRead = workflow.replace(/ {2}actions: read\r?\n/u, "");
+    expect(workflowWithoutActionsRead).not.toBe(workflow);
+    writeFileSync(path, workflowWithoutActionsRead);
     expect(() => verifyContract({ root })).toThrow("Production workflow is not manual, protected, or fail-closed");
   });
 
