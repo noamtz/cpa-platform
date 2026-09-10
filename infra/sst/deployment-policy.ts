@@ -248,6 +248,67 @@ export function buildDeploymentPolicy({
   const stageAssetObjects = stageAssetPrefixes.map(
     (prefix) => `${sstAssetBucketArn}/${prefix}`,
   );
+  const sstAssetStorageStatements: readonly IamPolicyStatement[] =
+    stage === "production"
+      ? [
+          {
+            Sid: "InspectSstAssetStorage",
+            Effect: "Allow",
+            Action: [
+              "s3:GetBucketLocation",
+              "s3:ListBucket",
+              "s3:ListBucketMultipartUploads",
+              "s3:ListBucketVersions",
+            ],
+            Resource: sstAssetBucketArn,
+            Condition: {
+              StringLike: {
+                "s3:prefix": stageAssetPrefixes,
+              },
+            },
+          },
+          {
+            Sid: "UseStageSstAssets",
+            Effect: "Allow",
+            Action: [
+              "s3:AbortMultipartUpload",
+              "s3:DeleteObject",
+              "s3:GetObject",
+              "s3:GetObjectTagging",
+              "s3:GetObjectVersion",
+              "s3:ListMultipartUploadParts",
+              "s3:PutObject",
+              "s3:PutObjectTagging",
+            ],
+            Resource: stageAssetObjects,
+          },
+        ]
+      : [
+          {
+            Sid: "UseSstAssetStorage",
+            Effect: "Allow",
+            Action: [
+              "s3:AbortMultipartUpload",
+              "s3:GetBucketLocation",
+              "s3:GetObject",
+              "s3:GetObjectTagging",
+              "s3:GetObjectVersion",
+              "s3:ListBucket",
+              "s3:ListBucketMultipartUploads",
+              "s3:ListBucketVersions",
+              "s3:ListMultipartUploadParts",
+              "s3:PutObject",
+              "s3:PutObjectTagging",
+            ],
+            Resource: [sstAssetBucketArn, `${sstAssetBucketArn}/*`],
+          },
+          {
+            Sid: "DeleteSupersededSstAssets",
+            Effect: "Allow",
+            Action: "s3:DeleteObject",
+            Resource: `${sstAssetBucketArn}/assets/*`,
+          },
+        ];
   const sstStateBucketArn = "arn:aws:s3:::sst-state-kkkvushrzufd";
   const sstStageStatePrefixes = [
     `*/${appName}/${stage}.json`,
@@ -299,37 +360,7 @@ export function buildDeploymentPolicy({
         Action: ["s3:GetObject", "s3:GetObjectVersion"],
         Resource: `${sstStateBucketArn}/${sstFallbackSecretPrefix}`,
       },
-      {
-        Sid: "InspectSstAssetStorage",
-        Effect: "Allow",
-        Action: [
-          "s3:GetBucketLocation",
-          "s3:ListBucket",
-          "s3:ListBucketMultipartUploads",
-          "s3:ListBucketVersions",
-        ],
-        Resource: sstAssetBucketArn,
-        Condition: {
-          StringLike: {
-            "s3:prefix": stageAssetPrefixes,
-          },
-        },
-      },
-      {
-        Sid: "UseStageSstAssets",
-        Effect: "Allow",
-        Action: [
-          "s3:AbortMultipartUpload",
-          "s3:DeleteObject",
-          "s3:GetObject",
-          "s3:GetObjectTagging",
-          "s3:GetObjectVersion",
-          "s3:ListMultipartUploadParts",
-          "s3:PutObject",
-          "s3:PutObjectTagging",
-        ],
-        Resource: stageAssetObjects,
-      },
+      ...sstAssetStorageStatements,
       {
         Sid: "UseSstAssetRepository",
         Effect: "Allow",

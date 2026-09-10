@@ -174,11 +174,11 @@ describe("test deployment IAM policy", () => {
     const state = policy.Statement.find(
       ({ Sid }) => Sid === "UseSstStageState",
     );
-    const assetInspection = policy.Statement.find(
-      ({ Sid }) => Sid === "InspectSstAssetStorage",
-    );
     const assets = policy.Statement.find(
-      ({ Sid }) => Sid === "UseStageSstAssets",
+      ({ Sid }) => Sid === "UseSstAssetStorage",
+    );
+    const assetCleanup = policy.Statement.find(
+      ({ Sid }) => Sid === "DeleteSupersededSstAssets",
     );
 
     expect(state?.Resource).toEqual([
@@ -192,25 +192,14 @@ describe("test deployment IAM policy", () => {
       Resource:
         "arn:aws:s3:::sst-state-kkkvushrzufd/secret/auditflow/_fallback.json",
     });
-    expect(assetInspection).toMatchObject({
-      Resource: "arn:aws:s3:::sst-asset-kkkvushrzufd",
-      Condition: {
-        StringLike: {
-          "s3:prefix": [
-            "assets/ApiFunction-code-*",
-            "assets/PdfRendererFunction-code-*",
-            "assets/ZipDownloadWorker-code-*",
-          ],
-        },
-      },
-    });
-    expect(actions(assets!)).toContain("s3:DeleteObject");
+    expect(actions(assets!)).not.toContain("s3:DeleteObject");
     expect(actions(assets!)).toContain("s3:PutObjectTagging");
-    expect(assets?.Resource).toEqual([
-      "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/ApiFunction-code-*",
-      "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/PdfRendererFunction-code-*",
-      "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/ZipDownloadWorker-code-*",
-    ]);
+    expect(assetCleanup).toEqual({
+      Sid: "DeleteSupersededSstAssets",
+      Effect: "Allow",
+      Action: "s3:DeleteObject",
+      Resource: "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/*",
+    });
     expect(JSON.stringify(policy)).not.toContain("sst-state-kkkvushrzufd/*\"");
   });
 
@@ -241,6 +230,15 @@ describe("test deployment IAM policy", () => {
     expect(serialized).toContain(productionBoundaryArn);
     expect(serialized).toContain("ApiFunctionAuditflowProduction-code-*");
     expect(serialized).not.toContain("ApiFunction-code-*");
+    expect(
+      productionPolicy.Statement.find(
+        ({ Sid }) => Sid === "UseStageSstAssets",
+      )?.Resource,
+    ).toEqual([
+      "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/ApiFunctionAuditflowProduction-code-*",
+      "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/PdfRendererFunctionAuditflowProduction-code-*",
+      "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/ZipDownloadWorkerAuditflowProduction-code-*",
+    ]);
     expect(
       productionPolicy.Statement.find(
         ({ Sid }) => Sid === "ManageCloudFrontKeyValues",
