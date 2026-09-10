@@ -385,6 +385,12 @@ describe("foundation resource contract", () => {
       new URL("../application.ts", import.meta.url),
       "utf8",
     );
+    const pdfPackage = JSON.parse(
+      readFileSync(
+        new URL("../../../lambda/pdf-generator/package.json", import.meta.url),
+        "utf8",
+      ),
+    );
     expect(pdfSource).toContain("CORS_ORIGIN: routerOrigin");
     expect(pdfSource).toContain("install: [...pdfContract.nodejsInstall]");
     expect(pdfSource).toContain("copyFiles:");
@@ -392,6 +398,10 @@ describe("foundation resource contract", () => {
     expect(pdfSource).toContain("permissions: [...pdfContract.permissions]");
     expect(pdfSource).toContain("args.permissionsBoundary = workloadBoundaryArn");
     expect(pdfSource).toContain("args.corsConfiguration = undefined");
+    expect(pdfPackage.dependencies["@napi-rs/canvas"]).toBe("0.1.100");
+    expect(
+      pdfPackage.optionalDependencies["@napi-rs/canvas-linux-arm64-gnu"],
+    ).toBe("0.1.100");
     expect(applicationSource).toContain(
       "router.route(pdfContract.routerPattern, pdf.api.url",
     );

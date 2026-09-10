@@ -172,11 +172,13 @@ Post-fix local validation on Node 20.17.0:
 
 - PASS: frontend tests (15 files, 164 tests).
 - PASS: foundation tests (47 files, 398 tests), foundation typecheck, and foundation lint.
-- PASS: PDF (22), import (10), and reverse-replay (41) tests.
+- PASS: PDF (23), import (10), and reverse-replay (41) tests.
 - PASS: Vite build, test/production foundation contracts, frontend runtime scan, readiness contract, Playwright discovery (32 cases), and Codex-layer validation.
 - INCOMPLETE: private-fixture browser execution remains an owner-run gate; the local read-only command skipped 24 cases because no private fixture was supplied.
 - KNOWN BASELINE FAIL: root typecheck still reports 147 pre-existing frontend diagnostics; none are in the review-fix files.
 - KNOWN BASELINE FAIL: root lint still reports the two pre-existing unused imports in `CompletionScreen.jsx` and `UserManagement.jsx`.
-- PENDING: GitHub test-stage workflow rerun after push.
+- PASS: hosted staged-runtime independence, including the original internal package symlink.
+- FIXED AFTER HOSTED DISCOVERY: SST resolved the native canvas package from the nearest Lambda package boundary, where it was not declared, and staged latest `1.0.9`; the Lambda package and lock now pin both canvas packages to `0.1.100` and have a contract regression test.
+- PENDING: GitHub test-stage workflow rerun after the Lambda dependency-boundary fix.
 
 No production AWS resource, Base44 application, or Base44 data was accessed or changed while applying these fixes.

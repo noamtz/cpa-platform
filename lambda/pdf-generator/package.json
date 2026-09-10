@@ -8,10 +8,13 @@
     "clean": "rm -rf dist deployment.zip"
   },
   "dependencies": {
-    "@napi-rs/canvas": "^0.1.65",
+    "@napi-rs/canvas": "0.1.100",
     "@pdfme/common": "^6.1.1",
     "@pdfme/generator": "^6.1.1",
     "@pdfme/schemas": "^6.1.1",
     "pdfjs-dist": "3.11.174"
+  },
+  "optionalDependencies": {
+    "@napi-rs/canvas-linux-arm64-gnu": "0.1.100"
   }
 }
