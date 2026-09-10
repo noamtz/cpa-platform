@@ -93,7 +93,11 @@ async function inspectEntries({ names, readEntry, fontBytes, fontEvidence }) {
     packageManifest.name !== EXPECTED_NATIVE_PACKAGE ||
     packageManifest.version !== EXPECTED_NATIVE_VERSION
   ) {
-    fail("Staged Linux ARM64 canvas package identity or version has drifted.");
+    fail(
+      "Staged Linux ARM64 canvas package identity or version has drifted: " +
+        `expected ${EXPECTED_NATIVE_PACKAGE}@${EXPECTED_NATIVE_VERSION}, ` +
+        `observed ${String(packageManifest.name)}@${String(packageManifest.version)}.`,
+    );
   }
 
   return {
