@@ -155,6 +155,7 @@ function PdfPageCanvas({ pdfDoc, pageIdx, pageSize, fields, fieldValues, handleC
               const val = fieldValues[field.name];
 
               // Convert millimeter positions to absolute percentages
+              /** @type {React.CSSProperties} */
               const style = {
                 position: "absolute",
                 left: `${(field.position.x / pageSize.width) * 100}%`,
@@ -298,15 +299,16 @@ export default function PdfSignCanvasOverlay() {
           });
       };
 
-      if (window.pdfjsLib) {
-        const version = window.pdfjsLib.version || defaultVersion;
+      const pdfjsWindow = /** @type {Window & { pdfjsLib?: typeof import("pdfjs-dist") }} */ (window);
+      if (pdfjsWindow.pdfjsLib) {
+        const version = pdfjsWindow.pdfjsLib.version || defaultVersion;
         // Modern PDF.js (v4.0.0+) uses .mjs extension for worker files
         const isModern = parseInt(version.split(".")[0], 10) >= 4;
         const ext = isModern ? "min.mjs" : "min.js";
         const workerUrl = `https://unpkg.com/pdfjs-dist@${version}/build/pdf.worker.${ext}`;
         
-        setWorkerViaBlob(window.pdfjsLib, workerUrl).then(() => {
-          resolve(window.pdfjsLib);
+        setWorkerViaBlob(pdfjsWindow.pdfjsLib, workerUrl).then(() => {
+          resolve(pdfjsWindow.pdfjsLib);
         });
         return;
       }
@@ -314,7 +316,7 @@ export default function PdfSignCanvasOverlay() {
       const script = document.createElement("script");
       script.src = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${defaultVersion}/pdf.min.js`;
       script.onload = () => {
-        const lib = window.pdfjsLib;
+        const lib = pdfjsWindow.pdfjsLib;
         const workerUrl = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${defaultVersion}/pdf.worker.min.js`;
         setWorkerViaBlob(lib, workerUrl).then(() => {
           resolve(lib);

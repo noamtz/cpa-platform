@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { getResponses, getStepSummary } from "@/lib/submission-compat";
+import { getStepSummary } from "@/lib/submission-compat";
 
 export default function CompletionScreen({ client, submission, steps, onEdit }) {
   const summary = steps && steps.length > 0
