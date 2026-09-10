@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   assertBrowserCorsAbsent,
   assertBrowserCorsExact,
+  cloudFrontKeyValueStoreSimulationTargets,
   hasScopedCloudFrontKeyValueStorePermissions,
   hasApiGatewayCorsConfiguration,
   isRetryableAwsCliFailure,
@@ -175,14 +176,18 @@ describe("production budget read-back", () => {
   });
 
   it("requires one exact production KeyValueStore ARN", () => {
+    const productionResource =
+      `arn:aws:cloudfront::${accountId}:key-value-store/production-router`;
+    const productionPolicy = {
+      Statement: [{
+        ...expectedStatement,
+        Resource: productionResource,
+      }],
+    };
+
     expect(
       hasScopedCloudFrontKeyValueStorePermissions(
-        {
-          Statement: [{
-            ...expectedStatement,
-            Resource: `arn:aws:cloudfront::${accountId}:key-value-store/production-router`,
-          }],
-        },
+        productionPolicy,
         accountId,
         "production",
       ),
@@ -194,6 +199,29 @@ describe("production budget read-back", () => {
         "production",
       ),
     ).toBe(false);
+  });
+
+  it("probes the exact production KeyValueStore and rejects a generic one", () => {
+    const productionResource =
+      `arn:aws:cloudfront::${accountId}:key-value-store/production-router`;
+    const productionPolicy = {
+      Statement: [{
+        ...expectedStatement,
+        Resource: productionResource,
+      }],
+    };
+
+    expect(
+      cloudFrontKeyValueStoreSimulationTargets(
+        productionPolicy,
+        accountId,
+        "production",
+      ),
+    ).toEqual({
+      allowedArn: productionResource,
+      deniedAccountLocalArn:
+        `arn:aws:cloudfront::${accountId}:key-value-store/auditflow-policy-probe`,
+    });
   });
 
   it("fails above the ILS ceiling or when automatic actions exist", () => {

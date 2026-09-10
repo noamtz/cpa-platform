@@ -62,6 +62,32 @@ export function hasScopedCloudFrontKeyValueStorePermissions(
   );
 }
 
+export function cloudFrontKeyValueStoreSimulationTargets(
+  policy,
+  accountId,
+  stage = "test",
+) {
+  const accountLocalProbeArn =
+    `arn:aws:cloudfront::${accountId}:key-value-store/auditflow-policy-probe`;
+  if (stage !== "production") {
+    return {
+      allowedArn: accountLocalProbeArn,
+      deniedAccountLocalArn: undefined,
+    };
+  }
+
+  const statement = policy?.Statement?.find(
+    ({ Sid }) => Sid === "ManageCloudFrontKeyValues",
+  );
+  return {
+    allowedArn: statement?.Resource,
+    deniedAccountLocalArn:
+      statement?.Resource === accountLocalProbeArn
+        ? `arn:aws:cloudfront::${accountId}:key-value-store/unrelated-policy-probe`
+        : accountLocalProbeArn,
+  };
+}
+
 export function validateRouterOutputs(contract, stage, outputs) {
   const customDomain = outputs.customDomain;
   if (stage === "test") {
@@ -645,12 +671,8 @@ function verifyDeployer(contract, stage) {
     `${stage} deploy role CloudFront KeyValueStore permissions are missing, broad, or conditioned on unsupported tags.`,
   );
 
-  const keyValueStoreStatement = inlinePolicy.Statement.find(
-    ({ Sid }) => Sid === "ManageCloudFrontKeyValues",
-  );
-  const keyValueStoreProbeArn = stage === "production"
-    ? keyValueStoreStatement.Resource
-    : `arn:aws:cloudfront::${accountId}:key-value-store/auditflow-policy-probe`;
+  const { allowedArn: keyValueStoreProbeArn } =
+    cloudFrontKeyValueStoreSimulationTargets(inlinePolicy, accountId, stage);
   for (const action of requiredCloudFrontKeyValueStoreActions) {
     assert(
       simulatePrincipalAction(roleArn, action, keyValueStoreProbeArn) ===
@@ -1591,14 +1613,26 @@ async function verifyLive(
     ) !== "allowed",
     "Policy simulation allowed mutation of unrelated SST state.",
   );
-  const keyValueStoreProbeArn =
-    `arn:aws:cloudfront::${accountId}:key-value-store/auditflow-policy-probe`;
+  const {
+    allowedArn: keyValueStoreProbeArn,
+    deniedAccountLocalArn: deniedAccountLocalKeyValueStoreArn,
+  } = cloudFrontKeyValueStoreSimulationTargets(inlinePolicy, accountId, stage);
   for (const action of requiredCloudFrontKeyValueStoreActions) {
     assert(
       simulatePrincipalAction(roleArn, action, keyValueStoreProbeArn) ===
         "allowed",
-      `Policy simulation did not allow ${action} on an account-local KeyValueStore.`,
+      `Policy simulation did not allow ${action} on the ${stage} KeyValueStore resource.`,
     );
+    if (deniedAccountLocalKeyValueStoreArn) {
+      assert(
+        simulatePrincipalAction(
+          roleArn,
+          action,
+          deniedAccountLocalKeyValueStoreArn,
+        ) !== "allowed",
+        `Policy simulation allowed ${action} on an unrelated production KeyValueStore.`,
+      );
+    }
   }
   assert(
     simulatePrincipalAction(
