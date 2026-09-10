@@ -7,7 +7,7 @@ import type { StageSettings } from "./stage";
 
 export async function createDeploymentRole(
   stage: StageSettings,
-  routerKeyValueStoreArn: $util.Input<string>,
+  routerKeyValueStoreArn?: $util.Input<string>,
 ) {
   const caller = await aws.getCallerIdentity({});
   const boundaryName = `${$app.name}-${stage.name}-workload-boundary`;
@@ -29,6 +29,30 @@ export async function createDeploymentRole(
 
   const providerArn = `arn:aws:iam::${caller.accountId}:oidc-provider/${deploymentContract.providerUrl}`;
   const roleContract = deploymentContract.roles[stage.name];
+  if (stage.isProduction && !routerKeyValueStoreArn) {
+    throw new Error("Production requires the Router KeyValueStore ARN.");
+  }
+  const inlinePolicy = stage.isProduction
+    ? $resolve([workloadBoundary.arn, routerKeyValueStoreArn!]).apply(
+        ([workloadBoundaryArn, resolvedRouterKeyValueStoreArn]) =>
+          JSON.stringify(
+            buildDeploymentPolicy({
+              accountId: caller.accountId,
+              stage: stage.name,
+              workloadBoundaryArn,
+              routerKeyValueStoreArn: resolvedRouterKeyValueStoreArn,
+            }),
+          ),
+      )
+    : workloadBoundary.arn.apply((workloadBoundaryArn) =>
+        JSON.stringify(
+          buildDeploymentPolicy({
+            accountId: caller.accountId,
+            stage: stage.name,
+            workloadBoundaryArn,
+          }),
+        ),
+      );
 
   const role = new aws.iam.Role(roleContract.logicalName, {
     name: `${$app.name}-${stage.name}-github-deploy`,
@@ -55,17 +79,7 @@ export async function createDeploymentRole(
     inlinePolicies: [
       {
         name: `auditflow-${stage.name}-foundation-deploy`,
-        policy: $resolve([workloadBoundary.arn, routerKeyValueStoreArn]).apply(
-          ([workloadBoundaryArn, resolvedRouterKeyValueStoreArn]) =>
-            JSON.stringify(
-              buildDeploymentPolicy({
-                accountId: caller.accountId,
-                stage: stage.name,
-                workloadBoundaryArn,
-                routerKeyValueStoreArn: resolvedRouterKeyValueStoreArn,
-              }),
-            ),
-        ),
+        policy: inlinePolicy,
       },
     ],
     tags: {

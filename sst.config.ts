@@ -63,7 +63,10 @@ export default $config({
     const storage = createStorage(stage, router.url);
     const authentication = createAuthentication(stage, router.url);
     createCostControls(stage);
-    const deploymentRole = await createDeploymentRole(stage, router._kvStoreArn);
+    const deploymentRole = await createDeploymentRole(
+      stage,
+      stage.isProduction ? router._kvStoreArn : undefined,
+    );
     const pdf = createPdfApi(
       stage,
       deploymentRole.workloadBoundary.arn,

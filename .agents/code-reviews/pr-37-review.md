@@ -180,7 +180,7 @@ Post-fix local validation on Node 20.17.0:
 - PASS: hosted staged-runtime independence, including the original internal package symlink.
 - PASS: hosted staged PDF runtime verification with the pinned `0.1.100` AArch64 binary.
 - FIXED AFTER HOSTED DISCOVERY: SST 3.19.3 emitted `"*"` for the explicitly installed native package because it reads versions only from root `dependencies`, not `optionalDependencies`, and staged latest `1.0.9`. The redundant native entry was removed from `nodejs.install`, so pinned `@napi-rs/canvas@0.1.100` supplies its pinned ARM64 optional binary; root and Lambda dependency boundaries plus the Lambda lock are now contract-tested at `0.1.100`.
-- FIXED AFTER HOSTED DISCOVERY: the first production asset-scope implementation also changed the existing test role, whose explicit self-mutation deny correctly rejected the update. The test policy is now emitted exactly as before; only the not-yet-enabled production policy receives exact KVS and AuditFlow-production asset scoping.
-- PENDING: GitHub test-stage workflow rerun after preserving the existing test deployer policy.
+- FIXED AFTER HOSTED DISCOVERY: the first production asset-scope implementation also changed the existing test role, whose explicit self-mutation deny correctly rejected the update. The test path now preserves both the original policy value and its Pulumi dependency graph; only the not-yet-enabled production path depends on the exact KVS ARN and receives AuditFlow-production asset scoping.
+- PENDING: GitHub test-stage workflow rerun after preserving the existing test deployer policy value and dependency graph.
 
 No production AWS resource, Base44 application, or Base44 data was accessed or changed while applying these fixes.
