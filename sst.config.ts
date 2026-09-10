@@ -2,8 +2,13 @@
 
 export default $config({
   async app(input) {
-    const { APP_NAME, AWS_REGION, SST_VERSION, getStageSettings } =
-      await import("./infra/sst/stage");
+    const [
+      { APP_NAME, SST_VERSION, getStageSettings },
+      { getDeploymentTarget },
+    ] = await Promise.all([
+      import("./infra/sst/stage"),
+      import("./infra/sst/deployment-targets"),
+    ]);
 
     if (input.stage === "production") {
       const { existsSync } = await import("node:fs");
@@ -13,6 +18,7 @@ export default $config({
     }
 
     const stage = getStageSettings(input.stage);
+    const deploymentTarget = getDeploymentTarget(stage.name);
 
     return {
       name: APP_NAME,
@@ -22,7 +28,8 @@ export default $config({
       removal: stage.removal,
       providers: {
         aws: {
-          region: AWS_REGION,
+          region: deploymentTarget.region,
+          allowedAccountIds: [deploymentTarget.accountId],
         },
       },
     };

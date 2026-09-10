@@ -219,12 +219,29 @@ jobs:
           process.stdout.write("OIDC claim validation passed\n");
           NODE
 
+      - name: Resolve canonical deployment target
+        id: deployment-target
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync, readFileSync } from "node:fs";
+          const manifest = JSON.parse(readFileSync("infra/sst/deployment-targets.json", "utf8"));
+          const target = manifest.targets?.[process.env.SST_STAGE];
+          const expectedRoleArn = target && `arn:aws:iam::${target.accountId}:role/${target.deployRoleName}`;
+          if (!target || target.region !== process.env.AWS_REGION || process.env.AWS_DEPLOY_ROLE_ARN !== expectedRoleArn) {
+            throw new Error("GitHub Environment deployment target does not match the repository contract");
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `account-id=${target.accountId}\nrole-arn=${expectedRoleArn}\n`);
+          NODE
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ steps.deployment-target.outputs.role-arn }}
           role-session-name: auditflow-sst-test
           aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: ${{ steps.deployment-target.outputs.account-id }}
+          mask-aws-account-id: true
 
       - name: Verify AWS session
         shell: bash

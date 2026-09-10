@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  assertDeploymentIdentity,
   assertBrowserCorsAbsent,
   assertBrowserCorsExact,
   cloudFrontKeyValueStoreSimulationTargets,
@@ -15,9 +16,17 @@ import {
   retryAwsCliCommand,
   requiredCloudFrontKeyValueStoreActions,
   scopedCpaRouteCount,
+  validateDeploymentTargets,
   validateRouterOutputs,
   validateProductionBudgetReadback,
 } from "../../../tooling/verify_sst_foundation.mjs";
+
+const foundationContract = JSON.parse(
+  readFileSync(new URL("../foundation-contract.json", import.meta.url), "utf8"),
+);
+const deploymentTargets = JSON.parse(
+  readFileSync(new URL("../deployment-targets.json", import.meta.url), "utf8"),
+);
 
 const accountId = "123456789012";
 const expectedStatement = {
@@ -28,6 +37,42 @@ const expectedStatement = {
 };
 
 describe("test deployer permission verification", () => {
+  it("accepts only the canonical stage targets", () => {
+    expect(validateDeploymentTargets(deploymentTargets, foundationContract)).toBe(
+      deploymentTargets,
+    );
+    expect(
+      assertDeploymentIdentity(
+        deploymentTargets,
+        foundationContract,
+        "test",
+        { Account: deploymentTargets.targets.test.accountId },
+      ),
+    ).toBe(deploymentTargets.targets.test);
+  });
+
+  it("rejects a different caller without disclosing either account", () => {
+    const action = () =>
+      assertDeploymentIdentity(
+        deploymentTargets,
+        foundationContract,
+        "test",
+        { Account: "123456789012" },
+      );
+
+    expect(action).toThrow(
+      "AWS caller does not match the configured AuditFlow test account.",
+    );
+    try {
+      action();
+    } catch (error) {
+      expect(error.message).not.toContain("123456789012");
+      expect(error.message).not.toContain(
+        deploymentTargets.targets.test.accountId,
+      );
+    }
+  });
+
   it("accepts only the explicit account-scoped KeyValueStore grant", () => {
     expect(
       hasScopedCloudFrontKeyValueStorePermissions(
@@ -78,6 +123,28 @@ describe("test deployer permission verification", () => {
     expect(preflight).toBeLessThan(preview);
     expect(preflight).toBeLessThan(deployment);
   });
+
+  it.each(["test", "production"])(
+    "pins the %s GitHub credential action to the repository target",
+    (stage) => {
+      const workflow = readFileSync(
+        new URL(
+          `../../../.github/workflows/deploy-sst-${stage}.yml`,
+          import.meta.url,
+        ),
+        "utf8",
+      );
+
+      expect(workflow).toContain("infra/sst/deployment-targets.json");
+      expect(workflow).toContain(
+        "role-to-assume: ${{ steps.deployment-target.outputs.role-arn }}",
+      );
+      expect(workflow).toContain(
+        "allowed-account-ids: ${{ steps.deployment-target.outputs.account-id }}",
+      );
+      expect(workflow).toContain("mask-aws-account-id: true");
+    },
+  );
 
   it("keeps ordinary deploys disabled and gates manual enablement before AWS access", () => {
     const workflow = readFileSync(

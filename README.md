@@ -63,11 +63,13 @@ before the business mutation rather than truncated.
 ## SST foundation operations
 
 The non-PDF AWS foundation uses SST 3.19.3 in `il-central-1`. It accepts only the exact stages `test` and
-`production`; aliases such as `prod` are rejected. Use an authenticated AWS profile that has been independently
-verified against the intended AuditFlow account:
+`production`; aliases such as `prod` are rejected. `infra/sst/deployment-targets.json` is the canonical
+stage-to-account, region, and deploy-role map. SST supplies its account ID through the AWS provider's
+`allowedAccountIds` guard, and both bootstrap and verification reject a different caller before resource access or
+mutation. Use a non-root authenticated AWS profile that has been independently verified against that manifest:
 
 ```powershell
-$env:AWS_PROFILE = "<profile>"
+$env:AWS_PROFILE = "<non-root-profile>"
 $env:AWS_REGION = "il-central-1"
 node tooling/verify_sst_foundation.mjs --mode deployer --stage test
 npm run sst:install
@@ -98,7 +100,8 @@ explicit owner authorization for that exact scope.
 
 The active `Deploy SST test` workflow assumes the separate `auditflow-test-github-deploy` role through the GitHub
 `test` Environment. Set only its ARN as the Environment variable `AWS_DEPLOY_ROLE_ARN`; the workflow validates its
-immutable repository OIDC subject before assuming the role. Before SST preview or deployment, the workflow simulates
+immutable repository OIDC subject and the canonical deployment account before assuming or inspecting the role.
+Before SST preview or deployment, the workflow simulates
 every required CloudFront KeyValueStore action against the deployed role and stops before stage mutation if the
 source and deployed permissions have drifted. The role cannot mutate itself. SST workload roles
 must use the stage permissions boundary, and CI can pass them only to Lambda. Changes to the deploy role or the
