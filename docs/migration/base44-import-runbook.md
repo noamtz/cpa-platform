@@ -72,15 +72,17 @@ relationship, identity, reference, or target conflicts.
 ## Owner bootstrap for protected deployment trust
 
 The ordinary GitHub deploy role is explicitly denied permission to change its own policy or trust relationship. If
-the protected enablement subject is not yet trusted, use an independently authenticated owner profile and run:
+the protected enablement subject is not yet trusted, use an independently authenticated non-root owner profile whose
+STS account matches the test target in `infra/sst/deployment-targets.json`, and run:
 
 ```powershell
 npm run bootstrap:test-deployment-trust
 ```
 
-The command accepts only the tagged AuditFlow test deploy role, permits only the prior one-subject policy or the
-desired two-subject policy, rejects execution from the deploy role itself, and reads back the exact desired policy.
-It does not touch workload permissions, application resources, or production.
+The command verifies the caller against the repository target before reading IAM, accepts only the tagged AuditFlow
+test deploy role, permits only the prior one-subject policy or the desired two-subject policy, rejects execution from
+the deploy role itself, and reads back the exact desired policy. It does not touch workload permissions, application
+resources, or production.
 
 If Windows HTTPS inspection prevents Node from validating the AWS certificate chain, use a Node runtime that supports
 the Windows trust store and keep certificate verification enabled:

@@ -14,7 +14,20 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const contract = JSON.parse(
   readFileSync(resolve(repositoryRoot, "infra/sst/foundation-contract.json"), "utf8"),
 );
-const roleName = "auditflow-test-github-deploy";
+const deploymentTargets = JSON.parse(
+  readFileSync(resolve(repositoryRoot, "infra/sst/deployment-targets.json"), "utf8"),
+);
+const deploymentTarget = deploymentTargets.targets?.test;
+if (
+  deploymentTargets.schemaVersion !== 1 ||
+  deploymentTargets.app !== contract.app ||
+  !/^\d{12}$/u.test(deploymentTarget?.accountId ?? "") ||
+  deploymentTarget.region !== contract.region ||
+  deploymentTarget.deployRoleName !== `${contract.app}-test-github-deploy`
+) {
+  throw new Error("The test deployment target is invalid");
+}
+const roleName = deploymentTarget.deployRoleName;
 
 function fail(message) {
   throw new Error(message);
@@ -108,7 +121,7 @@ function trustSubjects(policy, accountId) {
 }
 
 export function validateBootstrapState(identity, role) {
-  if (!/^\d{12}$/.test(identity.Account ?? "")) fail("Unexpected AWS account identity");
+  validateBootstrapIdentity(identity);
   if (identity.Arn?.includes(`assumed-role/${roleName}/`)) {
     fail("The deploy role cannot bootstrap its own trust policy");
   }
@@ -121,11 +134,14 @@ export function validateBootstrapState(identity, role) {
   ) {
     fail("The deployed role does not match the owner-bootstrap test contract");
   }
-  const desired = expectedTrust(identity.Account, [
+  const desired = expectedTrust(deploymentTarget.accountId, [
     contract.oidc.subject,
     contract.oidc.enablementSubject,
   ]);
-  const subjects = trustSubjects(role.AssumeRolePolicyDocument, identity.Account);
+  const subjects = trustSubjects(
+    role.AssumeRolePolicyDocument,
+    deploymentTarget.accountId,
+  );
   if (
     normalized(subjects) !== normalized([contract.oidc.subject]) &&
     normalized(subjects) !==
@@ -136,16 +152,26 @@ export function validateBootstrapState(identity, role) {
   return desired;
 }
 
+export function validateBootstrapIdentity(identity) {
+  if (identity?.Account !== deploymentTarget.accountId) {
+    fail("AWS caller does not match the configured AuditFlow test account");
+  }
+  return deploymentTarget;
+}
+
 export async function bootstrapTestDeploymentTrust({ sts, iam } = {}) {
   const credentials = fromIni({ profile: process.env.AWS_PROFILE ?? "default" });
-  const stsClient = sts ?? new STSClient({ region: "il-central-1", credentials });
-  const iamClient = iam ?? new IAMClient({ region: "il-central-1", credentials });
+  const stsClient = sts ?? new STSClient({ region: deploymentTarget.region, credentials });
+  const iamClient = iam ?? new IAMClient({ region: deploymentTarget.region, credentials });
   const identity = await stsClient.send(new GetCallerIdentityCommand({}));
+  validateBootstrapIdentity(identity);
   const before = (await iamClient.send(new GetRoleCommand({ RoleName: roleName }))).Role;
   if (!before) fail("The test deploy role does not exist");
   const desired = validateBootstrapState(identity, before);
   if (
-    normalized(trustSubjects(before.AssumeRolePolicyDocument, identity.Account)) !==
+    normalized(
+      trustSubjects(before.AssumeRolePolicyDocument, deploymentTarget.accountId),
+    ) !==
     normalized([contract.oidc.subject, contract.oidc.enablementSubject])
   ) {
     await iamClient.send(
@@ -158,7 +184,9 @@ export async function bootstrapTestDeploymentTrust({ sts, iam } = {}) {
   const after = (await iamClient.send(new GetRoleCommand({ RoleName: roleName }))).Role;
   if (!after) fail("The test deploy role disappeared during bootstrap");
   if (
-    normalized(trustSubjects(after.AssumeRolePolicyDocument, identity.Account)) !==
+    normalized(
+      trustSubjects(after.AssumeRolePolicyDocument, deploymentTarget.accountId),
+    ) !==
     normalized([contract.oidc.subject, contract.oidc.enablementSubject])
   ) {
     fail("Trust-policy readback did not match the exact two-subject contract");

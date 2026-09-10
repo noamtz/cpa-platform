@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { validateBootstrapState } from "./bootstrap_test_deployment_trust.mjs";
+import {
+  bootstrapTestDeploymentTrust,
+  validateBootstrapIdentity,
+  validateBootstrapState,
+} from "./bootstrap_test_deployment_trust.mjs";
 
-const account = "123456789012";
+const account = "006296770641";
 const roleName = "auditflow-test-github-deploy";
 const provider = `arn:aws:iam::${account}:oidc-provider/token.actions.githubusercontent.com`;
 const subject = "repo:noamtz@2631641/cpa-platform@1332935468:environment:test";
@@ -36,6 +40,42 @@ function role(policy = {}) {
 }
 
 describe("test deployment trust bootstrap", () => {
+  it("rejects the wrong account before role inspection without disclosure", () => {
+    const action = () =>
+      validateBootstrapIdentity({
+        Account: "123456789012",
+        Arn: "arn:aws:iam::123456789012:root",
+      });
+
+    expect(action).toThrow(
+      "AWS caller does not match the configured AuditFlow test account",
+    );
+    try {
+      action();
+    } catch (error) {
+      expect(error.message).not.toContain("123456789012");
+      expect(error.message).not.toContain(account);
+    }
+  });
+
+  it("does not inspect IAM when STS returns the wrong account", async () => {
+    const iamSend = vi.fn();
+    await expect(
+      bootstrapTestDeploymentTrust({
+        sts: {
+          send: vi.fn().mockResolvedValue({
+            Account: "123456789012",
+            Arn: "arn:aws:iam::123456789012:root",
+          }),
+        },
+        iam: { send: iamSend },
+      }),
+    ).rejects.toThrow(
+      "AWS caller does not match the configured AuditFlow test account",
+    );
+    expect(iamSend).not.toHaveBeenCalled();
+  });
+
   it("upgrades only the exact owner-tagged prior policy", () => {
     const desired = validateBootstrapState(
       { Account: account, Arn: `arn:aws:iam::${account}:user/owner` },
