@@ -8,7 +8,8 @@ This is the go/no-go sequence for preparing the AWS rewrite for production. It d
 2. Confirm issues #11 and #12 evidence still represents the accepted migration and isolated rollback rehearsal. Do not rerun either mutating procedure merely to refresh readiness evidence.
 3. Confirm `docs/migration/private-file-import-verification.json`, `docs/migration/base44-reverse-replay-verification.json`, and `docs/migration/pdf-parity-evidence.json` contain no private source material and match their source files.
 4. Confirm the production GitHub Environment is protected by required owner review and a main-only deployment policy. Confirm its immutable OIDC subject is `repo:noamtz@2631641/cpa-platform@1332935468:environment:production`.
-5. Obtain a disposable test-stage fixture descriptor and separate authenticated storage state. Do not commit either file. Stateful checks require `AUDITFLOW_E2E_ALLOW_WRITES=confirmed-test-stage` and a descriptor whose restore contract is confirmed.
+5. Confirm `infra/sst/deployment-targets.json` maps production to the intended account and `il-central-1`. The SST provider, bootstrap, and verifier must all reject any other caller before resource access or mutation.
+6. Obtain a disposable test-stage fixture descriptor and separate authenticated storage state. Do not commit either file. Stateful checks require `AUDITFLOW_E2E_ALLOW_WRITES=confirmed-test-stage` and a descriptor whose restore contract is confirmed.
 
 Run:
 
@@ -110,7 +111,12 @@ Prepare these protected Environment values:
 - `AUDITFLOW_PRODUCTION_DOMAIN=app.ddcpa.co.il`.
 - A `us-east-1` ACM certificate ARN in `AUDITFLOW_PRODUCTION_CERTIFICATE_ARN`.
 
-The first production role, permissions boundary, and retained empty foundation are created and read back through an owner-authenticated local bootstrap. CI deliberately refuses an implicit first deployment. The bootstrap must use the same reviewed candidate and must not import data, enable legacy reads, modify Box DNS, invoke Terraform, or write business records. After bootstrap, run deployer and live verification using the exact outputs.
+The first production role, permissions boundary, and retained empty foundation are created and read back through a
+non-root owner-authenticated local profile whose STS account matches `infra/sst/deployment-targets.json`. CI
+deliberately refuses an implicit first deployment. The bootstrap must use the same reviewed candidate and must not
+import data, enable legacy reads, modify Box DNS, invoke Terraform, or write business records. After bootstrap, run
+deployer and live verification using the exact outputs. An account mismatch is a stop condition, never a reason to
+change or bypass the target contract during the run.
 
 ACM validation DNS and final CloudFront traffic DNS are separate decisions. Record the ACM validation CNAME worksheet outside the repository, have the owner make the Box DNS change, and confirm certificate `ISSUED` before prepare. Do not create Route 53 resources. Record the final `app.ddcpa.co.il` traffic record worksheet for issue #15; do not apply it during issue #14.
 

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "app": "auditflow",
+  "targets": {
+    "test": {
+      "accountId": "006296770641",
+      "region": "il-central-1",
+      "deployRoleName": "auditflow-test-github-deploy"
+    },
+    "production": {
+      "accountId": "006296770641",
+      "region": "il-central-1",
+      "deployRoleName": "auditflow-production-github-deploy"
+    }
+  }
+}

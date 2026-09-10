@@ -7,6 +7,13 @@ CloudFront/S3 application shell, HTTP API and Lambda, DynamoDB tables, private b
 separate test deployment role. It reuses, but does not modify, the account-level GitHub OIDC provider owned by
 Terraform. Resource ownership must not cross those boundaries.
 
+`infra/sst/deployment-targets.json` is the canonical stage-to-account, region, and deploy-role contract. Both stages
+must remain explicitly mapped. SST must pass the selected account to the AWS provider through `allowedAccountIds`,
+and the role bootstrap plus deployer/live verifiers must compare STS identity with the selected target before any
+resource read or mutation. Never derive the intended account from the active caller. Use a non-root
+owner-authenticated profile for local bootstrap; an account mismatch is a hard stop and error output must not reveal
+either account ID.
+
 The test OIDC role may inspect but never mutate itself. Workload roles require the stage permissions boundary and
 may be passed only to Lambda. Service mutations are restricted to deterministic AuditFlow stage ARNs or the
 `sst:app`/`sst:stage` tag boundary; only explicitly enumerated discovery calls and tag-gated creation APIs retain
@@ -28,7 +35,7 @@ can resolve it. A production preview is allowed only with explicit scope; produc
 requires separate authorization. When production has never been deployed, SST 3.19.3 returns `Stage not found` for
 `sst diff`; that is not authority to initialize it with `sst deploy`.
 
-Before any test-stage preview or deployment, run the deployer-permission verifier against the actual role. When a PR
+Before any stage preview or deployment, run the deployer-permission verifier against the actual role. When a PR
 changes or newly exercises an AWS capability, inspect its required GitHub checks and failed logs before issuing a
 review verdict. If deployed-role drift blocks the workflow, the agent handling the PR owns the least-privilege policy
 change, regression coverage, owner-authenticated bootstrap, read-back verification, and green rerun; do not hand an

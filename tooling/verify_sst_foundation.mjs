@@ -11,6 +11,10 @@ const contractPath = resolve(
   repositoryRoot,
   "infra/sst/foundation-contract.json",
 );
+const deploymentTargetsPath = resolve(
+  repositoryRoot,
+  "infra/sst/deployment-targets.json",
+);
 const pdfFixturePath = resolve(
   repositoryRoot,
   "lambda/pdf-generator/__fixtures__/rtl-multipage-case.json",
@@ -141,7 +145,46 @@ function parseArguments(argv) {
   return parsed;
 }
 
-function verifyContract(contract, stage) {
+export function validateDeploymentTargets(deploymentTargets, contract) {
+  assert(
+    deploymentTargets?.schemaVersion === 1 &&
+      deploymentTargets.app === contract.app,
+    "Unsupported AuditFlow deployment-target contract.",
+  );
+  assert(
+    JSON.stringify(Object.keys(deploymentTargets.targets ?? {}).sort()) ===
+      JSON.stringify([...contract.stages].sort()),
+    "Deployment targets must match the permitted SST stages.",
+  );
+  for (const stage of contract.stages) {
+    const target = deploymentTargets.targets[stage];
+    assert(
+      /^\d{12}$/u.test(target?.accountId ?? "") &&
+        target.region === contract.region &&
+        target.deployRoleName === `${contract.app}-${stage}-github-deploy`,
+      `The ${stage} deployment target is invalid.`,
+    );
+  }
+  return deploymentTargets;
+}
+
+export function assertDeploymentIdentity(
+  deploymentTargets,
+  contract,
+  stage,
+  identity,
+) {
+  validateDeploymentTargets(deploymentTargets, contract);
+  const target = deploymentTargets.targets[stage];
+  assert(target, `No deployment target is configured for ${stage}.`);
+  assert(
+    identity?.Account === target.accountId,
+    `AWS caller does not match the configured AuditFlow ${stage} account.`,
+  );
+  return target;
+}
+
+function verifyContract(contract, deploymentTargets, stage) {
   assert(contract.schemaVersion === 4, "Unsupported contract schema version.");
   assert(contract.app === "auditflow", "Unexpected SST application name.");
   assert(contract.sstVersion === "3.19.3", "SST version must be 3.19.3.");
@@ -151,6 +194,7 @@ function verifyContract(contract, stage) {
     "Only test and production stages are permitted.",
   );
   assert(contract.stages.includes(stage), `Invalid contract stage: ${stage}`);
+  validateDeploymentTargets(deploymentTargets, contract);
   assert(
     contract.production?.protect === true &&
       contract.production.removal === "retain" &&
@@ -435,6 +479,7 @@ function verifyContract(contract, stage) {
     stage,
     sstVersion: contract.sstVersion,
     region: contract.region,
+    deploymentTargetPinned: true,
     inventory: contract.inventory,
     oidc: { exactAudience: true, exactSubject: true },
   };
@@ -635,13 +680,17 @@ function simulatePrincipalAction(roleArn, action, resourceArn, context = []) {
   return result.EvalDecision;
 }
 
-function verifyDeployer(contract, stage) {
+function verifyDeployer(contract, deploymentTargets, stage) {
   const identity = runAws(["sts", "get-caller-identity"]).value;
-  const accountId = identity.Account;
-  assert(/^\d{12}$/.test(accountId), "AWS account ID has an unexpected shape.");
+  const target = assertDeploymentIdentity(
+    deploymentTargets,
+    contract,
+    stage,
+    identity,
+  );
+  const accountId = target.accountId;
 
-  const roleArn =
-    `arn:aws:iam::${accountId}:role/auditflow-${stage}-github-deploy`;
+  const roleArn = `arn:aws:iam::${accountId}:role/${target.deployRoleName}`;
   if (process.env.AWS_DEPLOY_ROLE_ARN) {
     assert(
       process.env.AWS_DEPLOY_ROLE_ARN === roleArn,
@@ -649,7 +698,7 @@ function verifyDeployer(contract, stage) {
     );
   }
 
-  const roleName = roleArn.slice(roleArn.lastIndexOf("/") + 1);
+  const roleName = target.deployRoleName;
   const inlinePolicyNames = runAws([
     "iam",
     "list-role-policies",
@@ -702,6 +751,7 @@ function verifyDeployer(contract, stage) {
         requiredCloudFrontKeyValueStoreActions.length,
       cloudFrontKeyValueStoreResourceScoped: true,
       cloudFrontKeyValueStoreCrossAccountDenied: true,
+      deploymentTargetPinned: true,
     },
   };
 }
@@ -794,6 +844,7 @@ function verifyProductionBudget(contract, accountId, rate, rateDate, rateSource)
 
 async function verifyLive(
   contract,
+  deploymentTargets,
   stage,
   outputsPath,
   legacyFileReads = "disabled",
@@ -829,6 +880,14 @@ async function verifyLive(
   for (const key of contract.outputKeys) {
     assert(key in outputs, `Missing required SST output: ${key}`);
   }
+  const identity = runAws(["sts", "get-caller-identity"]).value;
+  const deploymentTarget = assertDeploymentIdentity(
+    deploymentTargets,
+    contract,
+    stage,
+    identity,
+  );
+  const accountId = deploymentTarget.accountId;
 
   const routerUrl = validateRouterOutputs(contract, stage, outputs);
   assertHttpsUrl(
@@ -1325,8 +1384,11 @@ async function verifyLive(
       !pdfInlinePolicies.some((name) => /administrator|poweruser/i.test(name)),
     "PDF function execution role has an elevated attached policy.",
   );
-  const accountId = /^arn:aws:iam::(\d{12}):role\//.exec(pdfRoleArn)?.[1];
-  assert(accountId, "PDF function role ARN has an unexpected shape.");
+  const pdfRoleAccountId = /^arn:aws:iam::(\d{12}):role\//.exec(pdfRoleArn)?.[1];
+  assert(
+    pdfRoleAccountId === accountId,
+    "PDF function role is not in the configured deployment account.",
+  );
   const forbiddenPdfActions = [
     ["s3:GetObject", "arn:aws:s3:::auditflow-policy-probe/object"],
     [
@@ -1368,7 +1430,8 @@ async function verifyLive(
 
   const roleArn = outputs.deployRoleArn;
   assert(
-    new RegExp(`^arn:aws:iam::\\d{12}:role/auditflow-${stage}-github-deploy$`).test(roleArn),
+    roleArn ===
+      `arn:aws:iam::${accountId}:role/${deploymentTarget.deployRoleName}`,
     `Unexpected ${stage} deploy-role ARN.`,
   );
   const roleName = roleArn.slice(roleArn.lastIndexOf("/") + 1);
@@ -1865,13 +1928,19 @@ async function main() {
     "Budget rate, date, and source are required together only for production live verification.",
   );
   const contract = readJson(contractPath);
-  const contractResult = verifyContract(contract, arguments_.stage);
+  const deploymentTargets = readJson(deploymentTargetsPath);
+  const contractResult = verifyContract(
+    contract,
+    deploymentTargets,
+    arguments_.stage,
+  );
   let result = contractResult;
   if (arguments_.mode === "deployer") {
-    result = verifyDeployer(contract, arguments_.stage);
+    result = verifyDeployer(contract, deploymentTargets, arguments_.stage);
   } else if (arguments_.mode === "live") {
     result = await verifyLive(
       contract,
+      deploymentTargets,
       arguments_.stage,
       arguments_.outputs ?? ".sst/outputs.json",
       arguments_["legacy-file-reads"],

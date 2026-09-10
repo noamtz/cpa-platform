@@ -3,6 +3,7 @@ import {
   buildDeploymentPolicy,
   buildWorkloadBoundaryPolicy,
 } from "./deployment-policy";
+import { getDeploymentTarget } from "./deployment-targets";
 import type { StageSettings } from "./stage";
 
 export async function createDeploymentRole(
@@ -10,6 +11,12 @@ export async function createDeploymentRole(
   routerKeyValueStoreArn?: $util.Input<string>,
 ) {
   const caller = await aws.getCallerIdentity({});
+  const deploymentTarget = getDeploymentTarget(stage.name);
+  if (caller.accountId !== deploymentTarget.accountId) {
+    throw new Error(
+      `AWS caller does not match the configured AuditFlow ${stage.name} account.`,
+    );
+  }
   const boundaryName = `${$app.name}-${stage.name}-workload-boundary`;
   const workloadBoundary = new aws.iam.Policy(
     deploymentContract.workloadBoundaryLogicalName,
@@ -55,7 +62,7 @@ export async function createDeploymentRole(
       );
 
   const role = new aws.iam.Role(roleContract.logicalName, {
-    name: `${$app.name}-${stage.name}-github-deploy`,
+    name: deploymentTarget.deployRoleName,
     description: `Owner-bootstrapped least-privilege SST ${stage.name} deployment role`,
     maxSessionDuration: 3600,
     assumeRolePolicy: JSON.stringify({
