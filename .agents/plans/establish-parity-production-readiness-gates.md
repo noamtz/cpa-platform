@@ -75,18 +75,18 @@ that link the current migration/replay/PDF evidence, objective rollback threshol
 
 ## Feature Metadata
 
-**Feature Type**: New Capability / Release Readiness  
-**Estimated Complexity**: High  
+**Feature Type**: New Capability / Release Readiness
+**Estimated Complexity**: High
 **Primary Systems Affected**: parity/evidence tooling, Playwright acceptance tests, React routing and maintenance UI,
 API maintenance status, SST stage/domain/deployment roles, GitHub Actions, runtime artifact audits, migration/PDF/
-observability runbooks  
+observability runbooks
 **Dependencies**: closed issues #7–#13; Node.js 20.17.0; React 18; Vite 6; Vitest 4; Playwright 1.61.1; SST 3.19.3;
 AWS SDK/CLI and owner-authorized AWS access; GitHub protected Environments/OIDC; owner-supplied test fixtures, browser
 access, Sentry access, and optionally a PostHog EU public project key
 
 ## Related Work
 
-**Implements**: [issue #14 — Establish parity and production readiness gates](https://github.com/noamtz/cpa-platform/issues/14)  
+**Implements**: [issue #14 — Establish parity and production readiness gates](https://github.com/noamtz/cpa-platform/issues/14)
 **Epic**: [issue #1 — Migrate AuditFlow off Base44 without product change](https://github.com/noamtz/cpa-platform/issues/1) ·
 [canonical PRD](https://github.com/noamtz/cpa-platform/wiki/PRD-AuditFlow-Platform-Migration) ·
 [canonical architecture](https://github.com/noamtz/cpa-platform/wiki/Architecture-AuditFlow-Platform-Migration)
@@ -396,7 +396,7 @@ minimal RTL maintenance page, and prove the backend remains the authoritative wr
 
 ### Phase 3: Prepare protected production infrastructure and operations
 
-**Depends on:** Phase 1 (artifact/readiness checks gate any production preparation)  
+**Depends on:** Phase 1 (artifact/readiness checks gate any production preparation)
 **Independent of:** Phase 2 implementation; the code changes may be developed in parallel, but no production prepare
 operation may run until Phase 2 automation and owner prerequisites are ready.
 

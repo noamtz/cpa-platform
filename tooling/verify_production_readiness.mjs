@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repositoryRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -23,6 +24,20 @@ function sorted(values) {
 
 function assert(condition, message) {
   if (!condition) fail(message);
+}
+
+function verifyDigestFile(root, path, expected, label) {
+  assert(typeof path === "string" && path.length > 0, `${label} path is missing.`);
+  assert(/^[a-f0-9]{64}$/u.test(expected ?? ""), `${label} SHA-256 is invalid: ${path}`);
+  const absolute = resolve(root, path);
+  const rel = relative(root, absolute);
+  assert(rel && !rel.startsWith("..") && !rel.includes(":"), `${label} path escapes the repository: ${path}`);
+  assert(existsSync(absolute) && statSync(absolute).isFile(), `${label} file is missing: ${path}`);
+  assert(sha256(absolute) === expected, `${label} digest drifted: ${path}`);
+}
+
+function currentCommit(root) {
+  return execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
 }
 
 function collectSensitiveKeys(value, forbidden, path = "$") {
@@ -73,6 +88,18 @@ export function verifyContract({ root = repositoryRoot } = {}) {
 
   const contract = readJson(contractPath);
   assert(contract.schemaVersion === 1 && contract.issue === 14, "Unsupported readiness contract.");
+  assert(
+    Array.isArray(contract.requiredGateIds) &&
+      contract.requiredGateIds.length === 10 &&
+      new Set(contract.requiredGateIds).size === contract.requiredGateIds.length,
+    "Readiness contract gate inventory is missing or duplicated.",
+  );
+  assert(
+    Array.isArray(contract.requiredArtifactDigestGroups) &&
+      contract.requiredArtifactDigestGroups.length === 4 &&
+      new Set(contract.requiredArtifactDigestGroups).size === contract.requiredArtifactDigestGroups.length,
+    "Readiness artifact digest inventory is missing or duplicated.",
+  );
   const routeMatches = [...readFileSync(appPath, "utf8").matchAll(/<Route\s+path=["']([^"']+)["']/gu)];
   const actualFrontendRoutes = sorted(routeMatches.map((match) => match[1]));
   const expectedFrontendRoutes = sorted(contract.frontendRoutes.map(({ path }) => path));
@@ -119,7 +146,9 @@ export function verifyContract({ root = repositoryRoot } = {}) {
     readinessEvidence.schemaVersion === 1 &&
       readinessEvidence.artifactType === "PRODUCTION_READINESS_EVIDENCE" &&
       ["pending", "passed", "failed"].includes(readinessEvidence.status) &&
-      Array.isArray(readinessEvidence.gates),
+      Array.isArray(readinessEvidence.gates) &&
+      JSON.stringify(sorted(readinessEvidence.gates.map(({ id }) => id))) ===
+        JSON.stringify(sorted(contract.requiredGateIds)),
     "Readiness evidence schema has drifted.",
   );
   const forbidden = new Set(contract.forbiddenEvidenceKeys.map((key) => key.toLowerCase()));
@@ -139,9 +168,12 @@ export function verifyContract({ root = repositoryRoot } = {}) {
       !/^\s*push:/mu.test(workflow) &&
       !/^\s*pull_request:/mu.test(workflow) &&
       workflow.includes("environment: production") &&
+      workflow.includes("actions: read") &&
       workflow.includes("id-token: write") &&
       workflow.includes("node-version: 20.17.0") &&
       workflow.includes("PREPARE EMPTY PRODUCTION") &&
+      workflow.includes("Using the generated CloudFront production bootstrap URL.") &&
+      workflow.includes("Production domain and certificate must both be empty or both valid.") &&
       workflow.includes("AUDITFLOW_ENABLE_LEGACY_FILE_READS: \"false\"") &&
       workflow.includes("--mode deployer --stage production") &&
       workflow.includes("--mode live") &&
@@ -169,7 +201,7 @@ export function verifyContract({ root = repositoryRoot } = {}) {
   };
 }
 
-export function verifyEvidence({ evidencePath, root = repositoryRoot }) {
+export function verifyEvidence({ evidencePath, root = repositoryRoot, candidateCommit } = {}) {
   const contract = readJson(resolve(root, "tooling/production-readiness-contract.json"));
   const evidence = readJson(resolve(root, evidencePath));
   assert(evidence.schemaVersion === 1 && evidence.artifactType === "PRODUCTION_READINESS_EVIDENCE", "Unsupported readiness evidence.");
@@ -177,17 +209,70 @@ export function verifyEvidence({ evidencePath, root = repositoryRoot }) {
   const sensitiveKeys = collectSensitiveKeys(evidence, forbidden);
   assert(sensitiveKeys.length === 0, `Sensitive readiness evidence keys: ${sensitiveKeys.join(", ")}`);
   assert(evidence.status === "passed", "Readiness evidence has not passed.");
-  assert(evidence.ownerSignoff?.decision === "go" && evidence.ownerSignoff?.signedAt, "Explicit owner go sign-off is missing.");
-  assert(Array.isArray(evidence.gates) && evidence.gates.length > 0 && evidence.gates.every(({ status }) => status === "passed" || status === "waived"), "Readiness gates are incomplete.");
-  for (const waiver of evidence.waivers ?? []) {
+  assert(
+    /^[a-f0-9]{40}$/u.test(evidence.candidate?.commit ?? "") &&
+      evidence.candidate.commit === (candidateCommit ?? currentCommit(root)) &&
+      evidence.candidate.nodeVersion === "20.17.0" &&
+      Number.isFinite(Date.parse(evidence.candidate.builtAt ?? "")),
+    "Readiness candidate is missing, stale, or invalid.",
+  );
+  assert(
+    evidence.ownerSignoff?.decision === "go" &&
+      Number.isFinite(Date.parse(evidence.ownerSignoff?.signedAt ?? "")),
+    "Explicit owner go sign-off is missing.",
+  );
+
+  const requiredGateIds = sorted(contract.requiredGateIds ?? []);
+  const gates = Array.isArray(evidence.gates) ? evidence.gates : [];
+  assert(
+    JSON.stringify(sorted(gates.map(({ id }) => id))) === JSON.stringify(requiredGateIds) &&
+      new Set(gates.map(({ id }) => id)).size === gates.length &&
+      gates.every(({ status }) => status === "passed" || status === "waived"),
+    "Readiness gates are incomplete or do not match the required gate set.",
+  );
+
+  const waivers = Array.isArray(evidence.waivers) ? evidence.waivers : [];
+  const waivedGateIds = new Set(gates.filter(({ status }) => status === "waived").map(({ id }) => id));
+  const seenWaiverIds = new Set();
+  for (const waiver of waivers) {
     assert(contract.allowedWaiverGates.includes(waiver.gate), `Waiver is not allowed: ${waiver.gate}`);
-    for (const field of ["scope", "owner", "date", "reason", "nextAction"]) assert(waiver[field], `Waiver ${waiver.gate} is incomplete.`);
+    assert(!seenWaiverIds.has(waiver.gate), `Duplicate waiver: ${waiver.gate}`);
+    seenWaiverIds.add(waiver.gate);
+    for (const field of ["appliesTo", "scope", "owner", "date", "reason", "expiresAt", "nextAction"]) {
+      assert(waiver[field], `Waiver ${waiver.gate} is incomplete.`);
+    }
+    assert(waivedGateIds.has(waiver.appliesTo), `Waiver ${waiver.gate} does not apply to a waived readiness gate.`);
   }
-  for (const [path, expected] of Object.entries(evidence.sourceDigests ?? {})) {
-    const absolute = resolve(root, path);
-    assert(existsSync(absolute) && sha256(absolute) === expected, `Readiness source digest drifted: ${path}`);
+  for (const gateId of waivedGateIds) {
+    assert(waivers.some(({ appliesTo }) => appliesTo === gateId), `Waived readiness gate lacks an approved waiver: ${gateId}`);
   }
-  return { schemaVersion: 1, mode: "evidence", status: "passed", gateCount: evidence.gates.length, waiverCount: (evidence.waivers ?? []).length };
+
+  const sourceDigests = evidence.sourceDigests ?? {};
+  assert(
+    JSON.stringify(sorted(Object.keys(sourceDigests))) === JSON.stringify(sorted(contract.requiredEvidence)),
+    "Readiness source digests do not match the required evidence set.",
+  );
+  for (const [path, expected] of Object.entries(sourceDigests)) {
+    verifyDigestFile(root, path, expected, "Readiness source");
+  }
+
+  const artifactDigests = evidence.artifactDigests ?? {};
+  assert(
+    JSON.stringify(sorted(Object.keys(artifactDigests))) ===
+      JSON.stringify(sorted(contract.requiredArtifactDigestGroups ?? [])),
+    "Readiness artifact digest groups do not match the required runtime set.",
+  );
+  const artifactPaths = new Set();
+  for (const [group, entries] of Object.entries(artifactDigests)) {
+    assert(Array.isArray(entries) && entries.length > 0, `Readiness artifact group is empty: ${group}`);
+    for (const entry of entries) {
+      assert(!artifactPaths.has(entry?.path), `Duplicate readiness artifact path: ${entry?.path}`);
+      artifactPaths.add(entry?.path);
+      verifyDigestFile(root, entry?.path, entry?.sha256, `Readiness artifact ${group}`);
+    }
+  }
+
+  return { schemaVersion: 1, mode: "evidence", status: "passed", gateCount: gates.length, waiverCount: waivers.length };
 }
 
 function parseArguments(argv) {

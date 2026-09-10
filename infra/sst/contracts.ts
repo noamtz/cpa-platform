@@ -558,6 +558,11 @@ export const deploymentContract = {
   productionSubject:
     "repo:noamtz@2631641/cpa-platform@1332935468:environment:production",
   productionEnvironment: "production",
+  assetFunctionLogicalNames: [
+    "ApiFunction",
+    "PdfRendererFunction",
+    "ZipDownloadWorker",
+  ] as const,
   roles: {
     test: {
       logicalName: "TestDeployRole",

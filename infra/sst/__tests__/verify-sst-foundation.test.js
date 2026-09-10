@@ -14,18 +14,19 @@ import {
   retryAwsCliCommand,
   requiredCloudFrontKeyValueStoreActions,
   scopedCpaRouteCount,
+  validateRouterOutputs,
   validateProductionBudgetReadback,
 } from "../../../tooling/verify_sst_foundation.mjs";
 
-describe("test deployer permission verification", () => {
-  const accountId = "123456789012";
-  const expectedStatement = {
-    Sid: "ManageCloudFrontKeyValues",
-    Effect: "Allow",
-    Action: requiredCloudFrontKeyValueStoreActions,
-    Resource: `arn:aws:cloudfront::${accountId}:key-value-store/*`,
-  };
+const accountId = "123456789012";
+const expectedStatement = {
+  Sid: "ManageCloudFrontKeyValues",
+  Effect: "Allow",
+  Action: requiredCloudFrontKeyValueStoreActions,
+  Resource: `arn:aws:cloudfront::${accountId}:key-value-store/*`,
+};
 
+describe("test deployer permission verification", () => {
   it("accepts only the explicit account-scoped KeyValueStore grant", () => {
     expect(
       hasScopedCloudFrontKeyValueStorePermissions(
@@ -173,6 +174,28 @@ describe("production budget read-back", () => {
     });
   });
 
+  it("requires one exact production KeyValueStore ARN", () => {
+    expect(
+      hasScopedCloudFrontKeyValueStorePermissions(
+        {
+          Statement: [{
+            ...expectedStatement,
+            Resource: `arn:aws:cloudfront::${accountId}:key-value-store/production-router`,
+          }],
+        },
+        accountId,
+        "production",
+      ),
+    ).toBe(true);
+    expect(
+      hasScopedCloudFrontKeyValueStorePermissions(
+        { Statement: [expectedStatement] },
+        accountId,
+        "production",
+      ),
+    ).toBe(false);
+  });
+
   it("fails above the ILS ceiling or when automatic actions exist", () => {
     expect(() =>
       validateProductionBudgetReadback({ ...input, rate: "5.1" }),
@@ -180,6 +203,37 @@ describe("production budget read-back", () => {
     expect(() =>
       validateProductionBudgetReadback({ ...input, actions: [{}] }),
     ).toThrow("must not have automatic actions");
+  });
+});
+
+describe("Router output verification", () => {
+  const contract = { production: { customDomain: "app.ddcpa.co.il" } };
+
+  it("accepts generated CloudFront production bootstrap URLs", () => {
+    expect(
+      validateRouterOutputs(contract, "production", {
+        routerUrl: "https://d123.cloudfront.net",
+        customDomain: "",
+      }).hostname,
+    ).toBe("d123.cloudfront.net");
+  });
+
+  it("accepts the exact configured production domain", () => {
+    expect(
+      validateRouterOutputs(contract, "production", {
+        routerUrl: "https://app.ddcpa.co.il",
+        customDomain: "app.ddcpa.co.il",
+      }).hostname,
+    ).toBe("app.ddcpa.co.il");
+  });
+
+  it("rejects mismatched production domain outputs", () => {
+    expect(() =>
+      validateRouterOutputs(contract, "production", {
+        routerUrl: "https://other.example.com",
+        customDomain: "other.example.com",
+      }),
+    ).toThrow("custom-domain output is invalid");
   });
 });
 

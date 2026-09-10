@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,12 +36,31 @@ function collectFiles(root) {
   if (!existsSync(root)) fail(`Scan root does not exist: ${root}`);
   if (!lstatSync(root).isDirectory()) fail(`Scan root is not a directory: ${root}`);
   const files = [];
+  const visitedDirectories = new Set();
   const visit = (directory) => {
+    const realDirectory = realpathSync(directory);
+    const realRelative = relative(root, realDirectory);
+    if (realRelative.startsWith("..") || realRelative.includes(":")) {
+      fail(`Symlink escapes runtime artifact root: ${directory}`);
+    }
+    if (visitedDirectories.has(realDirectory)) return;
+    visitedDirectories.add(realDirectory);
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = resolve(directory, entry.name);
       assertInside(root, path);
-      if (entry.isSymbolicLink()) fail(`Symlinks are not permitted in runtime artifacts: ${path}`);
-      if (entry.isDirectory()) visit(path);
+      if (entry.isSymbolicLink()) {
+        let realTarget;
+        try {
+          realTarget = realpathSync(path);
+        } catch {
+          fail(`Broken symlink in runtime artifacts: ${path}`);
+        }
+        assertInside(root, realTarget);
+        const target = statSync(realTarget);
+        if (target.isDirectory()) visit(path);
+        else if (target.isFile()) files.push(path);
+        else fail(`Unsupported symlink target in runtime artifacts: ${path}`);
+      } else if (entry.isDirectory()) visit(path);
       else if (entry.isFile()) files.push(path);
     }
   };

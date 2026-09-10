@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -57,6 +57,35 @@ describe("runtime independence audit", () => {
     const result = await scanRuntimeIndependence({ root, frontend: "dist", artifacts: "artifacts" });
     expect(result.status).toBe("failed");
     expect(result.findings[0].artifact).toContain("api.zip:index.mjs");
+  });
+
+  it("follows package shims whose symlink target stays inside the artifact root", async () => {
+    const root = fixture();
+    writeFileSync(join(root, "dist", "app.js"), "export {};");
+    const packageDirectory = join(root, "artifacts", "node_modules", "color-support");
+    const binDirectory = join(root, "artifacts", "node_modules", ".bin");
+    mkdirSync(packageDirectory, { recursive: true });
+    mkdirSync(binDirectory, { recursive: true });
+    writeFileSync(join(packageDirectory, "bin.js"), "export {};");
+    symlinkSync(join(packageDirectory, "bin.js"), join(binDirectory, "color-support"), "file");
+
+    const result = await scanRuntimeIndependence({ root, frontend: "dist", artifacts: "artifacts" });
+    expect(result.status).toBe("passed");
+    expect(result.scanned.some(({ path }) => path.endsWith("node_modules/.bin/color-support"))).toBe(true);
+  });
+
+  it("rejects a package symlink whose target escapes the artifact root", async () => {
+    const root = fixture();
+    writeFileSync(join(root, "dist", "app.js"), "export {};");
+    const external = join(root, "outside.js");
+    const binDirectory = join(root, "artifacts", "node_modules", ".bin");
+    mkdirSync(binDirectory, { recursive: true });
+    writeFileSync(external, "export {};");
+    symlinkSync(external, join(binDirectory, "outside"), "file");
+
+    await expect(scanRuntimeIndependence({ root, frontend: "dist", artifacts: "artifacts" })).rejects.toThrow(
+      "Unsafe or empty artifact path",
+    );
   });
 
   it("fails when a requested runtime root is absent or empty", async () => {

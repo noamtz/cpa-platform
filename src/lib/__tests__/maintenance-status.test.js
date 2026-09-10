@@ -17,7 +17,10 @@ describe("maintenance status client", () => {
   ])("parses the %s state", async (status, expected) => {
     const fetchImpl = vi.fn().mockResolvedValue(response(200, { status }));
     await expect(getMaintenanceStatus({ fetchImpl })).resolves.toBe(expected);
-    expect(fetchImpl).toHaveBeenCalledWith("/api/maintenance", { headers: { accept: "application/json" } });
+    expect(fetchImpl).toHaveBeenCalledWith("/api/maintenance", {
+      headers: { accept: "application/json" },
+      signal: expect.any(AbortSignal),
+    });
   });
 
   it("treats an API maintenance response as maintenance", async () => {
@@ -38,5 +41,18 @@ describe("maintenance status client", () => {
   it("keeps network failure non-authoritative", async () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error("offline"));
     await expect(getMaintenanceStatus({ fetchImpl })).resolves.toBe(MAINTENANCE_STATUS.UNKNOWN);
+  });
+
+  it("bounds an unresponsive status request and aborts it", async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn(() => new Promise(() => {}));
+    const result = getMaintenanceStatus({ fetchImpl, timeoutMs: 100 });
+    const signal = fetchImpl.mock.calls[0][1].signal;
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    await expect(result).resolves.toBe(MAINTENANCE_STATUS.UNKNOWN);
+    expect(signal.aborted).toBe(true);
+    vi.useRealTimers();
   });
 });

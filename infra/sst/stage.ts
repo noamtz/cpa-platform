@@ -6,6 +6,15 @@ export const MONTHLY_COST_CEILING_ILS = 50 as const;
 export const allowedStages = ["test", "production"] as const;
 export type StageName = (typeof allowedStages)[number];
 
+export function stageAssetLogicalName(
+  logicalName: string,
+  stage: StageName,
+) {
+  return stage === "production"
+    ? `${logicalName}AuditflowProduction`
+    : logicalName;
+}
+
 export interface ProductionBudgetSettings {
   readonly alertEmail: string;
   readonly monthlyLimitUsd: number;

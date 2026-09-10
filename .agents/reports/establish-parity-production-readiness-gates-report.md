@@ -1,8 +1,8 @@
 # Implementation Report — Establish parity and production-readiness gates
 
-**Plan**: `.agents/plans/establish-parity-production-readiness-gates.md`  
-**Branch**: `feature/establish-parity-production-readiness-gates`  
-**PR**: not opened  
+**Plan**: `.agents/plans/establish-parity-production-readiness-gates.md`
+**Branch**: `feature/establish-parity-production-readiness-gates`
+**PR**: not opened
 **Status**: PARTIAL
 
 ## Summary

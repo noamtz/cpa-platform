@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-import { forbidExternalRuntimeRequests, loadAcceptanceFixture, questionnaireUrl } from "./support/acceptance-fixture";
+import {
+  forbidExternalRuntimeRequests,
+  loadAcceptanceFixture,
+  questionnaireUrl,
+  runStatefulScenario,
+} from "./support/acceptance-fixture";
 
 const fixture = loadAcceptanceFixture();
 
@@ -17,11 +22,11 @@ test.describe("J3 public PDF signing @readonly", () => {
 });
 
 test.describe("J3 public PDF signing @stateful", () => {
-  test.skip(!fixture?.allowWrites || !fixture?.stateful?.pdfSignRoute, "Explicit PDF write/restore fixture is required.");
+  test.skip(!fixture?.allowWrites, "Explicit PDF write/restore fixture is required.");
 
-  test("keeps the signed-flow route resumable after refresh", async ({ page }) => {
-    await page.goto(fixture.stateful.pdfSignRoute);
-    await page.reload();
-    await expect(page.locator("body")).not.toBeEmpty();
+  test("persists and restores the designated PDF signing transition", async ({ page }) => {
+    const forbidden = forbidExternalRuntimeRequests(page);
+    await runStatefulScenario(page, fixture.stateful.pdfSigning);
+    expect(forbidden()).toEqual([]);
   });
 });

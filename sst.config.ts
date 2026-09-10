@@ -57,10 +57,13 @@ export default $config({
       repositoryRoot: process.cwd(),
     });
     const router = createApplicationRouter(stage);
+    if (!router._kvStoreArn) {
+      throw new Error("The application Router must expose its KeyValueStore ARN.");
+    }
     const storage = createStorage(stage, router.url);
     const authentication = createAuthentication(stage, router.url);
     createCostControls(stage);
-    const deploymentRole = await createDeploymentRole(stage);
+    const deploymentRole = await createDeploymentRole(stage, router._kvStoreArn);
     const pdf = createPdfApi(
       stage,
       deploymentRole.workloadBoundary.arn,

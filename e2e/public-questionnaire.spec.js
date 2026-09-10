@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-import { forbidExternalRuntimeRequests, loadAcceptanceFixture, questionnaireUrl } from "./support/acceptance-fixture";
+import {
+  forbidExternalRuntimeRequests,
+  loadAcceptanceFixture,
+  questionnaireUrl,
+  runStatefulScenario,
+} from "./support/acceptance-fixture";
 
 const fixture = loadAcceptanceFixture();
 
@@ -24,9 +29,13 @@ test.describe("J1/J2 public questionnaire @readonly", () => {
 test.describe("J1/J2 public questionnaire @stateful", () => {
   test.skip(!fixture?.allowWrites, "Explicit test-stage write and restore confirmation is required.");
 
-  test("resumes the designated disposable questionnaire after refresh", async ({ page }) => {
-    await page.goto(questionnaireUrl(fixture));
-    await page.reload();
-    await expect(page.locator("body")).not.toBeEmpty();
+  test("persists and restores questionnaire progress after refresh", async ({ page }) => {
+    const forbidden = forbidExternalRuntimeRequests(page);
+    await runStatefulScenario(
+      page,
+      fixture.stateful.questionnaire,
+      questionnaireUrl(fixture),
+    );
+    expect(forbidden()).toEqual([]);
   });
 });

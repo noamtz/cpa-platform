@@ -5,7 +5,10 @@ import {
 } from "./deployment-policy";
 import type { StageSettings } from "./stage";
 
-export async function createDeploymentRole(stage: StageSettings) {
+export async function createDeploymentRole(
+  stage: StageSettings,
+  routerKeyValueStoreArn: $util.Input<string>,
+) {
   const caller = await aws.getCallerIdentity({});
   const boundaryName = `${$app.name}-${stage.name}-workload-boundary`;
   const workloadBoundary = new aws.iam.Policy(
@@ -52,14 +55,16 @@ export async function createDeploymentRole(stage: StageSettings) {
     inlinePolicies: [
       {
         name: `auditflow-${stage.name}-foundation-deploy`,
-        policy: workloadBoundary.arn.apply((workloadBoundaryArn) =>
-          JSON.stringify(
-            buildDeploymentPolicy({
-              accountId: caller.accountId,
-              stage: stage.name,
-              workloadBoundaryArn,
-            }),
-          ),
+        policy: $resolve([workloadBoundary.arn, routerKeyValueStoreArn]).apply(
+          ([workloadBoundaryArn, resolvedRouterKeyValueStoreArn]) =>
+            JSON.stringify(
+              buildDeploymentPolicy({
+                accountId: caller.accountId,
+                stage: stage.name,
+                workloadBoundaryArn,
+                routerKeyValueStoreArn: resolvedRouterKeyValueStoreArn,
+              }),
+            ),
         ),
       },
     ],

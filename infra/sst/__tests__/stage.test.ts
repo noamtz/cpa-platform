@@ -5,6 +5,7 @@ import {
   MONTHLY_COST_CEILING_ILS,
   getStageSettings,
   parseStage,
+  stageAssetLogicalName,
 } from "../stage";
 
 describe("stage settings", () => {
@@ -100,6 +101,13 @@ describe("stage settings", () => {
     },
   ])("fails closed on invalid production budget settings", (environment) => {
     expect(() => getStageSettings("production", environment)).toThrow();
+  });
+
+  it("uses an application-and-stage-specific production asset namespace", () => {
+    expect(stageAssetLogicalName("ApiFunction", "test")).toBe("ApiFunction");
+    expect(stageAssetLogicalName("ApiFunction", "production")).toBe(
+      "ApiFunctionAuditflowProduction",
+    );
   });
 
   it("accepts only the production hostname with a us-east-1 CloudFront certificate", () => {

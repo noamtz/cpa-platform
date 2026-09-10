@@ -178,6 +178,24 @@
     "docs/migration/base44-reverse-replay-verification.json",
     "docs/migration/pdf-parity-evidence.json"
   ],
+  "requiredGateIds": [
+    "AUTOMATED_VALIDATION",
+    "RUNTIME_INDEPENDENCE",
+    "MIGRATION_RECONCILIATION",
+    "REVERSE_REPLAY",
+    "TEST_STAGE_PARITY",
+    "PDF_BROWSER_MATRIX",
+    "OBSERVABILITY",
+    "PRODUCTION_BUDGET",
+    "PRODUCTION_FOUNDATION",
+    "OWNER_DECISION"
+  ],
+  "requiredArtifactDigestGroups": [
+    "frontend",
+    "applicationApi",
+    "pdfRenderer",
+    "zipWorker"
+  ],
   "allowedWaiverGates": [
     "OWNER_PDF_MOBILE_IN_APP_BROWSER",
     "OWNER_SENTRY_OBSERVATION",

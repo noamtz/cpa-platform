@@ -10,6 +10,8 @@ import {
 const accountId = "123456789012";
 const boundaryArn =
   "arn:aws:iam::123456789012:policy/auditflow-test-workload-boundary";
+const productionRouterKeyValueStoreArn =
+  "arn:aws:cloudfront::123456789012:key-value-store/production-router-store";
 
 function actions(statement: IamPolicyStatement): readonly string[] {
   return Array.isArray(statement.Action)
@@ -172,11 +174,11 @@ describe("test deployment IAM policy", () => {
     const state = policy.Statement.find(
       ({ Sid }) => Sid === "UseSstStageState",
     );
-    const assets = policy.Statement.find(
-      ({ Sid }) => Sid === "UseSstAssetStorage",
+    const assetInspection = policy.Statement.find(
+      ({ Sid }) => Sid === "InspectSstAssetStorage",
     );
-    const assetCleanup = policy.Statement.find(
-      ({ Sid }) => Sid === "DeleteSupersededSstAssets",
+    const assets = policy.Statement.find(
+      ({ Sid }) => Sid === "UseStageSstAssets",
     );
 
     expect(state?.Resource).toEqual([
@@ -190,14 +192,25 @@ describe("test deployment IAM policy", () => {
       Resource:
         "arn:aws:s3:::sst-state-kkkvushrzufd/secret/auditflow/_fallback.json",
     });
-    expect(actions(assets!)).not.toContain("s3:DeleteObject");
-    expect(actions(assets!)).toContain("s3:PutObjectTagging");
-    expect(assetCleanup).toEqual({
-      Sid: "DeleteSupersededSstAssets",
-      Effect: "Allow",
-      Action: "s3:DeleteObject",
-      Resource: "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/*",
+    expect(assetInspection).toMatchObject({
+      Resource: "arn:aws:s3:::sst-asset-kkkvushrzufd",
+      Condition: {
+        StringLike: {
+          "s3:prefix": [
+            "assets/ApiFunction-code-*",
+            "assets/PdfRendererFunction-code-*",
+            "assets/ZipDownloadWorker-code-*",
+          ],
+        },
+      },
     });
+    expect(actions(assets!)).toContain("s3:DeleteObject");
+    expect(actions(assets!)).toContain("s3:PutObjectTagging");
+    expect(assets?.Resource).toEqual([
+      "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/ApiFunction-code-*",
+      "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/PdfRendererFunction-code-*",
+      "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/ZipDownloadWorker-code-*",
+    ]);
     expect(JSON.stringify(policy)).not.toContain("sst-state-kkkvushrzufd/*\"");
   });
 
@@ -217,6 +230,7 @@ describe("test deployment IAM policy", () => {
       accountId,
       stage: "production",
       workloadBoundaryArn: productionBoundaryArn,
+      routerKeyValueStoreArn: productionRouterKeyValueStoreArn,
     });
     const serialized = JSON.stringify(productionPolicy);
 
@@ -225,6 +239,13 @@ describe("test deployment IAM policy", () => {
     expect(serialized).not.toContain("auditflow-test-");
     expect(serialized).not.toContain("auditflow/test.json");
     expect(serialized).toContain(productionBoundaryArn);
+    expect(serialized).toContain("ApiFunctionAuditflowProduction-code-*");
+    expect(serialized).not.toContain("ApiFunction-code-*");
+    expect(
+      productionPolicy.Statement.find(
+        ({ Sid }) => Sid === "ManageCloudFrontKeyValues",
+      )?.Resource,
+    ).toBe(productionRouterKeyValueStoreArn);
     expect(
       productionPolicy.Statement.find(
         ({ Sid }) => Sid === "DenyDeployRoleSelfMutation",
@@ -232,6 +253,27 @@ describe("test deployment IAM policy", () => {
     ).toBe(
       "arn:aws:iam::123456789012:role/auditflow-production-github-deploy",
     );
+  });
+
+  it("rejects a production policy without the exact Router KeyValueStore ARN", () => {
+    expect(() =>
+      buildDeploymentPolicy({
+        accountId,
+        stage: "production",
+        workloadBoundaryArn:
+          "arn:aws:iam::123456789012:policy/auditflow-production-workload-boundary",
+      }),
+    ).toThrow("requires the exact Router KeyValueStore ARN");
+    expect(() =>
+      buildDeploymentPolicy({
+        accountId,
+        stage: "production",
+        workloadBoundaryArn:
+          "arn:aws:iam::123456789012:policy/auditflow-production-workload-boundary",
+        routerKeyValueStoreArn:
+          "arn:aws:cloudfront::999999999999:key-value-store/other-account",
+      }),
+    ).toThrow("requires the exact Router KeyValueStore ARN");
   });
 });
 

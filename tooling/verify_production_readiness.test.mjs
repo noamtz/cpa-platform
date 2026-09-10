@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -8,6 +9,11 @@ import { verifyContract, verifyEvidence } from "./verify_production_readiness.mj
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
 const roots = [];
+const candidateCommit = "a".repeat(40);
+
+function sha256(path) {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
 
 function contractFixture() {
   const root = mkdtempSync(join(tmpdir(), "auditflow-readiness-"));
@@ -30,6 +36,35 @@ function contractFixture() {
     "e2e/permissions-deferred-maintenance.spec.js",
   ]) cpSync(join(repositoryRoot, path), join(root, path));
   return root;
+}
+
+function passingEvidence(root) {
+  const contract = JSON.parse(readFileSync(join(root, "tooling/production-readiness-contract.json"), "utf8"));
+  const artifactDirectory = join(root, "artifacts");
+  mkdirSync(artifactDirectory, { recursive: true });
+  const artifactDigests = {};
+  for (const group of contract.requiredArtifactDigestGroups) {
+    const relativePath = `artifacts/${group}.txt`;
+    writeFileSync(join(root, relativePath), `${group} candidate artifact`);
+    artifactDigests[group] = [{ path: relativePath, sha256: sha256(join(root, relativePath)) }];
+  }
+  return {
+    schemaVersion: 1,
+    artifactType: "PRODUCTION_READINESS_EVIDENCE",
+    status: "passed",
+    candidate: {
+      commit: candidateCommit,
+      builtAt: "2026-09-09T11:30:00+03:00",
+      nodeVersion: "20.17.0",
+    },
+    gates: contract.requiredGateIds.map((id) => ({ id, status: "passed" })),
+    waivers: [],
+    sourceDigests: Object.fromEntries(
+      contract.requiredEvidence.map((path) => [path, sha256(join(root, path))]),
+    ),
+    artifactDigests,
+    ownerSignoff: { decision: "go", signedAt: "2026-09-09T12:00:00+03:00" },
+  };
 }
 
 afterEach(() => {
@@ -56,37 +91,87 @@ describe("production readiness verifier", () => {
     expect(() => verifyContract({ root })).toThrow("reference reconciliation");
   });
 
+  it("fails when the production workflow cannot inspect Environment protection", () => {
+    const root = contractFixture();
+    const path = join(root, ".github/workflows/deploy-sst-production.yml");
+    writeFileSync(path, readFileSync(path, "utf8").replace("  actions: read\n", ""));
+    expect(() => verifyContract({ root })).toThrow("Production workflow is not manual, protected, or fail-closed");
+  });
+
   it("accepts only a signed, passing, privacy-safe evidence document", () => {
     const root = contractFixture();
     const path = join(root, "evidence.json");
-    writeFileSync(path, JSON.stringify({
-      schemaVersion: 1,
-      artifactType: "PRODUCTION_READINESS_EVIDENCE",
-      status: "passed",
-      gates: [{ id: "automated", status: "passed" }],
-      waivers: [],
-      sourceDigests: {},
-      ownerSignoff: { decision: "go", signedAt: "2026-09-09T12:00:00+03:00" },
-    }));
-    expect(verifyEvidence({ root, evidencePath: "evidence.json" }).status).toBe("passed");
+    writeFileSync(path, JSON.stringify(passingEvidence(root)));
+    expect(verifyEvidence({ root, evidencePath: "evidence.json", candidateCommit }).status).toBe("passed");
   });
 
   it.each([
     [{ status: "pending", ownerSignoff: undefined }, "has not passed"],
     [{ token: "secret" }, "Sensitive readiness evidence"],
-    [{ waivers: [{ gate: "SECURITY", scope: "x", owner: "x", date: "x", reason: "x", nextAction: "x" }] }, "not allowed"],
+    [{ waivers: [{ gate: "SECURITY" }] }, "not allowed"],
   ])("fails closed for incomplete or unsafe evidence", (override, message) => {
     const root = contractFixture();
+    const evidence = { ...passingEvidence(root), ...override };
     writeFileSync(join(root, "evidence.json"), JSON.stringify({
-      schemaVersion: 1,
-      artifactType: "PRODUCTION_READINESS_EVIDENCE",
-      status: "passed",
-      gates: [{ id: "automated", status: "passed" }],
-      waivers: [],
-      sourceDigests: {},
-      ownerSignoff: { decision: "go", signedAt: "2026-09-09T12:00:00+03:00" },
-      ...override,
+      ...evidence,
     }));
-    expect(() => verifyEvidence({ root, evidencePath: "evidence.json" })).toThrow(message);
+    expect(() => verifyEvidence({ root, evidencePath: "evidence.json", candidateCommit })).toThrow(message);
+  });
+
+  it("requires the exact gate set and candidate commit", () => {
+    const root = contractFixture();
+    const evidence = passingEvidence(root);
+    evidence.gates.pop();
+    writeFileSync(join(root, "evidence.json"), JSON.stringify(evidence));
+    expect(() => verifyEvidence({ root, evidencePath: "evidence.json", candidateCommit })).toThrow(
+      "required gate set",
+    );
+
+    evidence.gates = passingEvidence(root).gates;
+    evidence.candidate.commit = "b".repeat(40);
+    writeFileSync(join(root, "evidence.json"), JSON.stringify(evidence));
+    expect(() => verifyEvidence({ root, evidencePath: "evidence.json", candidateCommit })).toThrow(
+      "candidate is missing, stale, or invalid",
+    );
+  });
+
+  it("requires every source and runtime artifact digest and reads each file back", () => {
+    const root = contractFixture();
+    const evidence = passingEvidence(root);
+    delete evidence.sourceDigests["docs/migration/pdf-parity-evidence.json"];
+    writeFileSync(join(root, "evidence.json"), JSON.stringify(evidence));
+    expect(() => verifyEvidence({ root, evidencePath: "evidence.json", candidateCommit })).toThrow(
+      "required evidence set",
+    );
+
+    const complete = passingEvidence(root);
+    complete.artifactDigests.pdfRenderer[0].sha256 = "0".repeat(64);
+    writeFileSync(join(root, "evidence.json"), JSON.stringify(complete));
+    expect(() => verifyEvidence({ root, evidencePath: "evidence.json", candidateCommit })).toThrow(
+      "artifact pdfRenderer digest drifted",
+    );
+  });
+
+  it("requires each waived aggregate gate to have a complete allowed waiver", () => {
+    const root = contractFixture();
+    const evidence = passingEvidence(root);
+    evidence.gates.find(({ id }) => id === "OBSERVABILITY").status = "waived";
+    writeFileSync(join(root, "evidence.json"), JSON.stringify(evidence));
+    expect(() => verifyEvidence({ root, evidencePath: "evidence.json", candidateCommit })).toThrow(
+      "lacks an approved waiver",
+    );
+
+    evidence.waivers = [{
+      gate: "OWNER_SENTRY_OBSERVATION",
+      appliesTo: "OBSERVABILITY",
+      scope: "Sentry console observation only",
+      owner: "owner",
+      date: "2026-09-09",
+      reason: "console unavailable",
+      expiresAt: "2026-09-16",
+      nextAction: "repeat observation",
+    }];
+    writeFileSync(join(root, "evidence.json"), JSON.stringify(evidence));
+    expect(verifyEvidence({ root, evidencePath: "evidence.json", candidateCommit }).waiverCount).toBe(1);
   });
 });

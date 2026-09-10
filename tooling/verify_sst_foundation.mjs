@@ -42,6 +42,7 @@ export const requiredCloudFrontKeyValueStoreActions = readJson(
 export function hasScopedCloudFrontKeyValueStorePermissions(
   policy,
   accountId,
+  stage = "test",
 ) {
   const statement = policy?.Statement?.find(
     ({ Sid }) => Sid === "ManageCloudFrontKeyValues",
@@ -50,10 +51,38 @@ export function hasScopedCloudFrontKeyValueStorePermissions(
     statement?.Effect === "Allow" &&
     JSON.stringify(asArray(statement.Action)) ===
       JSON.stringify(requiredCloudFrontKeyValueStoreActions) &&
-    statement.Resource ===
-      `arn:aws:cloudfront::${accountId}:key-value-store/*` &&
+    (stage === "production"
+      ? new RegExp(
+          `^arn:aws:cloudfront::${accountId}:key-value-store/[A-Za-z0-9_-]+$`,
+          "u",
+        ).test(statement.Resource)
+      : statement.Resource ===
+        `arn:aws:cloudfront::${accountId}:key-value-store/*`) &&
     statement.Condition === undefined
   );
+}
+
+export function validateRouterOutputs(contract, stage, outputs) {
+  const customDomain = outputs.customDomain;
+  if (stage === "test") {
+    assert(customDomain === "", "Test custom-domain output must be empty.");
+  } else {
+    assert(
+      customDomain === "" || customDomain === contract.production.customDomain,
+      "Production custom-domain output is invalid.",
+    );
+  }
+
+  const expectedRouterHost = customDomain || ".cloudfront.net";
+  const routerUrl = assertHttpsUrl(
+    outputs.routerUrl,
+    "Router URL",
+    expectedRouterHost,
+  );
+  if (customDomain) {
+    assert(routerUrl.hostname === customDomain, "Production Router hostname is not exact.");
+  }
+  return routerUrl;
 }
 
 function parseArguments(argv) {
@@ -613,12 +642,16 @@ function verifyDeployer(contract, stage) {
     inlinePolicyNames[0],
   ]).value.PolicyDocument;
   assert(
-    hasScopedCloudFrontKeyValueStorePermissions(inlinePolicy, accountId),
-    "Test deploy role CloudFront KeyValueStore permissions are missing, broad, or conditioned on unsupported tags.",
+    hasScopedCloudFrontKeyValueStorePermissions(inlinePolicy, accountId, stage),
+    `${stage} deploy role CloudFront KeyValueStore permissions are missing, broad, or conditioned on unsupported tags.`,
   );
 
-  const keyValueStoreProbeArn =
-    `arn:aws:cloudfront::${accountId}:key-value-store/auditflow-policy-probe`;
+  const keyValueStoreStatement = inlinePolicy.Statement.find(
+    ({ Sid }) => Sid === "ManageCloudFrontKeyValues",
+  );
+  const keyValueStoreProbeArn = stage === "production"
+    ? keyValueStoreStatement.Resource
+    : `arn:aws:cloudfront::${accountId}:key-value-store/auditflow-policy-probe`;
   for (const action of requiredCloudFrontKeyValueStoreActions) {
     assert(
       simulatePrincipalAction(roleArn, action, keyValueStoreProbeArn) ===
@@ -773,17 +806,7 @@ async function verifyLive(
     assert(key in outputs, `Missing required SST output: ${key}`);
   }
 
-  const expectedRouterHost = stage === "production"
-    ? contract.production.customDomain
-    : ".cloudfront.net";
-  const routerUrl = assertHttpsUrl(outputs.routerUrl, "Router URL", expectedRouterHost);
-  if (stage === "production") {
-    assert(routerUrl.hostname === expectedRouterHost, "Production Router hostname is not exact.");
-  }
-  assert(
-    outputs.customDomain === (stage === "production" ? contract.production.customDomain : ""),
-    "Custom-domain output does not match the selected stage.",
-  );
+  const routerUrl = validateRouterOutputs(contract, stage, outputs);
   assertHttpsUrl(
     outputs.apiUrl,
     "API URL",
@@ -1374,7 +1397,7 @@ async function verifyLive(
     inlinePolicyNames[0],
   ]).value.PolicyDocument;
   assert(
-    hasScopedCloudFrontKeyValueStorePermissions(inlinePolicy, accountId),
+    hasScopedCloudFrontKeyValueStorePermissions(inlinePolicy, accountId, stage),
     `${stage} deploy role CloudFront KeyValueStore permissions are missing, broad, or conditioned on unsupported tags.`,
   );
   assert(
