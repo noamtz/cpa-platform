@@ -461,7 +461,6 @@ export const pdfContract = {
   ] as const satisfies readonly PdfRouteContract[],
   nodejsInstall: [
     "@napi-rs/canvas",
-    "@napi-rs/canvas-linux-arm64-gnu",
     "pdfjs-dist",
   ] as const,
   font: {

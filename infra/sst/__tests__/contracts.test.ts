@@ -366,7 +366,6 @@ describe("foundation resource contract", () => {
       ],
       nodejsInstall: [
         "@napi-rs/canvas",
-        "@napi-rs/canvas-linux-arm64-gnu",
         "pdfjs-dist",
       ],
       font: {
@@ -391,6 +390,9 @@ describe("foundation resource contract", () => {
         "utf8",
       ),
     );
+    const rootPackage = JSON.parse(
+      readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
+    );
     expect(pdfSource).toContain("CORS_ORIGIN: routerOrigin");
     expect(pdfSource).toContain("install: [...pdfContract.nodejsInstall]");
     expect(pdfSource).toContain("copyFiles:");
@@ -401,6 +403,10 @@ describe("foundation resource contract", () => {
     expect(pdfPackage.dependencies["@napi-rs/canvas"]).toBe("0.1.100");
     expect(
       pdfPackage.optionalDependencies["@napi-rs/canvas-linux-arm64-gnu"],
+    ).toBe("0.1.100");
+    expect(rootPackage.dependencies["@napi-rs/canvas"]).toBe("0.1.100");
+    expect(
+      rootPackage.optionalDependencies["@napi-rs/canvas-linux-arm64-gnu"],
     ).toBe("0.1.100");
     expect(applicationSource).toContain(
       "router.route(pdfContract.routerPattern, pdf.api.url",

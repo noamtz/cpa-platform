@@ -294,7 +294,6 @@ function verifyContract(contract, stage) {
       JSON.stringify(contract.pdf.nodejsInstall) ===
         JSON.stringify([
           "@napi-rs/canvas",
-          "@napi-rs/canvas-linux-arm64-gnu",
           "pdfjs-dist",
         ]) &&
       contract.pdf.font.destination === "fonts/Heebo-Regular.ttf" &&

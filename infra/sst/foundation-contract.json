@@ -135,7 +135,6 @@
     ],
     "nodejsInstall": [
       "@napi-rs/canvas",
-      "@napi-rs/canvas-linux-arm64-gnu",
       "pdfjs-dist"
     ],
     "font": {

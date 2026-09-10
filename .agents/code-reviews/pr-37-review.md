@@ -178,7 +178,7 @@ Post-fix local validation on Node 20.17.0:
 - KNOWN BASELINE FAIL: root typecheck still reports 147 pre-existing frontend diagnostics; none are in the review-fix files.
 - KNOWN BASELINE FAIL: root lint still reports the two pre-existing unused imports in `CompletionScreen.jsx` and `UserManagement.jsx`.
 - PASS: hosted staged-runtime independence, including the original internal package symlink.
-- FIXED AFTER HOSTED DISCOVERY: SST resolved the native canvas package from the nearest Lambda package boundary, where it was not declared, and staged latest `1.0.9`; the Lambda package and lock now pin both canvas packages to `0.1.100` and have a contract regression test.
+- FIXED AFTER HOSTED DISCOVERY: SST 3.19.3 emitted `"*"` for the explicitly installed native package because it reads versions only from root `dependencies`, not `optionalDependencies`, and staged latest `1.0.9`. The redundant native entry was removed from `nodejs.install`, so pinned `@napi-rs/canvas@0.1.100` supplies its pinned ARM64 optional binary; root and Lambda dependency boundaries plus the Lambda lock are now contract-tested at `0.1.100`.
 - PENDING: GitHub test-stage workflow rerun after the Lambda dependency-boundary fix.
 
 No production AWS resource, Base44 application, or Base44 data was accessed or changed while applying these fixes.
