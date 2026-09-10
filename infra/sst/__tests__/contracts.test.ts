@@ -105,6 +105,7 @@ describe("foundation resource contract", () => {
       audience: deploymentContract.audience,
       subject: deploymentContract.subject,
       enablementSubject: deploymentContract.enablementSubject,
+      productionSubject: deploymentContract.productionSubject,
     });
     expect(verifierContract.inventory).toEqual(expectedInventory);
     expect(verifierContract.outputKeys).toEqual(expectedOutputKeys);
@@ -437,6 +438,17 @@ describe("foundation resource contract", () => {
       "repo:noamtz@2631641/cpa-platform@1332935468:environment:test-legacy-read-enable",
     );
     expect(deploymentContract.enablementSubject).not.toContain("*");
+    expect(deploymentContract.productionSubject).toBe(
+      "repo:noamtz@2631641/cpa-platform@1332935468:environment:production",
+    );
+    expect(deploymentContract.productionSubject).not.toContain("*");
+    expect(deploymentContract.roles.test.subjects).toEqual([
+      deploymentContract.subject,
+      deploymentContract.enablementSubject,
+    ]);
+    expect(deploymentContract.roles.production.subjects).toEqual([
+      deploymentContract.productionSubject,
+    ]);
   });
 
   it("defaults test deployments to disabled legacy file access", () => {

@@ -1,0 +1,204 @@
+name: Prepare SST production
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Preview only, or prepare the retained empty production foundation
+        required: true
+        type: choice
+        options:
+          - preview
+          - prepare
+        default: preview
+      confirm_prepare:
+        description: Type PREPARE EMPTY PRODUCTION exactly for the prepare operation
+        required: false
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: auditflow-sst-production
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    environment: production
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: il-central-1
+      AWS_DEFAULT_REGION: il-central-1
+      SST_STAGE: production
+      AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      EXPECTED_OIDC_AUDIENCE: sts.amazonaws.com
+      EXPECTED_OIDC_SUBJECT: repo:noamtz@2631641/cpa-platform@1332935468:environment:production
+      AUDITFLOW_ENABLE_LEGACY_FILE_READS: "false"
+      AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256: ""
+      AUDITFLOW_BUDGET_ALERT_EMAIL: ${{ secrets.AUDITFLOW_BUDGET_ALERT_EMAIL }}
+      AUDITFLOW_MONTHLY_BUDGET_USD: ${{ vars.AUDITFLOW_MONTHLY_BUDGET_USD }}
+      AUDITFLOW_ILS_PER_USD: ${{ vars.AUDITFLOW_ILS_PER_USD }}
+      AUDITFLOW_ILS_PER_USD_DATE: ${{ vars.AUDITFLOW_ILS_PER_USD_DATE }}
+      AUDITFLOW_ILS_PER_USD_SOURCE: ${{ vars.AUDITFLOW_ILS_PER_USD_SOURCE }}
+      AUDITFLOW_PRODUCTION_DOMAIN: ${{ vars.AUDITFLOW_PRODUCTION_DOMAIN }}
+      AUDITFLOW_PRODUCTION_CERTIFICATE_ARN: ${{ vars.AUDITFLOW_PRODUCTION_CERTIFICATE_ARN }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20.17.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.17.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate operation before AWS access
+        shell: bash
+        run: |
+          [[ "${GITHUB_REF}" == "refs/heads/main" ]]
+          [[ "${AUDITFLOW_ENABLE_LEGACY_FILE_READS}" == "false" ]]
+          [[ -z "${AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256}" ]]
+          if [[ "${{ inputs.operation }}" == "prepare" ]]; then
+            [[ "${{ inputs.confirm_prepare }}" == "PREPARE EMPTY PRODUCTION" ]]
+          else
+            [[ "${{ inputs.operation }}" == "preview" ]]
+            [[ -z "${{ inputs.confirm_prepare }}" ]]
+          fi
+          [[ "${AUDITFLOW_MONTHLY_BUDGET_USD}" == "10" ]]
+          [[ "${AUDITFLOW_ILS_PER_USD}" =~ ^[0-9]+([.][0-9]+)?$ ]]
+          [[ "${AUDITFLOW_ILS_PER_USD_DATE}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]
+          [[ -n "${AUDITFLOW_ILS_PER_USD_SOURCE}" ]]
+          [[ "${AUDITFLOW_PRODUCTION_DOMAIN}" == "app.ddcpa.co.il" ]]
+          [[ "${AUDITFLOW_PRODUCTION_CERTIFICATE_ARN}" =~ ^arn:aws:acm:us-east-1:[0-9]{12}:certificate/ ]]
+          node tooling/verify_sst_foundation.mjs --mode contract --stage production
+          node tooling/verify_production_readiness.mjs --mode contract
+
+      - name: Verify protected production environment
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          environment_json="$(gh api "repos/${GITHUB_REPOSITORY}/environments/production")"
+          policies_json="$(gh api "repos/${GITHUB_REPOSITORY}/environments/production/deployment-branch-policies?per_page=100")"
+          ENVIRONMENT_JSON="$environment_json" POLICIES_JSON="$policies_json" node <<'NODE'
+          const environment = JSON.parse(process.env.ENVIRONMENT_JSON);
+          const policies = JSON.parse(process.env.POLICIES_JSON);
+          const reviewerRules = (environment.protection_rules ?? []).filter(
+            (rule) => rule.type === "required_reviewers",
+          );
+          const ownerProtected = reviewerRules.some((rule) =>
+            (rule.reviewers ?? []).some(
+              (entry) => entry.type === "User" && entry.reviewer?.login === "noamtz",
+            ),
+          );
+          const branchPolicy = environment.deployment_branch_policy;
+          const mainOnly =
+            branchPolicy?.protected_branches === false &&
+            branchPolicy?.custom_branch_policies === true &&
+            policies.total_count === 1 &&
+            policies.branch_policies?.[0]?.name === "main";
+          if (!ownerProtected || !mainOnly) {
+            throw new Error("Production Environment protection is missing or has drifted");
+          }
+          NODE
+
+      - name: Validate GitHub OIDC claims
+        shell: bash
+        run: |
+          response="$(curl --fail --silent --show-error \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${EXPECTED_OIDC_AUDIENCE}")"
+          OIDC_RESPONSE="$response" node <<'NODE'
+          const token = JSON.parse(process.env.OIDC_RESPONSE).value;
+          if (!token) throw new Error("GitHub did not return an OIDC token");
+          const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString("utf8"));
+          if (payload.aud !== process.env.EXPECTED_OIDC_AUDIENCE) throw new Error("Unexpected OIDC audience");
+          if (payload.sub !== process.env.EXPECTED_OIDC_SUBJECT) throw new Error("Unexpected OIDC subject");
+          process.stdout.write("OIDC claim validation passed\n");
+          NODE
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: auditflow-sst-production
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify production deployer permissions
+        run: node tooling/verify_sst_foundation.mjs --mode deployer --stage production
+
+      - name: Install SST platform types
+        run: npx sst install --stage production
+
+      - name: Validate candidate
+        run: |
+          npm test
+          npm run typecheck
+          npm run lint
+          npm run test:foundation
+          npm run typecheck:foundation
+          npm run lint:foundation
+          npm run test:pdf
+          npm run test:import
+          npm run test:reverse-replay
+          npm run build
+          npm run verify:runtime-independence -- --frontend dist
+
+      - name: Preview retained empty production foundation
+        id: preview
+        shell: bash
+        run: |
+          set +e
+          npx sst diff --stage production --print-logs 2>&1 | tee /tmp/sst-production-diff.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [[ $status -ne 0 ]]; then
+            grep -Eqi "stage (was )?not found|does not exist|no state" /tmp/sst-production-diff.log
+            echo "stage_missing=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Audit preview artifacts
+        if: ${{ steps.preview.outputs.stage_missing != 'true' }}
+        run: npm run verify:runtime-independence -- --artifacts .sst/artifacts --no-manifests
+
+      - name: Prepare retained empty production foundation
+        if: ${{ inputs.operation == 'prepare' && steps.preview.outputs.stage_missing != 'true' }}
+        run: npx sst deploy --stage production --print-logs
+
+      - name: Refuse implicit initial bootstrap
+        if: ${{ inputs.operation == 'prepare' && steps.preview.outputs.stage_missing == 'true' }}
+        run: |
+          echo "Production stage is absent; owner-authenticated bootstrap/read-back is required before OIDC prepare." >&2
+          exit 1
+
+      - name: Audit deployed artifacts
+        if: ${{ inputs.operation == 'prepare' && success() }}
+        run: npm run verify:runtime-independence -- --artifacts .sst/artifacts --no-manifests
+
+      - name: Verify live retained production foundation
+        if: ${{ inputs.operation == 'prepare' && success() }}
+        run: >-
+          node tooling/verify_sst_foundation.mjs
+          --mode live
+          --stage production
+          --outputs .sst/outputs.json
+          --legacy-file-reads disabled
+          --budget-rate "${AUDITFLOW_ILS_PER_USD}"
+          --budget-rate-date "${AUDITFLOW_ILS_PER_USD_DATE}"
+          --budget-rate-source "${AUDITFLOW_ILS_PER_USD_SOURCE}"
+          > production-live-readback.json
+
+      - name: Upload scrubbed production read-back
+        if: ${{ inputs.operation == 'prepare' && success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: auditflow-production-readiness-${{ github.sha }}
+          path: production-live-readback.json
+          if-no-files-found: error
+          retention-days: 14

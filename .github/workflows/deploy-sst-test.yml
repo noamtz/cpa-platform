@@ -18,6 +18,13 @@ on:
       - "sst.config.ts"
       - "infra/sst/**"
       - "backend/api/**"
+      - "src/api/**"
+      - "src/App.jsx"
+      - "src/pages/Maintenance.jsx"
+      - "src/lib/maintenance-status.js"
+      - "src/lib/__tests__/maintenance-status.test.js"
+      - "e2e/**"
+      - "playwright.config.js"
       - "lambda/pdf-generator/**"
       - "src/lib/pdf-api.js"
       - "src/lib/__tests__/pdf-api.test.js"
@@ -28,6 +35,11 @@ on:
       - "tooling/verify_pdf_parity.test.mjs"
       - "docs/migration/pdf-parity-runbook.md"
       - "tooling/verify_sst_foundation.mjs"
+      - "tooling/production-readiness-contract.json"
+      - "tooling/verify_production_readiness.mjs"
+      - "tooling/verify_production_readiness.test.mjs"
+      - "tooling/verify_runtime_independence.mjs"
+      - "tooling/verify_runtime_independence.test.mjs"
       - "tooling/verify_private_file_cutover.mjs"
       - "tooling/import_base44_snapshot.mjs"
       - "tooling/import_base44_snapshot.test.mjs"
@@ -46,12 +58,20 @@ on:
       - "vitest.foundation.config.js"
       - "package-lock.json"
       - ".github/workflows/deploy-sst-test.yml"
+      - ".github/workflows/deploy-sst-production.yml"
   push:
     branches: [main]
     paths:
       - "sst.config.ts"
       - "infra/sst/**"
       - "backend/api/**"
+      - "src/api/**"
+      - "src/App.jsx"
+      - "src/pages/Maintenance.jsx"
+      - "src/lib/maintenance-status.js"
+      - "src/lib/__tests__/maintenance-status.test.js"
+      - "e2e/**"
+      - "playwright.config.js"
       - "lambda/pdf-generator/**"
       - "src/lib/pdf-api.js"
       - "src/lib/__tests__/pdf-api.test.js"
@@ -62,6 +82,11 @@ on:
       - "tooling/verify_pdf_parity.test.mjs"
       - "docs/migration/pdf-parity-runbook.md"
       - "tooling/verify_sst_foundation.mjs"
+      - "tooling/production-readiness-contract.json"
+      - "tooling/verify_production_readiness.mjs"
+      - "tooling/verify_production_readiness.test.mjs"
+      - "tooling/verify_runtime_independence.mjs"
+      - "tooling/verify_runtime_independence.test.mjs"
       - "tooling/verify_private_file_cutover.mjs"
       - "tooling/import_base44_snapshot.mjs"
       - "tooling/import_base44_snapshot.test.mjs"
@@ -80,6 +105,7 @@ on:
       - "vitest.foundation.config.js"
       - "package-lock.json"
       - ".github/workflows/deploy-sst-test.yml"
+      - ".github/workflows/deploy-sst-production.yml"
 
 permissions:
   actions: read
@@ -223,10 +249,15 @@ jobs:
           npm run typecheck:foundation
           npm run lint:foundation
           npm run build
+          npm run verify:runtime-independence -- --frontend dist
           node tooling/verify_sst_foundation.mjs --mode contract --stage test
+          npm run verify:readiness -- --mode contract
 
       - name: Preview test deployment
         run: npx sst diff --stage test --print-logs
+
+      - name: Verify staged runtime independence
+        run: npm run verify:runtime-independence -- --artifacts .sst/artifacts --no-manifests
 
       - name: Verify staged PDF runtime assets
         run: >-

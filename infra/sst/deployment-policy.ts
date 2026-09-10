@@ -24,24 +24,23 @@ export interface DeploymentPolicyContext {
   readonly workloadBoundaryArn: string;
 }
 
-const testTags = {
-  "sst:app": APP_NAME,
-  "sst:stage": "test",
-} as const;
+function buildResourceTagCondition(appName: string, stage: StageName) {
+  return {
+    StringEquals: {
+      "aws:ResourceTag/sst:app": appName,
+      "aws:ResourceTag/sst:stage": stage,
+    },
+  } as const;
+}
 
-const resourceTagCondition = {
-  StringEquals: {
-    "aws:ResourceTag/sst:app": testTags["sst:app"],
-    "aws:ResourceTag/sst:stage": testTags["sst:stage"],
-  },
-} as const;
-
-const requestTagCondition = {
-  StringEquals: {
-    "aws:RequestTag/sst:app": testTags["sst:app"],
-    "aws:RequestTag/sst:stage": testTags["sst:stage"],
-  },
-} as const;
+function buildRequestTagCondition(appName: string, stage: StageName) {
+  return {
+    StringEquals: {
+      "aws:RequestTag/sst:app": appName,
+      "aws:RequestTag/sst:stage": stage,
+    },
+  } as const;
+}
 
 const deployRoleSelfMutationActions = [
   "iam:AttachRolePolicy",
@@ -194,18 +193,20 @@ export function buildWorkloadBoundaryPolicy(
   };
 }
 
-export function buildTestDeploymentPolicy({
+export function buildDeploymentPolicy({
   accountId,
   region = AWS_REGION,
   appName = APP_NAME,
-  stage = "test",
+  stage,
   workloadBoundaryArn,
 }: DeploymentPolicyContext): IamPolicyDocument {
-  if (stage !== "test") {
-    throw new Error("The GitHub deployment policy is restricted to the test stage.");
+  if (!stage) {
+    throw new Error("The GitHub deployment policy requires an exact stage.");
   }
 
   const resourcePrefix = `${appName}-${stage}-`;
+  const resourceTagCondition = buildResourceTagCondition(appName, stage);
+  const requestTagCondition = buildRequestTagCondition(appName, stage);
   const deployRoleArn = `arn:aws:iam::${accountId}:role/${resourcePrefix}github-deploy`;
   const workloadRoleArn = `arn:aws:iam::${accountId}:role/${resourcePrefix}*`;
   const apiArn = `arn:aws:apigateway:${region}::/apis/*`;
@@ -537,6 +538,6 @@ export const deploymentPolicyContracts = {
     deploymentContract.cloudFrontKeyValueStoreActions,
   deployRoleSelfMutationActions,
   globalDiscoveryActions,
-  requestTagCondition,
-  resourceTagCondition,
+  requestTagCondition: buildRequestTagCondition,
+  resourceTagCondition: buildResourceTagCondition,
 } as const;

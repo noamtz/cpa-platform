@@ -80,8 +80,8 @@ node tooling/verify_sst_foundation.mjs --mode live --stage test --outputs .sst/o
 ```
 
 Production is retained and protected. A production preview additionally requires an ignored
-`.env.production.local`, copied from `.env.example`, with a valid alert email, a positive monthly USD budget, and
-the operator-reviewed ILS/USD conversion rate. Configuration fails closed when the converted limit exceeds the
+`.env.production.local`, copied from `.env.example`, or equivalent protected operator/CI environment values with a
+valid alert email, a positive monthly USD budget, and the operator-reviewed ILS/USD conversion rate. Configuration fails closed when the converted limit exceeds the
 ILS 50 monthly ceiling. Refresh the rate before every production preview or deployment.
 Never commit that file or its values. Production deployment, removal, DNS, certificates, and changes to the
 existing Terraform/PDF stacks require separate authorization. SST 3.19.3 cannot diff a stage that has never been
@@ -105,7 +105,11 @@ must use the stage permissions boundary, and CI can pass them only to Lambda. Ch
 boundary require an owner-authenticated bootstrap deployment; the agent handling the change must run that bootstrap,
 verify the deployed role, and restore the required workflow to green before declaring the PR complete. Ordinary
 stage deployments remain OIDC-automated.
-Mutable objects in the shared SST state bucket are restricted to the exact `auditflow/test` key space.
+Mutable objects in the shared SST state bucket are restricted to the exact selected `auditflow/test` or
+`auditflow/production` key space; neither deployer can mutate the other stage. The manual-only production workflow
+uses the separately protected `production` Environment and `auditflow-production-github-deploy` role, refuses an
+implicit initial bootstrap, forces legacy reads off, and requires explicit prepare confirmation. Follow
+[`docs/migration/production-readiness-runbook.md`](docs/migration/production-readiness-runbook.md) before dispatching it.
 The account-level GitHub OIDC provider remains Terraform-owned, while SST owns only this issue-scoped role and the
 new serverless foundation resources.
 

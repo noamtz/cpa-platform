@@ -158,6 +158,11 @@ export const apiRoutes = {
     path: "/health",
     authorization: "none",
   },
+  maintenanceStatus: {
+    route: "GET /maintenance",
+    path: "/maintenance",
+    authorization: "none",
+  },
   protectedHealth: {
     route: "GET /auth/health",
     path: "/auth/health",
@@ -541,7 +546,6 @@ export const authContract = {
 } as const;
 
 export const deploymentContract = {
-  roleLogicalName: "TestDeployRole",
   workloadBoundaryLogicalName: "WorkloadPermissionsBoundary",
   providerUrl: "token.actions.githubusercontent.com",
   audience: "sts.amazonaws.com",
@@ -551,6 +555,24 @@ export const deploymentContract = {
     "repo:noamtz@2631641/cpa-platform@1332935468:environment:test-legacy-read-enable",
   repository: "noamtz/cpa-platform",
   environment: "test",
+  productionSubject:
+    "repo:noamtz@2631641/cpa-platform@1332935468:environment:production",
+  productionEnvironment: "production",
+  roles: {
+    test: {
+      logicalName: "TestDeployRole",
+      subjects: [
+        "repo:noamtz@2631641/cpa-platform@1332935468:environment:test",
+        "repo:noamtz@2631641/cpa-platform@1332935468:environment:test-legacy-read-enable",
+      ],
+    },
+    production: {
+      logicalName: "ProductionDeployRole",
+      subjects: [
+        "repo:noamtz@2631641/cpa-platform@1332935468:environment:production",
+      ],
+    },
+  },
   cloudFrontKeyValueStoreActions: [
     "cloudfront-keyvaluestore:DeleteKey",
     "cloudfront-keyvaluestore:DescribeKeyValueStore",
@@ -632,5 +654,6 @@ export const expectedOutputKeys = [
   "authCallbackUrl",
   "authLogoutUrl",
   "authScope",
-  "testDeployRoleArn",
+  "deployRoleArn",
+  "customDomain",
 ] as const;

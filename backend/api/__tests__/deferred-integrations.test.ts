@@ -50,10 +50,21 @@ const dependencies = {
 afterEach(() => vi.restoreAllMocks());
 
 describe("deferred integration routes", () => {
-  it("returns the controlled Google Drive 501 without outbound requests", async () => {
+  it.each([
+    ["POST /cpa/integrations/google-drive/sync", "/cpa/integrations/google-drive/sync", { check_connection: true }, "google-drive"],
+    ["POST /cpa/integrations/google-drive/connect", "/cpa/integrations/google-drive/connect", { connector_id: "drive" }, "google-drive"],
+    ["POST /cpa/integrations/google-drive/disconnect", "/cpa/integrations/google-drive/disconnect", { connector_id: "drive" }, "google-drive"],
+    ["POST /cpa/integrations/telegram/notify", "/cpa/integrations/telegram/notify", { event: "submission.completed", record_id: "submission-1" }, "telegram"],
+  ])("returns the controlled 501 without outbound requests for %s", async (routeKey, rawPath, body, feature) => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const response = await createHandler(() => "test", () => dependencies)(
-      event as never,
+      {
+        ...event,
+        routeKey,
+        rawPath,
+        body: JSON.stringify(body),
+        requestContext: { ...event.requestContext, http: { method: "POST", path: rawPath } },
+      } as never,
       {} as Context,
       vi.fn(),
     );
@@ -61,7 +72,7 @@ describe("deferred integration routes", () => {
     expect(JSON.parse(String((response as { body: string }).body))).toEqual({
       error: "Not implemented",
       code: "FEATURE_NOT_IMPLEMENTED",
-      feature: "google-drive",
+      feature,
     });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -89,6 +100,33 @@ describe("deferred integration routes", () => {
       code: "FEATURE_NOT_IMPLEMENTED",
       feature: "google-drive",
     });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed input before returning the controlled response", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const response = await createHandler(() => "test", () => dependencies)(
+      { ...event, body: JSON.stringify({ check_connection: false }) } as never,
+      {} as Context,
+      vi.fn(),
+    );
+    expect(response).toMatchObject({ statusCode: 400 });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("authenticates before disclosing that the integration is deferred", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const response = await createHandler(() => "test", () => dependencies)(
+      {
+        ...event,
+        headers: {},
+        requestContext: { ...event.requestContext, authorizer: undefined },
+      } as never,
+      {} as Context,
+      vi.fn(),
+    );
+    expect(response).toMatchObject({ statusCode: 401 });
+    expect(String((response as { body: string }).body)).not.toContain("FEATURE_NOT_IMPLEMENTED");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

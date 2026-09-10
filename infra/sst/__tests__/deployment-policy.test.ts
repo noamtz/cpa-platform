@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildTestDeploymentPolicy,
+  buildDeploymentPolicy,
   buildWorkloadBoundaryPolicy,
   deploymentPolicyContracts,
   type IamPolicyStatement,
@@ -18,8 +18,9 @@ function actions(statement: IamPolicyStatement): readonly string[] {
 }
 
 describe("test deployment IAM policy", () => {
-  const policy = buildTestDeploymentPolicy({
+  const policy = buildDeploymentPolicy({
     accountId,
+    stage: "test",
     workloadBoundaryArn: boundaryArn,
   });
 
@@ -158,8 +159,10 @@ describe("test deployment IAM policy", () => {
         "arn:aws:apigateway:il-central-1::/tags/arn%3Aaws%3Aapigateway%3Ail-central-1%3A%3A%2Fv2%2Fapis%2F*",
       Condition: {
         StringEquals: {
-          ...deploymentPolicyContracts.resourceTagCondition.StringEquals,
-          ...deploymentPolicyContracts.requestTagCondition.StringEquals,
+          ...deploymentPolicyContracts.resourceTagCondition("auditflow", "test")
+            .StringEquals,
+          ...deploymentPolicyContracts.requestTagCondition("auditflow", "test")
+            .StringEquals,
         },
       },
     });
@@ -198,14 +201,37 @@ describe("test deployment IAM policy", () => {
     expect(JSON.stringify(policy)).not.toContain("sst-state-kkkvushrzufd/*\"");
   });
 
-  it("rejects non-test deployment policies", () => {
+  it("requires an explicit deployment stage", () => {
     expect(() =>
-      buildTestDeploymentPolicy({
+      buildDeploymentPolicy({
         accountId,
-        stage: "production",
         workloadBoundaryArn: boundaryArn,
       }),
-    ).toThrow("restricted to the test stage");
+    ).toThrow("requires an exact stage");
+  });
+
+  it("isolates production resources and SST state from test", () => {
+    const productionBoundaryArn =
+      "arn:aws:iam::123456789012:policy/auditflow-production-workload-boundary";
+    const productionPolicy = buildDeploymentPolicy({
+      accountId,
+      stage: "production",
+      workloadBoundaryArn: productionBoundaryArn,
+    });
+    const serialized = JSON.stringify(productionPolicy);
+
+    expect(serialized).toContain("auditflow-production-");
+    expect(serialized).toContain("auditflow/production.json");
+    expect(serialized).not.toContain("auditflow-test-");
+    expect(serialized).not.toContain("auditflow/test.json");
+    expect(serialized).toContain(productionBoundaryArn);
+    expect(
+      productionPolicy.Statement.find(
+        ({ Sid }) => Sid === "DenyDeployRoleSelfMutation",
+      )?.Resource,
+    ).toBe(
+      "arn:aws:iam::123456789012:role/auditflow-production-github-deploy",
+    );
   });
 });
 

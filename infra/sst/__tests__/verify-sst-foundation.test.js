@@ -14,6 +14,7 @@ import {
   retryAwsCliCommand,
   requiredCloudFrontKeyValueStoreActions,
   scopedCpaRouteCount,
+  validateProductionBudgetReadback,
 } from "../../../tooling/verify_sst_foundation.mjs";
 
 describe("test deployer permission verification", () => {
@@ -129,6 +130,56 @@ describe("live verifier evidence", () => {
     );
 
     expect(scopedCpaRouteCount(contract)).toBe(36);
+  });
+});
+
+describe("production budget read-back", () => {
+  const contract = JSON.parse(
+    readFileSync(new URL("../foundation-contract.json", import.meta.url), "utf8"),
+  );
+  const input = {
+    contract,
+    budget: {
+      BudgetName: "auditflow-production-monthly-cost",
+      BudgetLimit: { Amount: "10", Unit: "USD" },
+      BudgetType: "COST",
+      TimeUnit: "MONTHLY",
+    },
+    notifications: [{
+      NotificationType: "ACTUAL",
+      ComparisonOperator: "GREATER_THAN",
+      Threshold: 80,
+      ThresholdType: "PERCENTAGE",
+    }],
+    subscribers: [{ SubscriptionType: "EMAIL", Address: "not-returned" }],
+    actions: [],
+    rate: "3.5",
+    rateDate: "2026-09-09",
+    rateSource: "operator bank rate",
+    now: new Date("2026-09-09T12:00:00Z"),
+  };
+
+  it("reports only aggregate subscriber and conversion evidence", () => {
+    expect(validateProductionBudgetReadback(input)).toEqual({
+      limitAmountUsd: 10,
+      convertedLimitIls: 35,
+      ceilingIls: 50,
+      thresholdPercent: 80,
+      recipientCount: 1,
+      automatedActionCount: 0,
+      rate: 3.5,
+      rateDate: "2026-09-09",
+      rateSource: "operator bank rate",
+    });
+  });
+
+  it("fails above the ILS ceiling or when automatic actions exist", () => {
+    expect(() =>
+      validateProductionBudgetReadback({ ...input, rate: "5.1" }),
+    ).toThrow("exceeds the ILS ceiling");
+    expect(() =>
+      validateProductionBudgetReadback({ ...input, actions: [{}] }),
+    ).toThrow("must not have automatic actions");
   });
 });
 

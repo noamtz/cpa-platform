@@ -6,7 +6,10 @@ export default $config({
       await import("./infra/sst/stage");
 
     if (input.stage === "production") {
-      process.loadEnvFile(".env.production.local");
+      const { existsSync } = await import("node:fs");
+      if (existsSync(".env.production.local")) {
+        process.loadEnvFile(".env.production.local");
+      }
     }
 
     const stage = getStageSettings(input.stage);
@@ -31,7 +34,7 @@ export default $config({
       { createAuthentication },
       { createCostControls },
       { createApplication, createApplicationRouter },
-      { createTestDeploymentRole },
+      { createDeploymentRole },
       { createPdfApi },
       { resolvePrivateFileCutover },
     ] = await Promise.all([
@@ -53,21 +56,21 @@ export default $config({
         process.env.AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256,
       repositoryRoot: process.cwd(),
     });
-    const router = createApplicationRouter();
+    const router = createApplicationRouter(stage);
     const storage = createStorage(stage, router.url);
     const authentication = createAuthentication(stage, router.url);
     createCostControls(stage);
-    const testDeployRole = await createTestDeploymentRole(stage);
+    const deploymentRole = await createDeploymentRole(stage);
     const pdf = createPdfApi(
       stage,
-      testDeployRole.workloadBoundary.arn,
+      deploymentRole.workloadBoundary.arn,
       router.url,
     );
     const application = createApplication(
       stage,
       storage,
       authentication,
-      testDeployRole.workloadBoundary.arn,
+      deploymentRole.workloadBoundary.arn,
       router,
       pdf,
       privateFileCutover,
@@ -107,7 +110,8 @@ export default $config({
       authCallbackUrl: authentication.callbackUrl,
       authLogoutUrl: authentication.logoutUrl,
       authScope: authentication.scope,
-      testDeployRoleArn: testDeployRole.role?.arn ?? "",
+      deployRoleArn: deploymentRole.role.arn,
+      customDomain: stage.customDomain?.name ?? "",
     };
   },
 });

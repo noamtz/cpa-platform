@@ -23,7 +23,7 @@ function setup() {
     auth: { me: vi.fn() },
     users: { inviteUser: vi.fn() },
     functions: { invoke: vi.fn() },
-    connectors: { connectAppUser: vi.fn() },
+    connectors: { connectAppUser: vi.fn(), disconnectAppUser: vi.fn() },
   };
   return { aws, client: createCompatibilityClient({ aws }) };
 }
@@ -41,6 +41,14 @@ describe("AWS-only compatibility facade", () => {
     expect(aws.entities.PdfTemplate.list).toHaveBeenCalledOnce();
     expect(aws.functions.invoke).toHaveBeenCalledWith("getActiveTemplate", {});
     expect(client.integrations).toBeUndefined();
+  });
+
+  it("delegates connector-shaped calls only to the AWS client", async () => {
+    const { client, aws } = setup();
+    await client.connectors.connectAppUser("drive");
+    await client.connectors.disconnectAppUser("drive");
+    expect(aws.connectors.connectAppUser).toHaveBeenCalledWith("drive");
+    expect(aws.connectors.disconnectAppUser).toHaveBeenCalledWith("drive");
   });
 
   it("fails locally for the removed readiness-agent runtime", () => {

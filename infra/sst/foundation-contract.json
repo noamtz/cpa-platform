@@ -4,6 +4,25 @@
   "sstVersion": "3.19.3",
   "region": "il-central-1",
   "stages": ["test", "production"],
+  "production": {
+    "protect": true,
+    "removal": "retain",
+    "logRetentionDays": 30,
+    "customDomain": "app.ddcpa.co.il",
+    "budget": {
+      "logicalName": "ProductionMonthlyBudget",
+      "name": "auditflow-production-monthly-cost",
+      "limitAmountUsd": 10,
+      "ceilingIls": 50,
+      "timeUnit": "MONTHLY",
+      "budgetType": "COST",
+      "notificationType": "ACTUAL",
+      "comparisonOperator": "GREATER_THAN",
+      "thresholdPercent": 80,
+      "thresholdType": "PERCENTAGE",
+      "automatedActions": false
+    }
+  },
   "tables": [
     { "logicalName": "ClientTable", "primaryIndex": { "hashKey": "id" }, "globalIndexes": { "byCreatedDate": { "hashKey": "record_type", "rangeKey": "created_date" } } },
     { "logicalName": "SubmissionTable", "primaryIndex": { "hashKey": "id" }, "globalIndexes": { "byClientYear": { "hashKey": "client_id", "rangeKey": "tax_year" }, "byCreatedDate": { "hashKey": "record_type", "rangeKey": "created_date" } } },
@@ -19,6 +38,7 @@
   ],
   "routes": [
     { "route": "GET /health", "authorization": "none" },
+    { "route": "GET /maintenance", "authorization": "none" },
     { "route": "GET /auth/health", "authorization": "cognito-jwt" },
     { "route": "POST /apps/{appId}/functions/getClientByToken", "authorization": "none" },
     { "route": "POST /apps/{appId}/functions/getActiveTemplate", "authorization": "none" },
@@ -191,7 +211,8 @@
     "providerUrl": "token.actions.githubusercontent.com",
     "audience": "sts.amazonaws.com",
     "subject": "repo:noamtz@2631641/cpa-platform@1332935468:environment:test",
-    "enablementSubject": "repo:noamtz@2631641/cpa-platform@1332935468:environment:test-legacy-read-enable"
+    "enablementSubject": "repo:noamtz@2631641/cpa-platform@1332935468:environment:test-legacy-read-enable",
+    "productionSubject": "repo:noamtz@2631641/cpa-platform@1332935468:environment:production"
   },
   "inventory": {
     "tables": 7,
@@ -233,6 +254,7 @@
     "authCallbackUrl",
     "authLogoutUrl",
     "authScope",
-    "testDeployRoleArn"
+    "deployRoleArn",
+    "customDomain"
   ]
 }

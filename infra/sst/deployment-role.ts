@@ -1,11 +1,11 @@
 import { deploymentContract } from "./contracts";
 import {
-  buildTestDeploymentPolicy,
+  buildDeploymentPolicy,
   buildWorkloadBoundaryPolicy,
 } from "./deployment-policy";
 import type { StageSettings } from "./stage";
 
-export async function createTestDeploymentRole(stage: StageSettings) {
+export async function createDeploymentRole(stage: StageSettings) {
   const caller = await aws.getCallerIdentity({});
   const boundaryName = `${$app.name}-${stage.name}-workload-boundary`;
   const workloadBoundary = new aws.iam.Policy(
@@ -24,15 +24,12 @@ export async function createTestDeploymentRole(stage: StageSettings) {
     },
   );
 
-  if (stage.name !== "test") {
-    return { role: undefined, workloadBoundary };
-  }
-
   const providerArn = `arn:aws:iam::${caller.accountId}:oidc-provider/${deploymentContract.providerUrl}`;
+  const roleContract = deploymentContract.roles[stage.name];
 
-  const role = new aws.iam.Role(deploymentContract.roleLogicalName, {
-    name: `${$app.name}-test-github-deploy`,
-    description: "Owner-bootstrapped least-privilege SST test deployment role",
+  const role = new aws.iam.Role(roleContract.logicalName, {
+    name: `${$app.name}-${stage.name}-github-deploy`,
+    description: `Owner-bootstrapped least-privilege SST ${stage.name} deployment role`,
     maxSessionDuration: 3600,
     assumeRolePolicy: JSON.stringify({
       Version: "2012-10-17",
@@ -46,10 +43,7 @@ export async function createTestDeploymentRole(stage: StageSettings) {
               [`${deploymentContract.providerUrl}:aud`]:
                 deploymentContract.audience,
               [`${deploymentContract.providerUrl}:sub`]:
-                [
-                  deploymentContract.subject,
-                  deploymentContract.enablementSubject,
-                ],
+                roleContract.subjects,
             },
           },
         },
@@ -57,11 +51,12 @@ export async function createTestDeploymentRole(stage: StageSettings) {
     }),
     inlinePolicies: [
       {
-        name: "auditflow-test-foundation-deploy",
+        name: `auditflow-${stage.name}-foundation-deploy`,
         policy: workloadBoundary.arn.apply((workloadBoundaryArn) =>
           JSON.stringify(
-            buildTestDeploymentPolicy({
+            buildDeploymentPolicy({
               accountId: caller.accountId,
+              stage: stage.name,
               workloadBoundaryArn,
             }),
           ),

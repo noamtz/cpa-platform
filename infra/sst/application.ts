@@ -12,8 +12,19 @@ import type { FoundationStorage } from "./storage";
 import type { FoundationPdf } from "./pdf";
 import type { PrivateFileCutoverSettings } from "./private-file-cutover";
 
-export function createApplicationRouter() {
-  return new sst.aws.Router(routerContract.logicalName);
+export function createApplicationRouter(stage: StageSettings) {
+  return new sst.aws.Router(
+    routerContract.logicalName,
+    stage.customDomain
+      ? {
+          domain: {
+            name: stage.customDomain.name,
+            dns: false,
+            cert: stage.customDomain.certificateArn,
+          },
+        }
+      : undefined,
+  );
 }
 
 export function resolveSitePdfApiUrl(

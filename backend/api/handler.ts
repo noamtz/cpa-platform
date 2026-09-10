@@ -16,7 +16,7 @@ import {
   type AccessTokenVerifier,
 } from "./auth/jwt";
 import { ApiError, normalizeApiError } from "./core/errors";
-import { errorResponse } from "./core/http";
+import { errorResponse, jsonResponse } from "./core/http";
 import { getRequestId } from "./core/request-context";
 import { ApiRouter } from "./core/router";
 import { ClientRepository } from "./repositories/client";
@@ -314,6 +314,12 @@ export function createHandler(
       if (!routeKey) return errorResponse(400, "Invalid request");
       if (routeKey === "GET /health" || routeKey === "GET /auth/health") {
         return healthResponse(getStage());
+      }
+      if (routeKey === "GET /maintenance") {
+        const control = await getDependencies().maintenance?.getControl();
+        return jsonResponse(200, {
+          status: control?.mode === "OPEN" ? "open" : "maintenance",
+        });
       }
       if (
         !CPA_ROUTE_KEYS.has(routeKey) &&

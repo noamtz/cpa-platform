@@ -1,5 +1,29 @@
 # 04 — User Journeys
 
+> **AWS migration note (2026-09-09):** The detailed journeys below remain production-source discovery evidence. The
+> current target implementation and release coverage are defined by executable code plus
+> `tooling/production-readiness-contract.json`. Base44 function/storage/Drive/Telegram behavior described below is not
+> a target runtime dependency.
+
+## Current AWS target reachability
+
+| Surface | Current reachable routes | Readiness contract |
+|---|---|---|
+| Public | `/questionnaire`, `/questionnaire/sign` | J1–J3 |
+| Authentication | `/auth/callback` | J4 |
+| CPA | `/`, `/users`, `/settings`, `/questionnaire-settings`, `/pdf-templates`, `/cpa-fill`, `/clients` | J4–J12 |
+| Fallback | `*` | J12 |
+| Development only | `/pdf-test`, `/pdf-sign-test`, and four `/questionnaire/sign-poc*` routes | Classified but excluded from production parity totals |
+
+The target preserves the visible flows through an AWS-backed compatibility façade. Private files use owned S3
+references; PDFs use the same-origin SST PDF API; Cognito protects CPA routes; imported legacy data is reconciled and
+read only when manifest-bound evidence permits it. Google Drive and Telegram controls remain visible but deliberately
+return authenticated `501 { error: "Not implemented" }` responses with no outbound integration call. The unmounted
+`SubmissionReadinessChat` remains dormant and does not justify an agent backend.
+
+Owner acceptance and automated coverage must use the stable IDs in `tooling/production-readiness-contract.json`; this
+document cannot narrow a journey that is reachable in `src/App.jsx` or `infra/sst/contracts.ts`.
+
 > **Status:** COMPLETE
 > **Classification:** All ✅ VERIFIED unless noted
 
