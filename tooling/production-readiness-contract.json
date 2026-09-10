@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "issue": 14,
+  "frontendRoutes": [
+    { "path": "/questionnaire", "reachability": "public" },
+    { "path": "/questionnaire/sign", "reachability": "public" },
+    { "path": "/questionnaire/sign-poc-iframe", "reachability": "dev-only" },
+    { "path": "/questionnaire/sign-poc", "reachability": "dev-only" },
+    { "path": "/questionnaire/sign-poc-wizard", "reachability": "dev-only" },
+    { "path": "/questionnaire/sign-poc-canvas", "reachability": "dev-only" },
+    { "path": "/pdf-test", "reachability": "dev-only" },
+    { "path": "/pdf-sign-test", "reachability": "dev-only" },
+    { "path": "/auth/callback", "reachability": "auth-callback" },
+    { "path": "/", "reachability": "cpa" },
+    { "path": "/users", "reachability": "cpa" },
+    { "path": "/settings", "reachability": "cpa" },
+    { "path": "/questionnaire-settings", "reachability": "cpa" },
+    { "path": "/pdf-templates", "reachability": "cpa" },
+    { "path": "/cpa-fill", "reachability": "cpa" },
+    { "path": "/clients", "reachability": "cpa" },
+    { "path": "*", "reachability": "fallback" }
+  ],
+  "apiRouteSource": "infra/sst/foundation-contract.json",
+  "journeys": [
+    {
+      "id": "J1_PUBLIC_QUESTIONNAIRE",
+      "source": "src/pages/ClientQuestionnaire.jsx",
+      "reachability": "public",
+      "positiveCases": ["token load", "template selection", "serialized save", "resume", "completion"],
+      "negativeCases": ["missing token", "invalid token", "archived submission", "stale revision"],
+      "legacyData": true,
+      "automatedEvidence": ["questionnaire-unit", "public-questionnaire-api", "e2e-public"],
+      "ownerChecks": ["OWNER_PUBLIC_RESUME"]
+    },
+    {
+      "id": "J2_PUBLIC_FILES",
+      "source": "src/components/questionnaire/QuestionStep.jsx",
+      "reachability": "public",
+      "positiveCases": ["initiate upload", "direct PUT", "complete upload", "resume file"],
+      "negativeCases": ["foreign client", "unresolved legacy reference", "missing object"],
+      "legacyData": true,
+      "automatedEvidence": ["files-api", "e2e-public"],
+      "ownerChecks": ["OWNER_PUBLIC_UPLOAD"]
+    },
+    {
+      "id": "J3_PUBLIC_PDF_SIGN",
+      "source": "src/pages/PdfSignIframeOverlay.jsx",
+      "reachability": "public",
+      "positiveCases": ["render", "fields", "checkbox", "signature", "generate", "save", "reopen"],
+      "negativeCases": ["invalid token", "foreign template", "render failure", "upload failure"],
+      "legacyData": true,
+      "automatedEvidence": ["pdf-unit", "pdf-parity", "e2e-pdf"],
+      "ownerChecks": ["OWNER_PDF_DESKTOP", "OWNER_PDF_MOBILE", "OWNER_SENTRY"]
+    },
+    {
+      "id": "J4_CPA_AUTH",
+      "source": "src/pages/AuthCallback.jsx",
+      "reachability": "auth-callback",
+      "positiveCases": ["managed login", "callback", "session", "logout", "temporary password"],
+      "negativeCases": ["anonymous deep link", "expired session", "invalid scope", "invalid role"],
+      "legacyData": false,
+      "automatedEvidence": ["auth-unit", "core-cpa-api", "e2e-permissions"],
+      "ownerChecks": ["OWNER_TWO_CPA_LOGIN"]
+    },
+    {
+      "id": "J5_CPA_CLIENT_SUBMISSION",
+      "source": "src/components/dashboard/ClientRow.jsx",
+      "reachability": "cpa",
+      "positiveCases": ["list", "create", "edit", "token rotation", "tax year", "status", "archive", "restore"],
+      "negativeCases": ["stale revision", "archive collision", "foreign record", "orphan conflict"],
+      "legacyData": true,
+      "automatedEvidence": ["core-cpa-api", "workflow-api", "e2e-cpa"],
+      "ownerChecks": ["OWNER_CPA_WORKFLOW"]
+    },
+    {
+      "id": "J6_CPA_FILES_ZIP",
+      "source": "src/components/dashboard/ClientRow.jsx",
+      "reachability": "cpa",
+      "positiveCases": ["signed URL", "download", "async ZIP", "legacy mirror"],
+      "negativeCases": ["foreign record", "arbitrary URI", "missing object", "expired ZIP"],
+      "legacyData": true,
+      "automatedEvidence": ["files-api", "zip-worker", "e2e-cpa"],
+      "ownerChecks": ["OWNER_LEGACY_FILES"]
+    },
+    {
+      "id": "J7_CPA_FILL",
+      "source": "src/pages/CpaFillQuestionnaire.jsx",
+      "reachability": "cpa",
+      "positiveCases": ["answer edit", "PDF exemption", "unexempt", "audit trail"],
+      "negativeCases": ["archived submission", "stale revision"],
+      "legacyData": true,
+      "automatedEvidence": ["cpa-fill-unit", "workflow-api", "e2e-cpa"],
+      "ownerChecks": ["OWNER_CPA_FILL"]
+    },
+    {
+      "id": "J8_QUESTIONNAIRE_TEMPLATES",
+      "source": "src/components/dashboard/QuestionnaireEditor.jsx",
+      "reachability": "cpa",
+      "positiveCases": ["create version", "reorder", "condition", "disable", "history"],
+      "negativeCases": ["invalid definition", "version conflict"],
+      "legacyData": true,
+      "automatedEvidence": ["template-api", "e2e-cpa"],
+      "ownerChecks": ["OWNER_QUESTIONNAIRE_TEMPLATE"]
+    },
+    {
+      "id": "J9_PDF_TEMPLATES",
+      "source": "src/pages/PdfTemplateEditor.jsx",
+      "reachability": "cpa",
+      "positiveCases": ["create", "edit", "mirror file", "archive", "public use"],
+      "negativeCases": ["foreign file", "archived template", "invalid schema"],
+      "legacyData": true,
+      "automatedEvidence": ["pdf-template-api", "files-api", "e2e-cpa"],
+      "ownerChecks": ["OWNER_PDF_TEMPLATE"]
+    },
+    {
+      "id": "J10_USERS_INVITATIONS",
+      "source": "src/components/dashboard/TeamSection.jsx",
+      "reachability": "cpa",
+      "positiveCases": ["team list", "invite", "user route"],
+      "negativeCases": ["non-admin", "duplicate invite", "invalid email"],
+      "legacyData": true,
+      "automatedEvidence": ["core-cpa-api", "e2e-cpa"],
+      "ownerChecks": ["OWNER_INVITATION_OR_WAIVER"]
+    },
+    {
+      "id": "J11_DEFERRED_INTEGRATIONS",
+      "source": "backend/api/routes/deferred-integrations.ts",
+      "reachability": "cpa",
+      "positiveCases": ["controlled Not implemented response"],
+      "negativeCases": ["invalid payload", "anonymous caller", "outbound request"],
+      "legacyData": false,
+      "automatedEvidence": ["deferred-api", "runtime-independence", "e2e-permissions"],
+      "ownerChecks": ["OWNER_DEFERRED_UI"]
+    },
+    {
+      "id": "J12_MAINTENANCE_ERRORS",
+      "source": "backend/api/services/maintenance.ts",
+      "reachability": "public-and-cpa",
+      "positiveCases": ["status", "RTL page", "read availability", "health availability"],
+      "negativeCases": ["mutation blocked", "missing control", "auth before disclosure", "unknown route"],
+      "legacyData": false,
+      "automatedEvidence": ["maintenance-unit", "e2e-permissions"],
+      "ownerChecks": ["OWNER_MAINTENANCE"]
+    },
+    {
+      "id": "J13_MIGRATION_RECONCILIATION",
+      "source": "docs/migration/private-file-import-verification.json",
+      "reachability": "operator",
+      "positiveCases": ["records", "files", "relationships", "guards", "privacy"],
+      "negativeCases": ["unresolved reference", "manifest mismatch", "stale evidence"],
+      "legacyData": true,
+      "automatedEvidence": ["import-tests", "readiness-evidence"],
+      "ownerChecks": []
+    },
+    {
+      "id": "J14_REVERSE_REPLAY",
+      "source": "docs/migration/base44-reverse-replay-verification.json",
+      "reachability": "operator",
+      "positiveCases": ["exact range", "interruption resume", "zero write rerun", "zero drift"],
+      "negativeCases": ["gap", "unsupported mutation", "unobservable invitation", "unobservable deletion"],
+      "legacyData": true,
+      "automatedEvidence": ["reverse-replay-tests", "readiness-evidence"],
+      "ownerChecks": []
+    },
+    {
+      "id": "J15_OBSERVABILITY_COST_OPERATIONS",
+      "source": "sst.config.ts",
+      "reachability": "operator",
+      "positiveCases": ["Sentry", "PostHog EU", "budget", "domain worksheet", "production smoke"],
+      "negativeCases": ["analytics blocked", "budget over ceiling", "wrong certificate region", "DNS not authorized"],
+      "legacyData": false,
+      "automatedEvidence": ["foundation-tests", "readiness-evidence"],
+      "ownerChecks": ["OWNER_SENTRY", "OWNER_POSTHOG", "OWNER_PRODUCTION_PREPARE", "OWNER_SIGNOFF"]
+    }
+  ],
+  "requiredEvidence": [
+    "docs/migration/private-file-import-verification.json",
+    "docs/migration/base44-reverse-replay-verification.json",
+    "docs/migration/pdf-parity-evidence.json"
+  ],
+  "requiredGateIds": [
+    "AUTOMATED_VALIDATION",
+    "RUNTIME_INDEPENDENCE",
+    "MIGRATION_RECONCILIATION",
+    "REVERSE_REPLAY",
+    "TEST_STAGE_PARITY",
+    "PDF_BROWSER_MATRIX",
+    "OBSERVABILITY",
+    "PRODUCTION_BUDGET",
+    "PRODUCTION_FOUNDATION",
+    "OWNER_DECISION"
+  ],
+  "requiredArtifactDigestGroups": [
+    "frontend",
+    "applicationApi",
+    "pdfRenderer",
+    "zipWorker"
+  ],
+  "allowedWaiverGates": [
+    "OWNER_PDF_MOBILE_IN_APP_BROWSER",
+    "OWNER_SENTRY_OBSERVATION",
+    "OWNER_POSTHOG_LIVE",
+    "OWNER_INVITATION_LOGIN",
+    "OWNER_DISPOSABLE_FILE_DELETE",
+    "ROOT_BASELINE_TYPECHECK",
+    "ROOT_BASELINE_LINT"
+  ],
+  "forbiddenEvidenceKeys": [
+    "token",
+    "authorization",
+    "password",
+    "secret",
+    "email",
+    "signedUrl",
+    "replayUrl",
+    "rawPayload",
+    "recordId",
+    "clientId",
+    "accountId"
+  ]
+}

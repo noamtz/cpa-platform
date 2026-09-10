@@ -173,7 +173,7 @@ describe("route maintenance gate", () => {
     ({
       routeKey,
       rawPath: routeKey.split(" ")[1],
-      requestContext: { requestId: "request-test", http: { method: "POST", path: "/" } },
+      requestContext: { requestId: "request-test", http: { method: routeKey.split(" ")[0], path: "/" } },
     }) as unknown as APIGatewayProxyEventV2;
 
   it("returns the stable 503 for classified writes while reads and health remain available", async () => {
@@ -215,5 +215,22 @@ describe("route maintenance gate", () => {
     const response = await handler(event("POST /cpa/clients"), {} as never, vi.fn());
     expect(response).toMatchObject({ statusCode: 401 });
     expect(requireOpen).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ mode: "OPEN" }, "open"],
+    [{ mode: "MAINTENANCE" }, "maintenance"],
+    [undefined, "maintenance"],
+  ])("returns only non-sensitive public maintenance status", async (control, status) => {
+    const dependencies = {
+      maintenance: { getControl: vi.fn().mockResolvedValue(control) },
+    } as unknown as ApiDependencies;
+    const handler = createHandler(() => "test", () => dependencies);
+    const response = await handler(event("GET /maintenance"), {} as never, vi.fn());
+    expect(response).toMatchObject({
+      statusCode: 200,
+      body: JSON.stringify({ status }),
+    });
+    expect(String((response as { body: string }).body)).not.toMatch(/generation|cursor|manifest|replay/iu);
   });
 });

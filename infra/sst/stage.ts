@@ -6,11 +6,25 @@ export const MONTHLY_COST_CEILING_ILS = 50 as const;
 export const allowedStages = ["test", "production"] as const;
 export type StageName = (typeof allowedStages)[number];
 
+export function stageAssetLogicalName(
+  logicalName: string,
+  stage: StageName,
+) {
+  return stage === "production"
+    ? `${logicalName}AuditflowProduction`
+    : logicalName;
+}
+
 export interface ProductionBudgetSettings {
   readonly alertEmail: string;
   readonly monthlyLimitUsd: number;
   readonly ilsPerUsd: number;
   readonly convertedMonthlyLimitIls: number;
+}
+
+export interface ProductionCustomDomainSettings {
+  readonly name: "app.ddcpa.co.il";
+  readonly certificateArn: string;
 }
 
 export interface StageSettings {
@@ -20,6 +34,7 @@ export interface StageSettings {
   readonly removal: "remove" | "retain";
   readonly logRetentionDays: number;
   readonly budget?: ProductionBudgetSettings;
+  readonly customDomain?: ProductionCustomDomainSettings;
 }
 
 export interface StageEnvironment {
@@ -27,6 +42,8 @@ export interface StageEnvironment {
   readonly AUDITFLOW_BUDGET_ALERT_EMAIL?: string;
   readonly AUDITFLOW_MONTHLY_BUDGET_USD?: string;
   readonly AUDITFLOW_ILS_PER_USD?: string;
+  readonly AUDITFLOW_PRODUCTION_DOMAIN?: string;
+  readonly AUDITFLOW_PRODUCTION_CERTIFICATE_ARN?: string;
 }
 
 export function parseStage(value: string | undefined): StageName {
@@ -81,6 +98,24 @@ function parseProductionBudget(
   };
 }
 
+function parseProductionCustomDomain(
+  environment: StageEnvironment,
+): ProductionCustomDomainSettings | undefined {
+  const name = environment.AUDITFLOW_PRODUCTION_DOMAIN?.trim();
+  const certificateArn = environment.AUDITFLOW_PRODUCTION_CERTIFICATE_ARN?.trim();
+  if (!name && !certificateArn) return undefined;
+  if (!name || !certificateArn) {
+    throw new Error("Production domain and ACM certificate must be configured together.");
+  }
+  if (name !== "app.ddcpa.co.il") {
+    throw new Error("Production domain must be app.ddcpa.co.il.");
+  }
+  if (!/^arn:aws:acm:us-east-1:\d{12}:certificate\/[0-9a-f-]{36}$/u.test(certificateArn)) {
+    throw new Error("Production CloudFront certificate must be a us-east-1 ACM certificate ARN.");
+  }
+  return { name, certificateArn };
+}
+
 export function getStageSettings(
   value: string | undefined,
   environment: StageEnvironment = process.env,
@@ -95,5 +130,6 @@ export function getStageSettings(
     removal: isProduction ? "retain" : "remove",
     logRetentionDays: isProduction ? 30 : 14,
     budget: isProduction ? parseProductionBudget(environment) : undefined,
+    customDomain: isProduction ? parseProductionCustomDomain(environment) : undefined,
   };
 }

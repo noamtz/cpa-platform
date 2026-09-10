@@ -1,4 +1,4 @@
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -12,6 +12,8 @@ import QuestionnaireSettings from "./pages/QuestionnaireSettings";
 import CpaFillQuestionnaire from "./pages/CpaFillQuestionnaire";
 import ClientsPage from "./pages/ClientsPage";
 import AuthCallback from "./pages/AuthCallback";
+import Maintenance from "./pages/Maintenance";
+import { getMaintenanceStatus, MAINTENANCE_STATUS } from "./lib/maintenance-status";
 
 // Lazy-loaded — pdfme is ~2MB, only load when needed
 const PdfTemplateEditor = React.lazy(() => import("./pages/PdfTemplateEditor"));
@@ -34,7 +36,7 @@ const PdfSignCanvasOverlay = import.meta.env.DEV
 
 const suspenseSpinner = <div className="min-h-screen bg-background flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" /></div>;
 
-function App() {
+function ProductRoutes() {
   const pathname = window.location.pathname;
 
   const isDev = import.meta.env.DEV;
@@ -90,6 +92,24 @@ function App() {
       <Toaster />
     </QueryClientProvider>
   );
+}
+
+function App() {
+  const [maintenanceStatus, setMaintenanceStatus] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    void getMaintenanceStatus().then((status) => {
+      if (active) setMaintenanceStatus(status);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (maintenanceStatus === null) return suspenseSpinner;
+  if (maintenanceStatus === MAINTENANCE_STATUS.MAINTENANCE) return <Maintenance />;
+  return <ProductRoutes />;
 }
 
 export default App

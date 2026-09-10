@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "artifactType": "PRODUCTION_READINESS_EVIDENCE",
+  "issue": 14,
+  "status": "pending",
+  "candidate": {
+    "commit": "pending",
+    "builtAt": null,
+    "nodeVersion": "20.17.0"
+  },
+  "gates": [
+    { "id": "AUTOMATED_VALIDATION", "status": "pending" },
+    { "id": "RUNTIME_INDEPENDENCE", "status": "pending" },
+    { "id": "MIGRATION_RECONCILIATION", "status": "pending" },
+    { "id": "REVERSE_REPLAY", "status": "pending" },
+    { "id": "TEST_STAGE_PARITY", "status": "pending" },
+    { "id": "PDF_BROWSER_MATRIX", "status": "pending" },
+    { "id": "OBSERVABILITY", "status": "pending" },
+    { "id": "PRODUCTION_BUDGET", "status": "pending" },
+    { "id": "PRODUCTION_FOUNDATION", "status": "pending" },
+    { "id": "OWNER_DECISION", "status": "pending" }
+  ],
+  "counts": {},
+  "sourceDigests": {},
+  "artifactDigests": {},
+  "waivers": [],
+  "ownerSignoff": {
+    "decision": "pending",
+    "signedAt": null
+  },
+  "notes": [
+    "This fail-closed placeholder must not be changed to passed before owner-supervised gates complete.",
+    "Production import, replay, traffic DNS, and Base44 retirement are outside issue 14."
+  ]
+}

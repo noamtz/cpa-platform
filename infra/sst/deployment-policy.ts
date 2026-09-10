@@ -22,26 +22,26 @@ export interface DeploymentPolicyContext {
   readonly appName?: string;
   readonly stage?: StageName;
   readonly workloadBoundaryArn: string;
+  readonly routerKeyValueStoreArn?: string;
 }
 
-const testTags = {
-  "sst:app": APP_NAME,
-  "sst:stage": "test",
-} as const;
+function buildResourceTagCondition(appName: string, stage: StageName) {
+  return {
+    StringEquals: {
+      "aws:ResourceTag/sst:app": appName,
+      "aws:ResourceTag/sst:stage": stage,
+    },
+  } as const;
+}
 
-const resourceTagCondition = {
-  StringEquals: {
-    "aws:ResourceTag/sst:app": testTags["sst:app"],
-    "aws:ResourceTag/sst:stage": testTags["sst:stage"],
-  },
-} as const;
-
-const requestTagCondition = {
-  StringEquals: {
-    "aws:RequestTag/sst:app": testTags["sst:app"],
-    "aws:RequestTag/sst:stage": testTags["sst:stage"],
-  },
-} as const;
+function buildRequestTagCondition(appName: string, stage: StageName) {
+  return {
+    StringEquals: {
+      "aws:RequestTag/sst:app": appName,
+      "aws:RequestTag/sst:stage": stage,
+    },
+  } as const;
+}
 
 const deployRoleSelfMutationActions = [
   "iam:AttachRolePolicy",
@@ -194,18 +194,32 @@ export function buildWorkloadBoundaryPolicy(
   };
 }
 
-export function buildTestDeploymentPolicy({
+export function buildDeploymentPolicy({
   accountId,
   region = AWS_REGION,
   appName = APP_NAME,
-  stage = "test",
+  stage,
   workloadBoundaryArn,
+  routerKeyValueStoreArn,
 }: DeploymentPolicyContext): IamPolicyDocument {
-  if (stage !== "test") {
-    throw new Error("The GitHub deployment policy is restricted to the test stage.");
+  if (!stage) {
+    throw new Error("The GitHub deployment policy requires an exact stage.");
+  }
+  if (
+    stage === "production" &&
+    !new RegExp(
+      `^arn:aws:cloudfront::${accountId}:key-value-store/[A-Za-z0-9_-]+$`,
+      "u",
+    ).test(routerKeyValueStoreArn ?? "")
+  ) {
+    throw new Error(
+      "The production deployment policy requires the exact Router KeyValueStore ARN.",
+    );
   }
 
   const resourcePrefix = `${appName}-${stage}-`;
+  const resourceTagCondition = buildResourceTagCondition(appName, stage);
+  const requestTagCondition = buildRequestTagCondition(appName, stage);
   const deployRoleArn = `arn:aws:iam::${accountId}:role/${resourcePrefix}github-deploy`;
   const workloadRoleArn = `arn:aws:iam::${accountId}:role/${resourcePrefix}*`;
   const apiArn = `arn:aws:apigateway:${region}::/apis/*`;
@@ -227,6 +241,74 @@ export function buildTestDeploymentPolicy({
     `arn:aws:s3:::${resourcePrefix}*/*`,
   ];
   const sstAssetBucketArn = "arn:aws:s3:::sst-asset-kkkvushrzufd";
+  const stageAssetPrefixes = deploymentContract.assetFunctionLogicalNames.map(
+    (logicalName) =>
+      `assets/${logicalName}${stage === "production" ? "AuditflowProduction" : ""}-code-*`,
+  );
+  const stageAssetObjects = stageAssetPrefixes.map(
+    (prefix) => `${sstAssetBucketArn}/${prefix}`,
+  );
+  const sstAssetStorageStatements: readonly IamPolicyStatement[] =
+    stage === "production"
+      ? [
+          {
+            Sid: "InspectSstAssetStorage",
+            Effect: "Allow",
+            Action: [
+              "s3:GetBucketLocation",
+              "s3:ListBucket",
+              "s3:ListBucketMultipartUploads",
+              "s3:ListBucketVersions",
+            ],
+            Resource: sstAssetBucketArn,
+            Condition: {
+              StringLike: {
+                "s3:prefix": stageAssetPrefixes,
+              },
+            },
+          },
+          {
+            Sid: "UseStageSstAssets",
+            Effect: "Allow",
+            Action: [
+              "s3:AbortMultipartUpload",
+              "s3:DeleteObject",
+              "s3:GetObject",
+              "s3:GetObjectTagging",
+              "s3:GetObjectVersion",
+              "s3:ListMultipartUploadParts",
+              "s3:PutObject",
+              "s3:PutObjectTagging",
+            ],
+            Resource: stageAssetObjects,
+          },
+        ]
+      : [
+          {
+            Sid: "UseSstAssetStorage",
+            Effect: "Allow",
+            Action: [
+              "s3:AbortMultipartUpload",
+              "s3:GetBucketLocation",
+              "s3:GetObject",
+              "s3:GetObjectTagging",
+              "s3:GetObjectVersion",
+              "s3:ListBucket",
+              "s3:ListBucketMultipartUploads",
+              "s3:ListBucketVersions",
+              "s3:ListMultipartUploadParts",
+              "s3:PutObject",
+              "s3:PutObjectTagging",
+            ],
+            Resource: [sstAssetBucketArn, `${sstAssetBucketArn}/*`],
+          },
+          {
+            Sid: "DeleteSupersededSstAssets",
+            Effect: "Allow",
+            Action: "s3:DeleteObject",
+            Resource: `${sstAssetBucketArn}/assets/*`,
+          },
+        ];
   const sstStateBucketArn = "arn:aws:s3:::sst-state-kkkvushrzufd";
   const sstStageStatePrefixes = [
     `*/${appName}/${stage}.json`,
@@ -278,30 +360,7 @@ export function buildTestDeploymentPolicy({
         Action: ["s3:GetObject", "s3:GetObjectVersion"],
         Resource: `${sstStateBucketArn}/${sstFallbackSecretPrefix}`,
       },
-      {
-        Sid: "UseSstAssetStorage",
-        Effect: "Allow",
-        Action: [
-          "s3:AbortMultipartUpload",
-          "s3:GetBucketLocation",
-          "s3:GetObject",
-          "s3:GetObjectTagging",
-          "s3:GetObjectVersion",
-          "s3:ListBucket",
-          "s3:ListBucketMultipartUploads",
-          "s3:ListBucketVersions",
-          "s3:ListMultipartUploadParts",
-          "s3:PutObject",
-          "s3:PutObjectTagging",
-        ],
-        Resource: [sstAssetBucketArn, `${sstAssetBucketArn}/*`],
-      },
-      {
-        Sid: "DeleteSupersededSstAssets",
-        Effect: "Allow",
-        Action: "s3:DeleteObject",
-        Resource: `${sstAssetBucketArn}/assets/*`,
-      },
+      ...sstAssetStorageStatements,
       {
         Sid: "UseSstAssetRepository",
         Effect: "Allow",
@@ -462,7 +521,10 @@ export function buildTestDeploymentPolicy({
         Sid: "ManageCloudFrontKeyValues",
         Effect: "Allow",
         Action: deploymentContract.cloudFrontKeyValueStoreActions,
-        Resource: `arn:aws:cloudfront::${accountId}:key-value-store/*`,
+        Resource:
+          stage === "production"
+            ? routerKeyValueStoreArn!
+            : `arn:aws:cloudfront::${accountId}:key-value-store/*`,
       },
       {
         Sid: "InspectDeploymentAndWorkloadRoles",
@@ -537,6 +599,6 @@ export const deploymentPolicyContracts = {
     deploymentContract.cloudFrontKeyValueStoreActions,
   deployRoleSelfMutationActions,
   globalDiscoveryActions,
-  requestTagCondition,
-  resourceTagCondition,
+  requestTagCondition: buildRequestTagCondition,
+  resourceTagCondition: buildResourceTagCondition,
 } as const;

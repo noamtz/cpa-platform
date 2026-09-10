@@ -1,12 +1,16 @@
 import { pdfContract } from "./contracts";
-import type { StageSettings } from "./stage";
+import { stageAssetLogicalName, type StageSettings } from "./stage";
 
 export function createPdfApi(
   stage: StageSettings,
   workloadBoundaryArn: $util.Input<string>,
   routerOrigin: $util.Input<string>,
 ) {
-  const pdfFunction = new sst.aws.Function(pdfContract.functionLogicalName, {
+  const functionLogicalName = stageAssetLogicalName(
+    pdfContract.functionLogicalName,
+    stage.name,
+  );
+  const pdfFunction = new sst.aws.Function(functionLogicalName, {
     handler: pdfContract.handler,
     runtime: pdfContract.runtime,
     architecture: pdfContract.architecture,

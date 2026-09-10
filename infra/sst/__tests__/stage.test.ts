@@ -5,6 +5,7 @@ import {
   MONTHLY_COST_CEILING_ILS,
   getStageSettings,
   parseStage,
+  stageAssetLogicalName,
 } from "../stage";
 
 describe("stage settings", () => {
@@ -27,6 +28,7 @@ describe("stage settings", () => {
       removal: "remove",
       logRetentionDays: 14,
       budget: undefined,
+      customDomain: undefined,
     });
   });
 
@@ -49,6 +51,7 @@ describe("stage settings", () => {
         ilsPerUsd: 3.073,
         convertedMonthlyLimitIls: 30.73,
       },
+      customDomain: undefined,
     });
     expect(AWS_REGION).toBe("il-central-1");
     expect(MONTHLY_COST_CEILING_ILS).toBe(50);
@@ -98,5 +101,48 @@ describe("stage settings", () => {
     },
   ])("fails closed on invalid production budget settings", (environment) => {
     expect(() => getStageSettings("production", environment)).toThrow();
+  });
+
+  it("uses an application-and-stage-specific production asset namespace", () => {
+    expect(stageAssetLogicalName("ApiFunction", "test")).toBe("ApiFunction");
+    expect(stageAssetLogicalName("ApiFunction", "production")).toBe(
+      "ApiFunctionAuditflowProduction",
+    );
+  });
+
+  it("accepts only the production hostname with a us-east-1 CloudFront certificate", () => {
+    const settings = getStageSettings("production", {
+      AUDITFLOW_BUDGET_ALERT_EMAIL: "owner@example.invalid",
+      AUDITFLOW_MONTHLY_BUDGET_USD: "10",
+      AUDITFLOW_ILS_PER_USD: "3.073",
+      AUDITFLOW_PRODUCTION_DOMAIN: "app.ddcpa.co.il",
+      AUDITFLOW_PRODUCTION_CERTIFICATE_ARN:
+        "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789abc",
+    });
+    expect(settings.customDomain).toEqual({
+      name: "app.ddcpa.co.il",
+      certificateArn:
+        "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789abc",
+    });
+  });
+
+  it.each([
+    { AUDITFLOW_PRODUCTION_DOMAIN: "app.ddcpa.co.il" },
+    { AUDITFLOW_PRODUCTION_CERTIFICATE_ARN: "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789abc" },
+    {
+      AUDITFLOW_PRODUCTION_DOMAIN: "other.example.com",
+      AUDITFLOW_PRODUCTION_CERTIFICATE_ARN: "arn:aws:acm:us-east-1:123456789012:certificate/12345678-1234-1234-1234-123456789abc",
+    },
+    {
+      AUDITFLOW_PRODUCTION_DOMAIN: "app.ddcpa.co.il",
+      AUDITFLOW_PRODUCTION_CERTIFICATE_ARN: "arn:aws:acm:il-central-1:123456789012:certificate/12345678-1234-1234-1234-123456789abc",
+    },
+  ])("rejects unsafe or incomplete production domain configuration", (domainEnvironment) => {
+    expect(() => getStageSettings("production", {
+      AUDITFLOW_BUDGET_ALERT_EMAIL: "owner@example.invalid",
+      AUDITFLOW_MONTHLY_BUDGET_USD: "10",
+      AUDITFLOW_ILS_PER_USD: "3.073",
+      ...domainEnvironment,
+    })).toThrow();
   });
 });

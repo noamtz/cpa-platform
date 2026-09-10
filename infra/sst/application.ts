@@ -7,13 +7,24 @@ import {
   zipWorkerContract,
 } from "./contracts";
 import type { FoundationAuthentication } from "./auth";
-import type { StageSettings } from "./stage";
+import { stageAssetLogicalName, type StageSettings } from "./stage";
 import type { FoundationStorage } from "./storage";
 import type { FoundationPdf } from "./pdf";
 import type { PrivateFileCutoverSettings } from "./private-file-cutover";
 
-export function createApplicationRouter() {
-  return new sst.aws.Router(routerContract.logicalName);
+export function createApplicationRouter(stage: StageSettings) {
+  return new sst.aws.Router(
+    routerContract.logicalName,
+    stage.customDomain
+      ? {
+          domain: {
+            name: stage.customDomain.name,
+            dns: false,
+            cert: stage.customDomain.certificateArn,
+          },
+        }
+      : undefined,
+  );
 }
 
 export function resolveSitePdfApiUrl(
@@ -68,7 +79,8 @@ export function createApplication(
     },
   });
 
-  const apiFunction = new sst.aws.Function("ApiFunction", {
+  const apiFunctionLogicalName = stageAssetLogicalName("ApiFunction", stage.name);
+  const apiFunction = new sst.aws.Function(apiFunctionLogicalName, {
     handler: "backend/api/handler.handler",
     runtime: "nodejs20.x",
     architecture: "arm64",
@@ -109,7 +121,11 @@ export function createApplication(
     },
   });
 
-  const zipWorker = new sst.aws.Function(zipWorkerContract.logicalName, {
+  const zipWorkerLogicalName = stageAssetLogicalName(
+    zipWorkerContract.logicalName,
+    stage.name,
+  );
+  const zipWorker = new sst.aws.Function(zipWorkerLogicalName, {
     handler: zipWorkerContract.handler,
     runtime: zipWorkerContract.runtime,
     architecture: zipWorkerContract.architecture,

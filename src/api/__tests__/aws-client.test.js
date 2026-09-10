@@ -60,6 +60,7 @@ describe("AWS compatibility client", () => {
       tax_year: 2025,
     });
     await client.connectors.connectAppUser("connector-1");
+    await client.connectors.disconnectAppUser("connector-1");
     expect(request.mock.calls).toEqual([
       ["/cpa/integrations/google-drive/sync", { method: "POST", body: { check_connection: true } }],
       ["/cpa/questionnaire-templates/active", { method: "GET" }],
@@ -74,7 +75,19 @@ describe("AWS compatibility client", () => {
         },
       }],
       ["/cpa/integrations/google-drive/connect", { method: "POST", body: { connector_id: "connector-1" } }],
+      ["/cpa/integrations/google-drive/disconnect", { method: "POST", body: { connector_id: "connector-1" } }],
     ]);
+    expect(JSON.stringify(request.mock.calls)).not.toMatch(/https?:\/\//u);
+  });
+
+  it("propagates the controlled deferred-integration error without fallback", async () => {
+    const { client, request } = setup();
+    request.mockRejectedValueOnce(Object.assign(new Error("Not implemented"), { status: 501 }));
+    await expect(client.functions.invoke("syncFilesToGoogleDrive", { check_connection: true })).rejects.toMatchObject({
+      message: "Not implemented",
+      status: 501,
+    });
+    expect(request).toHaveBeenCalledOnce();
   });
 
   it("does not invent an AWS fallback for unmigrated functions", () => {

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   assertBrowserCorsAbsent,
   assertBrowserCorsExact,
+  cloudFrontKeyValueStoreSimulationTargets,
   hasScopedCloudFrontKeyValueStorePermissions,
   hasApiGatewayCorsConfiguration,
   isRetryableAwsCliFailure,
@@ -14,17 +15,19 @@ import {
   retryAwsCliCommand,
   requiredCloudFrontKeyValueStoreActions,
   scopedCpaRouteCount,
+  validateRouterOutputs,
+  validateProductionBudgetReadback,
 } from "../../../tooling/verify_sst_foundation.mjs";
 
-describe("test deployer permission verification", () => {
-  const accountId = "123456789012";
-  const expectedStatement = {
-    Sid: "ManageCloudFrontKeyValues",
-    Effect: "Allow",
-    Action: requiredCloudFrontKeyValueStoreActions,
-    Resource: `arn:aws:cloudfront::${accountId}:key-value-store/*`,
-  };
+const accountId = "123456789012";
+const expectedStatement = {
+  Sid: "ManageCloudFrontKeyValues",
+  Effect: "Allow",
+  Action: requiredCloudFrontKeyValueStoreActions,
+  Resource: `arn:aws:cloudfront::${accountId}:key-value-store/*`,
+};
 
+describe("test deployer permission verification", () => {
   it("accepts only the explicit account-scoped KeyValueStore grant", () => {
     expect(
       hasScopedCloudFrontKeyValueStorePermissions(
@@ -129,6 +132,145 @@ describe("live verifier evidence", () => {
     );
 
     expect(scopedCpaRouteCount(contract)).toBe(36);
+  });
+});
+
+describe("production budget read-back", () => {
+  const contract = JSON.parse(
+    readFileSync(new URL("../foundation-contract.json", import.meta.url), "utf8"),
+  );
+  const input = {
+    contract,
+    budget: {
+      BudgetName: "auditflow-production-monthly-cost",
+      BudgetLimit: { Amount: "10", Unit: "USD" },
+      BudgetType: "COST",
+      TimeUnit: "MONTHLY",
+    },
+    notifications: [{
+      NotificationType: "ACTUAL",
+      ComparisonOperator: "GREATER_THAN",
+      Threshold: 80,
+      ThresholdType: "PERCENTAGE",
+    }],
+    subscribers: [{ SubscriptionType: "EMAIL", Address: "not-returned" }],
+    actions: [],
+    rate: "3.5",
+    rateDate: "2026-09-09",
+    rateSource: "operator bank rate",
+    now: new Date("2026-09-09T12:00:00Z"),
+  };
+
+  it("reports only aggregate subscriber and conversion evidence", () => {
+    expect(validateProductionBudgetReadback(input)).toEqual({
+      limitAmountUsd: 10,
+      convertedLimitIls: 35,
+      ceilingIls: 50,
+      thresholdPercent: 80,
+      recipientCount: 1,
+      automatedActionCount: 0,
+      rate: 3.5,
+      rateDate: "2026-09-09",
+      rateSource: "operator bank rate",
+    });
+  });
+
+  it("requires one exact production KeyValueStore ARN", () => {
+    const productionResource =
+      `arn:aws:cloudfront::${accountId}:key-value-store/production-router`;
+    const productionPolicy = {
+      Statement: [{
+        ...expectedStatement,
+        Resource: productionResource,
+      }],
+    };
+
+    expect(
+      hasScopedCloudFrontKeyValueStorePermissions(
+        productionPolicy,
+        accountId,
+        "production",
+        productionResource,
+      ),
+    ).toBe(true);
+    expect(
+      hasScopedCloudFrontKeyValueStorePermissions(
+        productionPolicy,
+        accountId,
+        "production",
+        `arn:aws:cloudfront::${accountId}:key-value-store/different-router`,
+      ),
+    ).toBe(false);
+    expect(
+      hasScopedCloudFrontKeyValueStorePermissions(
+        { Statement: [expectedStatement] },
+        accountId,
+        "production",
+      ),
+    ).toBe(false);
+  });
+
+  it("probes the exact production KeyValueStore and rejects a generic one", () => {
+    const productionResource =
+      `arn:aws:cloudfront::${accountId}:key-value-store/production-router`;
+    const productionPolicy = {
+      Statement: [{
+        ...expectedStatement,
+        Resource: productionResource,
+      }],
+    };
+
+    expect(
+      cloudFrontKeyValueStoreSimulationTargets(
+        productionPolicy,
+        accountId,
+        "production",
+      ),
+    ).toEqual({
+      allowedArn: productionResource,
+      deniedAccountLocalArn:
+        `arn:aws:cloudfront::${accountId}:key-value-store/auditflow-policy-probe`,
+    });
+  });
+
+  it("fails above the ILS ceiling or when automatic actions exist", () => {
+    expect(() =>
+      validateProductionBudgetReadback({ ...input, rate: "5.1" }),
+    ).toThrow("exceeds the ILS ceiling");
+    expect(() =>
+      validateProductionBudgetReadback({ ...input, actions: [{}] }),
+    ).toThrow("must not have automatic actions");
+  });
+});
+
+describe("Router output verification", () => {
+  const contract = { production: { customDomain: "app.ddcpa.co.il" } };
+
+  it("accepts generated CloudFront production bootstrap URLs", () => {
+    expect(
+      validateRouterOutputs(contract, "production", {
+        routerUrl: "https://d123.cloudfront.net",
+        customDomain: "",
+      }).hostname,
+    ).toBe("d123.cloudfront.net");
+  });
+
+  it("accepts the exact configured production domain", () => {
+    expect(
+      validateRouterOutputs(contract, "production", {
+        routerUrl: "https://app.ddcpa.co.il",
+        customDomain: "app.ddcpa.co.il",
+      }).hostname,
+    ).toBe("app.ddcpa.co.il");
+  });
+
+  it("rejects mismatched production domain outputs", () => {
+    expect(() =>
+      validateRouterOutputs(contract, "production", {
+        routerUrl: "https://other.example.com",
+        customDomain: "other.example.com",
+      }),
+    ).toThrow("custom-domain output is invalid");
   });
 });
 

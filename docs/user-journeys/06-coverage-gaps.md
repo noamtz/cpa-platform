@@ -1,5 +1,26 @@
 # 06 — Coverage Gaps and Audit Findings
 
+> **AWS migration update (2026-09-09):** This audit originally described the imported Base44 baseline. Its findings
+> remain historical discovery evidence, but the target now has extensive API, Lambda, SST, import, reconciliation,
+> reverse-replay, PDF, compatibility, and privacy tests. Current gaps and release coverage are tracked by
+> `tooling/production-readiness-contract.json` and the issue #14 readiness verifier.
+
+## Current target coverage status
+
+| Area | Current status |
+|---|---|
+| Pure frontend behavior | Characterization tests cover questionnaire/template/save/resume/submission compatibility and analytics |
+| API and authorization | Foundation tests cover public tokens, Cognito roles/scopes, ownership, errors, templates, files, ZIPs, and deferred controls |
+| PDF Lambda | Handler, bundle, same-origin resolver, cross-endpoint parity, and aggregate logging tests exist |
+| Migration safety | Export/import/reconciliation and exact-range reverse-replay suites plus aggregate evidence exist |
+| Runtime independence | `tooling/verify_runtime_independence.mjs` scans dependency manifests, Vite output, and SST artifacts |
+| Browser E2E | Issue #14 adds Playwright route/journey coverage; actual-device PDF, Sentry, and PostHog observations remain owner-supervised gates |
+
+The security observations below must be read against current target contracts. In particular, arbitrary file signing is
+not exposed, CPA APIs require Cognito plus backend role/resource checks, tokens are server-validated, and Google Drive /
+Telegram are intentionally deferred with a controlled authenticated 501 response. Pre-existing product limitations are
+not migration regressions unless the AWS target changes or worsens them.
+
 > **Status:** COMPLETE
 > **Purpose:** Document gaps, dead code, missing error handling, architectural risks, and audit observations
 
@@ -166,7 +187,7 @@ Tokens are never automatically rotated. A compromised link grants permanent acce
 
 ---
 
-## 10. Test Coverage Summary
+## 10. Historical Test Coverage Summary
 
 | Module | Tests Exist | Test File |
 |---|---|---|
@@ -178,7 +199,9 @@ Tokens are never automatically rotated. A compromised link grants permanent acce
 | Lambda handler | ❌ | No Lambda tests found |
 | Integration / E2E | ❌ | `playwright` in devDependencies but no test files found |
 
-> **Coverage gap:** Only pure business logic modules have tests. No component, API, integration, or E2E tests exist.
+> **Historical coverage gap:** At baseline import only pure business logic modules had tests. The AWS target now has API,
+> Lambda, infrastructure, migration, rollback, and browser acceptance coverage as summarized above; frontend component
+> tests remain sparse and owner-supervised browser evidence is still required.
 
 ---
 

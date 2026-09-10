@@ -42,6 +42,8 @@ export const requiredCloudFrontKeyValueStoreActions = readJson(
 export function hasScopedCloudFrontKeyValueStorePermissions(
   policy,
   accountId,
+  stage = "test",
+  expectedRouterKeyValueStoreArn,
 ) {
   const statement = policy?.Statement?.find(
     ({ Sid }) => Sid === "ManageCloudFrontKeyValues",
@@ -50,10 +52,66 @@ export function hasScopedCloudFrontKeyValueStorePermissions(
     statement?.Effect === "Allow" &&
     JSON.stringify(asArray(statement.Action)) ===
       JSON.stringify(requiredCloudFrontKeyValueStoreActions) &&
-    statement.Resource ===
-      `arn:aws:cloudfront::${accountId}:key-value-store/*` &&
+    (stage === "production"
+      ? new RegExp(
+          `^arn:aws:cloudfront::${accountId}:key-value-store/[A-Za-z0-9_-]+$`,
+          "u",
+        ).test(statement.Resource)
+        && (expectedRouterKeyValueStoreArn === undefined ||
+          statement.Resource === expectedRouterKeyValueStoreArn)
+      : statement.Resource ===
+        `arn:aws:cloudfront::${accountId}:key-value-store/*`) &&
     statement.Condition === undefined
   );
+}
+
+export function cloudFrontKeyValueStoreSimulationTargets(
+  policy,
+  accountId,
+  stage = "test",
+) {
+  const accountLocalProbeArn =
+    `arn:aws:cloudfront::${accountId}:key-value-store/auditflow-policy-probe`;
+  if (stage !== "production") {
+    return {
+      allowedArn: accountLocalProbeArn,
+      deniedAccountLocalArn: undefined,
+    };
+  }
+
+  const statement = policy?.Statement?.find(
+    ({ Sid }) => Sid === "ManageCloudFrontKeyValues",
+  );
+  return {
+    allowedArn: statement?.Resource,
+    deniedAccountLocalArn:
+      statement?.Resource === accountLocalProbeArn
+        ? `arn:aws:cloudfront::${accountId}:key-value-store/unrelated-policy-probe`
+        : accountLocalProbeArn,
+  };
+}
+
+export function validateRouterOutputs(contract, stage, outputs) {
+  const customDomain = outputs.customDomain;
+  if (stage === "test") {
+    assert(customDomain === "", "Test custom-domain output must be empty.");
+  } else {
+    assert(
+      customDomain === "" || customDomain === contract.production.customDomain,
+      "Production custom-domain output is invalid.",
+    );
+  }
+
+  const expectedRouterHost = customDomain || ".cloudfront.net";
+  const routerUrl = assertHttpsUrl(
+    outputs.routerUrl,
+    "Router URL",
+    expectedRouterHost,
+  );
+  if (customDomain) {
+    assert(routerUrl.hostname === customDomain, "Production Router hostname is not exact.");
+  }
+  return routerUrl;
 }
 
 function parseArguments(argv) {
@@ -63,6 +121,9 @@ function parseArguments(argv) {
     outputs: undefined,
     "legacy-file-reads": "disabled",
     evidence: undefined,
+    "budget-rate": undefined,
+    "budget-rate-date": undefined,
+    "budget-rate-source": undefined,
   };
   const seen = new Set();
   for (let index = 0; index < argv.length; index += 2) {
@@ -90,6 +151,18 @@ function verifyContract(contract, stage) {
     "Only test and production stages are permitted.",
   );
   assert(contract.stages.includes(stage), `Invalid contract stage: ${stage}`);
+  assert(
+    contract.production?.protect === true &&
+      contract.production.removal === "retain" &&
+      contract.production.logRetentionDays === 30 &&
+      contract.production.customDomain === "app.ddcpa.co.il" &&
+      contract.production.budget?.name === "auditflow-production-monthly-cost" &&
+      contract.production.budget.limitAmountUsd === 10 &&
+      contract.production.budget.ceilingIls === 50 &&
+      contract.production.budget.thresholdPercent === 80 &&
+      contract.production.budget.automatedActions === false,
+    "Production retention, domain, or budget contract has drifted.",
+  );
   assert(contract.tables.length === 7, "Expected exactly seven tables.");
   assert(contract.buckets.length === 2, "Expected exactly two buckets.");
   assert(
@@ -250,7 +323,6 @@ function verifyContract(contract, stage) {
       JSON.stringify(contract.pdf.nodejsInstall) ===
         JSON.stringify([
           "@napi-rs/canvas",
-          "@napi-rs/canvas-linux-arm64-gnu",
           "pdfjs-dist",
         ]) &&
       contract.pdf.font.destination === "fonts/Heebo-Regular.ttf" &&
@@ -333,10 +405,13 @@ function verifyContract(contract, stage) {
         "repo:noamtz@2631641/cpa-platform@1332935468:environment:test" &&
       contract.oidc.enablementSubject ===
         "repo:noamtz@2631641/cpa-platform@1332935468:environment:test-legacy-read-enable" &&
+      contract.oidc.productionSubject ===
+        "repo:noamtz@2631641/cpa-platform@1332935468:environment:production" &&
       !contract.oidc.subject.includes("*") &&
       !contract.oidc.enablementSubject.includes("*") &&
+      !contract.oidc.productionSubject.includes("*") &&
       !contract.oidc.subject.includes("noamtz/auditflow"),
-    "OIDC trust must use the exact immutable test Environment subject.",
+    "OIDC trust must use the exact immutable Environment subjects.",
   );
   assert(
     JSON.stringify(contract.deployerPolicy.cloudFrontKeyValueStoreActions) ===
@@ -561,17 +636,16 @@ function simulatePrincipalAction(roleArn, action, resourceArn, context = []) {
 }
 
 function verifyDeployer(contract, stage) {
-  assert(stage === "test", "Deployer verification is restricted to the test stage.");
   const identity = runAws(["sts", "get-caller-identity"]).value;
   const accountId = identity.Account;
   assert(/^\d{12}$/.test(accountId), "AWS account ID has an unexpected shape.");
 
   const roleArn =
-    `arn:aws:iam::${accountId}:role/auditflow-test-github-deploy`;
+    `arn:aws:iam::${accountId}:role/auditflow-${stage}-github-deploy`;
   if (process.env.AWS_DEPLOY_ROLE_ARN) {
     assert(
       process.env.AWS_DEPLOY_ROLE_ARN === roleArn,
-      "AWS_DEPLOY_ROLE_ARN does not identify the AuditFlow test deployer.",
+      `AWS_DEPLOY_ROLE_ARN does not identify the AuditFlow ${stage} deployer.`,
     );
   }
 
@@ -584,8 +658,8 @@ function verifyDeployer(contract, stage) {
   ]).value.PolicyNames;
   assert(
     JSON.stringify(inlinePolicyNames) ===
-      JSON.stringify(["auditflow-test-foundation-deploy"]),
-    "Test deploy role must have exactly one scoped inline policy.",
+      JSON.stringify([`auditflow-${stage}-foundation-deploy`]),
+    `${stage} deploy role must have exactly one scoped inline policy.`,
   );
   const inlinePolicy = runAws([
     "iam",
@@ -596,17 +670,17 @@ function verifyDeployer(contract, stage) {
     inlinePolicyNames[0],
   ]).value.PolicyDocument;
   assert(
-    hasScopedCloudFrontKeyValueStorePermissions(inlinePolicy, accountId),
-    "Test deploy role CloudFront KeyValueStore permissions are missing, broad, or conditioned on unsupported tags.",
+    hasScopedCloudFrontKeyValueStorePermissions(inlinePolicy, accountId, stage),
+    `${stage} deploy role CloudFront KeyValueStore permissions are missing, broad, or conditioned on unsupported tags.`,
   );
 
-  const keyValueStoreProbeArn =
-    `arn:aws:cloudfront::${accountId}:key-value-store/auditflow-policy-probe`;
+  const { allowedArn: keyValueStoreProbeArn } =
+    cloudFrontKeyValueStoreSimulationTargets(inlinePolicy, accountId, stage);
   for (const action of requiredCloudFrontKeyValueStoreActions) {
     assert(
       simulatePrincipalAction(roleArn, action, keyValueStoreProbeArn) ===
         "allowed",
-      `Test deploy role does not effectively allow ${action}.`,
+      `${stage} deploy role does not effectively allow ${action}.`,
     );
   }
   assert(
@@ -615,7 +689,7 @@ function verifyDeployer(contract, stage) {
       "cloudfront-keyvaluestore:DescribeKeyValueStore",
       "arn:aws:cloudfront::000000000000:key-value-store/unrelated-policy-probe",
     ) !== "allowed",
-    "Test deploy role can inspect a CloudFront KeyValueStore in another account.",
+    `${stage} deploy role can inspect a CloudFront KeyValueStore in another account.`,
   );
 
   return {
@@ -641,14 +715,93 @@ async function fetchText(url, expectedStatus) {
   return { response, text: await response.text() };
 }
 
+export function validateProductionBudgetReadback({
+  contract,
+  budget,
+  notifications,
+  subscribers,
+  actions,
+  rate,
+  rateDate,
+  rateSource,
+  now = new Date(),
+}) {
+  const budgetContract = contract.production.budget;
+  const parsedRate = Number(rate);
+  assert(Number.isFinite(parsedRate) && parsedRate > 0, "A positive ILS/USD rate is required.");
+  assert(/^\d{4}-\d{2}-\d{2}$/.test(rateDate ?? ""), "Budget rate date must be YYYY-MM-DD.");
+  const observedAt = new Date(`${rateDate}T00:00:00Z`);
+  const ageDays = Math.floor((now.getTime() - observedAt.getTime()) / 86_400_000);
+  assert(Number.isFinite(observedAt.getTime()) && ageDays >= 0 && ageDays <= 7, "Budget rate must be current within seven days.");
+  assert(typeof rateSource === "string" && /^.{2,120}$/.test(rateSource), "Budget rate source is required.");
+  assert(
+    budget?.BudgetName === budgetContract.name &&
+      Number(budget.BudgetLimit?.Amount) === budgetContract.limitAmountUsd &&
+      budget.BudgetLimit?.Unit === "USD" &&
+      budget.BudgetType === budgetContract.budgetType &&
+      budget.TimeUnit === budgetContract.timeUnit,
+    "Production AWS Budget amount or period has drifted.",
+  );
+  assert(
+    notifications?.length === 1 &&
+      notifications[0].NotificationType === budgetContract.notificationType &&
+      notifications[0].ComparisonOperator === budgetContract.comparisonOperator &&
+      Number(notifications[0].Threshold) === budgetContract.thresholdPercent &&
+      notifications[0].ThresholdType === budgetContract.thresholdType,
+    "Production AWS Budget notification has drifted.",
+  );
+  assert(subscribers?.length > 0, "Production AWS Budget requires at least one subscriber.");
+  assert(actions?.length === 0, "Production AWS Budget must not have automatic actions.");
+  const convertedLimitIls = budgetContract.limitAmountUsd * parsedRate;
+  assert(convertedLimitIls <= budgetContract.ceilingIls, "Production AWS Budget exceeds the ILS ceiling.");
+
+  return {
+    limitAmountUsd: budgetContract.limitAmountUsd,
+    convertedLimitIls,
+    ceilingIls: budgetContract.ceilingIls,
+    thresholdPercent: budgetContract.thresholdPercent,
+    recipientCount: subscribers.length,
+    automatedActionCount: actions.length,
+    rate: parsedRate,
+    rateDate,
+    rateSource,
+  };
+}
+
+function verifyProductionBudget(contract, accountId, rate, rateDate, rateSource) {
+  const budgetName = contract.production.budget.name;
+  const budget = runAws([
+    "budgets", "describe-budget", "--account-id", accountId, "--budget-name", budgetName,
+  ]).value.Budget;
+  const notifications = runAws([
+    "budgets", "describe-notifications-for-budget", "--account-id", accountId,
+    "--budget-name", budgetName,
+  ]).value.Notifications ?? [];
+  const subscribers = notifications.length === 1
+    ? runAws([
+        "budgets", "describe-subscribers-for-notification", "--account-id", accountId,
+        "--budget-name", budgetName, "--notification", JSON.stringify(notifications[0]),
+      ]).value.Subscribers ?? []
+    : [];
+  const actions = runAws([
+    "budgets", "describe-budget-actions-for-budget", "--account-id", accountId,
+    "--budget-name", budgetName,
+  ]).value.Actions ?? [];
+  return validateProductionBudgetReadback({
+    contract, budget, notifications, subscribers, actions, rate, rateDate, rateSource,
+  });
+}
+
 async function verifyLive(
   contract,
   stage,
   outputsPath,
   legacyFileReads = "disabled",
   evidencePath,
+  budgetRate,
+  budgetRateDate,
+  budgetRateSource,
 ) {
-  assert(stage === "test", "Live verification is restricted to the test stage.");
   assert(
     legacyFileReads === "disabled" || legacyFileReads === "enabled",
     "Legacy file-read expectation must be enabled or disabled.",
@@ -656,6 +809,10 @@ async function verifyLive(
   assert(
     legacyFileReads === "enabled" ? Boolean(evidencePath) : !evidencePath,
     "Enabled live verification requires evidence; disabled verification forbids it.",
+  );
+  assert(
+    stage === "test" || legacyFileReads === "disabled",
+    "Production legacy file reads must remain disabled.",
   );
   let expectedLegacyManifestSha256 = "";
   if (legacyFileReads === "enabled") {
@@ -668,16 +825,12 @@ async function verifyLive(
     expectedLegacyManifestSha256 = evidence.sourceManifestSha256;
   }
   const outputs = readJson(resolve(repositoryRoot, outputsPath));
-  assert(outputs.stage === "test", "Deployment outputs are not for the test stage.");
+  assert(outputs.stage === stage, `Deployment outputs are not for the ${stage} stage.`);
   for (const key of contract.outputKeys) {
     assert(key in outputs, `Missing required SST output: ${key}`);
   }
 
-  const routerUrl = assertHttpsUrl(
-    outputs.routerUrl,
-    "Router URL",
-    ".cloudfront.net",
-  );
+  const routerUrl = validateRouterOutputs(contract, stage, outputs);
   assertHttpsUrl(
     outputs.apiUrl,
     "API URL",
@@ -751,6 +904,12 @@ async function verifyLive(
       description.BillingModeSummary?.BillingMode === "PAY_PER_REQUEST",
       `${logicalName} is not on-demand.`,
     );
+    if (stage === "production") {
+      assert(
+        description.DeletionProtectionEnabled === true,
+        `${logicalName} production deletion protection is not enabled.`,
+      );
+    }
     const backups = runAws([
       "dynamodb",
       "describe-continuous-backups",
@@ -806,7 +965,9 @@ async function verifyLive(
       assertBrowserCorsExact(
         cors,
         logicalName,
-        [outputs.routerUrl, contract.auth.localOrigin],
+        stage === "production"
+          ? [outputs.routerUrl]
+          : [outputs.routerUrl, contract.auth.localOrigin],
         corsContract,
       );
     } else {
@@ -893,6 +1054,12 @@ async function verifyLive(
     outputs.userPoolId,
   ]).value.UserPool;
   assert(userPool.Status === undefined || userPool.Status === "Enabled", "User pool is unavailable.");
+  if (stage === "production") {
+    assert(
+      userPool.DeletionProtection === "ACTIVE",
+      "Production user-pool deletion protection is not active.",
+    );
+  }
   const userPoolClient = runAws([
     "cognito-idp",
     "describe-user-pool-client",
@@ -912,14 +1079,18 @@ async function verifyLive(
       JSON.stringify([...contract.auth.allowedOAuthScopes].sort()),
     "Browser client OAuth scopes have drifted.",
   );
-  const expectedCallbackUrls = [
-    outputs.authCallbackUrl,
-    `${contract.auth.localOrigin}${contract.auth.callbackPath}`,
-  ];
-  const expectedLogoutUrls = [
-    outputs.authLogoutUrl,
-    `${contract.auth.localOrigin}${contract.auth.logoutPath}`,
-  ];
+  const expectedCallbackUrls = stage === "production"
+    ? [outputs.authCallbackUrl]
+    : [
+        outputs.authCallbackUrl,
+        `${contract.auth.localOrigin}${contract.auth.callbackPath}`,
+      ];
+  const expectedLogoutUrls = stage === "production"
+    ? [outputs.authLogoutUrl]
+    : [
+        outputs.authLogoutUrl,
+        `${contract.auth.localOrigin}${contract.auth.logoutPath}`,
+      ];
   assert(
     JSON.stringify([...(userPoolClient.CallbackURLs ?? [])].sort()) ===
       JSON.stringify(expectedCallbackUrls.sort()),
@@ -1053,6 +1224,12 @@ async function verifyLive(
       !hasApiGatewayCorsConfiguration(pdfApi.CorsConfiguration),
     "PDF API must be an HTTP API with handler-owned CORS.",
   );
+  if (stage === "production") {
+    assert(
+      outputs.pdfApiUrl !== contract.pdf.legacyTestBaseUrl,
+      "Production must not use the retained test PDF override.",
+    );
+  }
   const pdfRoutes = runAws([
     "apigatewayv2",
     "get-routes",
@@ -1125,9 +1302,9 @@ async function verifyLive(
     .Role;
   assert(
     pdfRole.PermissionsBoundary?.PermissionsBoundaryArn?.endsWith(
-      ":policy/auditflow-test-workload-boundary",
+      `:policy/auditflow-${stage}-workload-boundary`,
     ),
-    "PDF function does not use the test workload permissions boundary.",
+    `PDF function does not use the ${stage} workload permissions boundary.`,
   );
   const pdfAttachedPolicies = runAws([
     "iam",
@@ -1174,11 +1351,25 @@ async function verifyLive(
     outputs.routerDistributionId,
   ]).value.Distribution;
   assert(distribution.Status === "Deployed", "Router distribution is not deployed.");
+  if (stage === "production") {
+    const origins = distribution.DistributionConfig?.Origins?.Items ?? [];
+    const s3Origins = origins.filter(({ DomainName }) =>
+      /\.s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com$/i.test(DomainName ?? ""),
+    );
+    assert(
+      s3Origins.length > 0 &&
+        s3Origins.every(
+          ({ DomainName, OriginAccessControlId }) =>
+            !DomainName.includes("s3-website") && Boolean(OriginAccessControlId),
+        ),
+      "Production CloudFront storage origins are not private OAC origins.",
+    );
+  }
 
-  const roleArn = outputs.testDeployRoleArn;
+  const roleArn = outputs.deployRoleArn;
   assert(
-    /^arn:aws:iam::\d{12}:role\/auditflow-test-github-deploy$/.test(roleArn),
-    "Unexpected test deploy-role ARN.",
+    new RegExp(`^arn:aws:iam::\\d{12}:role/auditflow-${stage}-github-deploy$`).test(roleArn),
+    `Unexpected ${stage} deploy-role ARN.`,
   );
   const roleName = roleArn.slice(roleArn.lastIndexOf("/") + 1);
   const role = runAws(["iam", "get-role", "--role-name", roleName]).value.Role;
@@ -1193,8 +1384,12 @@ async function verifyLive(
       trustConditions?.["token.actions.githubusercontent.com:aud"] ===
         contract.oidc.audience &&
       JSON.stringify(trustConditions?.["token.actions.githubusercontent.com:sub"]) ===
-        JSON.stringify([contract.oidc.subject, contract.oidc.enablementSubject]),
-    "Test deploy role does not have the exact GitHub OIDC trust contract.",
+        JSON.stringify(
+          stage === "test"
+            ? [contract.oidc.subject, contract.oidc.enablementSubject]
+            : [contract.oidc.productionSubject],
+        ),
+    `${stage} deploy role does not have the exact GitHub OIDC trust contract.`,
   );
   const attachedPolicies = runAws([
     "iam",
@@ -1204,7 +1399,7 @@ async function verifyLive(
   ]).value.AttachedPolicies;
   assert(
     attachedPolicies.length === 0,
-    "Test deploy role must not have managed policies attached.",
+    `${stage} deploy role must not have managed policies attached.`,
   );
   const inlinePolicyNames = runAws([
     "iam",
@@ -1214,8 +1409,8 @@ async function verifyLive(
   ]).value.PolicyNames;
   assert(
     JSON.stringify(inlinePolicyNames) ===
-      JSON.stringify(["auditflow-test-foundation-deploy"]),
-    "Test deploy role must have exactly one scoped inline policy.",
+      JSON.stringify([`auditflow-${stage}-foundation-deploy`]),
+    `${stage} deploy role must have exactly one scoped inline policy.`,
   );
   const inlinePolicy = runAws([
     "iam",
@@ -1226,8 +1421,13 @@ async function verifyLive(
     inlinePolicyNames[0],
   ]).value.PolicyDocument;
   assert(
-    hasScopedCloudFrontKeyValueStorePermissions(inlinePolicy, accountId),
-    "Test deploy role CloudFront KeyValueStore permissions are missing, broad, or conditioned on unsupported tags.",
+    hasScopedCloudFrontKeyValueStorePermissions(
+      inlinePolicy,
+      accountId,
+      stage,
+      outputs.routerKeyValueStoreArn,
+    ),
+    `${stage} deploy role CloudFront KeyValueStore permissions are missing, broad, or conditioned on unsupported tags.`,
   );
   assert(
     inlinePolicy.Statement.every(
@@ -1256,8 +1456,8 @@ async function verifyLive(
     boundedCreate?.Condition?.StringEquals?.["iam:PermissionsBoundary"];
   assert(
     typeof workloadBoundaryArn === "string" &&
-      workloadBoundaryArn.endsWith("/auditflow-test-workload-boundary"),
-    "Workload-role creation does not require the test permissions boundary.",
+      workloadBoundaryArn.endsWith(`/auditflow-${stage}-workload-boundary`),
+    `Workload-role creation does not require the ${stage} permissions boundary.`,
   );
   const passRole = findPolicyStatement(
     inlinePolicy,
@@ -1288,9 +1488,9 @@ async function verifyLive(
         (resource) =>
           resource.startsWith(
             `arn:aws:logs:il-central-1:${accountId}:log-group:/aws/`,
-          ) && resource.includes("auditflow-test-"),
+          ) && resource.includes(`auditflow-${stage}-`),
       ),
-    "Test deploy role cannot inspect only AuditFlow test log-group tags.",
+    `${stage} deploy role cannot inspect only AuditFlow ${stage} log-group tags.`,
   );
   const apiTags = findPolicyStatement(inlinePolicy, "TagStageApis");
   assert(
@@ -1300,12 +1500,12 @@ async function verifyLive(
       apiTags.Condition?.StringEquals?.["aws:RequestTag/sst:app"] ===
         "auditflow" &&
       apiTags.Condition?.StringEquals?.["aws:RequestTag/sst:stage"] ===
-        "test" &&
+        stage &&
       apiTags.Condition?.StringEquals?.["aws:ResourceTag/sst:app"] ===
         "auditflow" &&
       apiTags.Condition?.StringEquals?.["aws:ResourceTag/sst:stage"] ===
-        "test",
-    "Test deploy role cannot update tags only on existing tagged AuditFlow test APIs.",
+        stage,
+    `${stage} deploy role cannot update tags only on existing tagged AuditFlow ${stage} APIs.`,
   );
 
   const policyFindings = runAws([
@@ -1370,12 +1570,12 @@ async function verifyLive(
   );
 
   const workloadProbeArn = roleArn.replace(
-    "auditflow-test-github-deploy",
-    "auditflow-test-policy-probe",
+    `auditflow-${stage}-github-deploy`,
+    `auditflow-${stage}-policy-probe`,
   );
   const tagContext = [
     "ContextKeyName=iam:ResourceTag/sst:app,ContextKeyValues=auditflow,ContextKeyType=string",
-    "ContextKeyName=iam:ResourceTag/sst:stage,ContextKeyValues=test,ContextKeyType=string",
+    `ContextKeyName=iam:ResourceTag/sst:stage,ContextKeyValues=${stage},ContextKeyType=string`,
   ];
   assert(
     simulatePrincipalAction(
@@ -1421,14 +1621,26 @@ async function verifyLive(
     ) !== "allowed",
     "Policy simulation allowed mutation of unrelated SST state.",
   );
-  const keyValueStoreProbeArn =
-    `arn:aws:cloudfront::${accountId}:key-value-store/auditflow-policy-probe`;
+  const {
+    allowedArn: keyValueStoreProbeArn,
+    deniedAccountLocalArn: deniedAccountLocalKeyValueStoreArn,
+  } = cloudFrontKeyValueStoreSimulationTargets(inlinePolicy, accountId, stage);
   for (const action of requiredCloudFrontKeyValueStoreActions) {
     assert(
       simulatePrincipalAction(roleArn, action, keyValueStoreProbeArn) ===
         "allowed",
-      `Policy simulation did not allow ${action} on an account-local KeyValueStore.`,
+      `Policy simulation did not allow ${action} on the ${stage} KeyValueStore resource.`,
     );
+    if (deniedAccountLocalKeyValueStoreArn) {
+      assert(
+        simulatePrincipalAction(
+          roleArn,
+          action,
+          deniedAccountLocalKeyValueStoreArn,
+        ) !== "allowed",
+        `Policy simulation allowed ${action} on an unrelated production KeyValueStore.`,
+      );
+    }
   }
   assert(
     simulatePrincipalAction(
@@ -1456,11 +1668,39 @@ async function verifyLive(
       "arn:aws:apigateway:il-central-1::/tags/arn%3Aaws%3Aapigateway%3Ail-central-1%3A%3A%2Fv2%2Fapis%2Funrelated-policy-probe",
       [
         "ContextKeyName=aws:RequestTag/sst:app,ContextKeyValues=auditflow,ContextKeyType=string",
-        "ContextKeyName=aws:RequestTag/sst:stage,ContextKeyValues=test,ContextKeyType=string",
+        `ContextKeyName=aws:RequestTag/sst:stage,ContextKeyValues=${stage},ContextKeyType=string`,
       ],
     ) !== "allowed",
     "Policy simulation allowed an unrelated API to adopt AuditFlow stage tags.",
   );
+
+  let productionBudget;
+  if (stage === "production") {
+    const logGroupPrefixes = [
+      `/aws/lambda/${outputs.apiFunctionName}`,
+      `/aws/lambda/${outputs.zipWorkerFunctionName}`,
+      `/aws/lambda/${outputs.pdfFunctionName}`,
+      "/aws/vendedlogs/apis/auditflow-production-",
+    ];
+    for (const prefix of logGroupPrefixes) {
+      const logGroups = runAws([
+        "logs", "describe-log-groups", "--log-group-name-prefix", prefix,
+      ]).value.logGroups ?? [];
+      assert(
+        logGroups.length > 0 &&
+          logGroups.every(({ retentionInDays }) =>
+            retentionInDays === contract.production.logRetentionDays),
+        `Production log retention has drifted for ${prefix}.`,
+      );
+    }
+    productionBudget = verifyProductionBudget(
+      contract,
+      accountId,
+      budgetRate,
+      budgetRateDate,
+      budgetRateSource,
+    );
+  }
 
   const root = await fetchText(outputs.routerUrl, 200);
   const deepLink = await fetchText(`${outputs.routerUrl}/clients`, 200);
@@ -1476,7 +1716,7 @@ async function verifyLive(
   );
   assert(
     JSON.stringify(JSON.parse(health.text)) ===
-      JSON.stringify({ ok: true, service: "auditflow-api", stage: "test" }),
+      JSON.stringify({ ok: true, service: "auditflow-api", stage }),
     "Health response body has drifted.",
   );
   const protectedHealth = await fetch(outputs.protectedHealthUrl, {
@@ -1567,6 +1807,9 @@ async function verifyLive(
       pdfWorkloadBoundaryAttached: true,
       pdfDataActionsDenied: forbiddenPdfActions.length,
       routerDeployed: true,
+      productionPrivateOrigins: stage === "production" ? true : undefined,
+      productionRetention: stage === "production" ? true : undefined,
+      productionBudget: stage === "production" ? productionBudget : undefined,
       managedLoginConfigured: true,
       refreshRotationEnabled: true,
       cpaRoutesScoped: scopedCpaRouteCount(contract),
@@ -1586,11 +1829,15 @@ async function verifyLive(
           ? /^[a-f0-9]{64}$/.test(expectedLegacyManifestSha256)
           : true,
     },
-    urls: {
-      routerUrl: outputs.routerUrl,
-      healthUrl: outputs.healthUrl,
-      protectedHealthUrl: outputs.protectedHealthUrl,
-    },
+    ...(stage === "test"
+      ? {
+          urls: {
+            routerUrl: outputs.routerUrl,
+            healthUrl: outputs.healthUrl,
+            protectedHealthUrl: outputs.protectedHealthUrl,
+          },
+        }
+      : {}),
   };
 }
 
@@ -1606,6 +1853,17 @@ async function main() {
       (arguments_["legacy-file-reads"] === "disabled" && !arguments_.evidence),
     "Legacy file-read expectations are valid only for live verification.",
   );
+  const budgetOptions = [
+    arguments_["budget-rate"],
+    arguments_["budget-rate-date"],
+    arguments_["budget-rate-source"],
+  ];
+  assert(
+    arguments_.mode === "live" && arguments_.stage === "production"
+      ? budgetOptions.every(Boolean)
+      : budgetOptions.every((value) => value === undefined),
+    "Budget rate, date, and source are required together only for production live verification.",
+  );
   const contract = readJson(contractPath);
   const contractResult = verifyContract(contract, arguments_.stage);
   let result = contractResult;
@@ -1618,6 +1876,9 @@ async function main() {
       arguments_.outputs ?? ".sst/outputs.json",
       arguments_["legacy-file-reads"],
       arguments_.evidence,
+      arguments_["budget-rate"],
+      arguments_["budget-rate-date"],
+      arguments_["budget-rate-source"],
     );
   }
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

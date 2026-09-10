@@ -49,6 +49,19 @@ function createStagingDirectory(machine = 183) {
   return directory;
 }
 
+function changeNativePackageVersion(directory, version) {
+  const manifestPath = join(
+    directory,
+    "node_modules",
+    "@napi-rs",
+    "canvas-linux-arm64-gnu",
+    "package.json",
+  );
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  writeFileSync(manifestPath, JSON.stringify({ ...manifest, version }));
+  return directory;
+}
+
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) {
     rmSync(directory, { recursive: true, force: true });
@@ -74,6 +87,17 @@ describe("PDF deployment artifact verification", () => {
     await expect(
       inspectPdfStagingDirectory(createStagingDirectory(62), fontPath),
     ).rejects.toThrow("AArch64 ELF64");
+  });
+
+  it("reports the observed native package identity when it drifts", async () => {
+    await expect(
+      inspectPdfStagingDirectory(
+        changeNativePackageVersion(createStagingDirectory(), "0.1.101"),
+        fontPath,
+      ),
+    ).rejects.toThrow(
+      "expected @napi-rs/canvas-linux-arm64-gnu@0.1.100, observed @napi-rs/canvas-linux-arm64-gnu@0.1.101",
+    );
   });
 
   it("verifies the exact font and native package in a deployment archive", async () => {

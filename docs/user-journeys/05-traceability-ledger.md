@@ -1,5 +1,25 @@
 # 05 — Traceability Ledger
 
+> **AWS migration note (2026-09-09):** The rows below preserve source-behavior provenance. Current release-gate
+> traceability lives in `tooling/production-readiness-contract.json`, which maps all routes in `src/App.jsx` and the
+> API inventory in `infra/sst/foundation-contract.json` to automated evidence, negative cases, legacy-data checks, and
+> owner checks. A Base44 evidence path in this ledger is not a target runtime dependency.
+
+## Current target evidence index
+
+| Readiness IDs | Target evidence |
+|---|---|
+| J1–J3 | `src/lib/__tests__/questionnaire-*.test.js`, public questionnaire/file route and service tests, PDF tests, and Playwright public/PDF specs |
+| J4–J10 | Cognito/core CPA/workflow/template/file/ZIP tests and Playwright CPA/permission specs |
+| J11 | `backend/api/__tests__/deferred-integrations.test.ts` plus the runtime-independence audit; Drive/Telegram are controlled `Not implemented` paths |
+| J12 | Maintenance service/status/UI tests and fallback-route browser coverage |
+| J13 | `docs/migration/private-file-import-verification.json` and import/reconciliation tests |
+| J14 | `docs/migration/base44-reverse-replay-verification.json` and reverse-replay tests |
+| J15 | Foundation/cost/domain/runtime verifiers plus owner Sentry/PostHog/production-preparation evidence |
+
+The exact browser verdicts and owner sign-off are aggregate-only in
+`docs/migration/production-readiness-evidence.json`; pending manual gates must not be inferred as passing.
+
 > **Status:** COMPLETE
 > **Purpose:** Cross-reference every scenario claim with exact file/line evidence
 

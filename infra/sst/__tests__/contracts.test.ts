@@ -105,6 +105,7 @@ describe("foundation resource contract", () => {
       audience: deploymentContract.audience,
       subject: deploymentContract.subject,
       enablementSubject: deploymentContract.enablementSubject,
+      productionSubject: deploymentContract.productionSubject,
     });
     expect(verifierContract.inventory).toEqual(expectedInventory);
     expect(verifierContract.outputKeys).toEqual(expectedOutputKeys);
@@ -365,7 +366,6 @@ describe("foundation resource contract", () => {
       ],
       nodejsInstall: [
         "@napi-rs/canvas",
-        "@napi-rs/canvas-linux-arm64-gnu",
         "pdfjs-dist",
       ],
       font: {
@@ -384,6 +384,15 @@ describe("foundation resource contract", () => {
       new URL("../application.ts", import.meta.url),
       "utf8",
     );
+    const pdfPackage = JSON.parse(
+      readFileSync(
+        new URL("../../../lambda/pdf-generator/package.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    const rootPackage = JSON.parse(
+      readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
+    );
     expect(pdfSource).toContain("CORS_ORIGIN: routerOrigin");
     expect(pdfSource).toContain("install: [...pdfContract.nodejsInstall]");
     expect(pdfSource).toContain("copyFiles:");
@@ -391,6 +400,14 @@ describe("foundation resource contract", () => {
     expect(pdfSource).toContain("permissions: [...pdfContract.permissions]");
     expect(pdfSource).toContain("args.permissionsBoundary = workloadBoundaryArn");
     expect(pdfSource).toContain("args.corsConfiguration = undefined");
+    expect(pdfPackage.dependencies["@napi-rs/canvas"]).toBe("0.1.100");
+    expect(
+      pdfPackage.optionalDependencies["@napi-rs/canvas-linux-arm64-gnu"],
+    ).toBe("0.1.100");
+    expect(rootPackage.dependencies["@napi-rs/canvas"]).toBe("0.1.100");
+    expect(
+      rootPackage.optionalDependencies["@napi-rs/canvas-linux-arm64-gnu"],
+    ).toBe("0.1.100");
     expect(applicationSource).toContain(
       "router.route(pdfContract.routerPattern, pdf.api.url",
     );
@@ -437,6 +454,17 @@ describe("foundation resource contract", () => {
       "repo:noamtz@2631641/cpa-platform@1332935468:environment:test-legacy-read-enable",
     );
     expect(deploymentContract.enablementSubject).not.toContain("*");
+    expect(deploymentContract.productionSubject).toBe(
+      "repo:noamtz@2631641/cpa-platform@1332935468:environment:production",
+    );
+    expect(deploymentContract.productionSubject).not.toContain("*");
+    expect(deploymentContract.roles.test.subjects).toEqual([
+      deploymentContract.subject,
+      deploymentContract.enablementSubject,
+    ]);
+    expect(deploymentContract.roles.production.subjects).toEqual([
+      deploymentContract.productionSubject,
+    ]);
   });
 
   it("defaults test deployments to disabled legacy file access", () => {
@@ -482,6 +510,7 @@ describe("foundation resource contract", () => {
       budgetType: "COST",
       automatedActions: false,
     });
+    expect(expectedOutputKeys).toContain("routerKeyValueStoreArn");
     expect(expectedOutputKeys).not.toContain("budgetAlertEmail");
     expect(expectedOutputKeys).not.toContain("accountId");
   });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildTestDeploymentPolicy,
+  buildDeploymentPolicy,
   buildWorkloadBoundaryPolicy,
   deploymentPolicyContracts,
   type IamPolicyStatement,
@@ -10,6 +10,8 @@ import {
 const accountId = "123456789012";
 const boundaryArn =
   "arn:aws:iam::123456789012:policy/auditflow-test-workload-boundary";
+const productionRouterKeyValueStoreArn =
+  "arn:aws:cloudfront::123456789012:key-value-store/production-router-store";
 
 function actions(statement: IamPolicyStatement): readonly string[] {
   return Array.isArray(statement.Action)
@@ -18,8 +20,9 @@ function actions(statement: IamPolicyStatement): readonly string[] {
 }
 
 describe("test deployment IAM policy", () => {
-  const policy = buildTestDeploymentPolicy({
+  const policy = buildDeploymentPolicy({
     accountId,
+    stage: "test",
     workloadBoundaryArn: boundaryArn,
   });
 
@@ -158,8 +161,10 @@ describe("test deployment IAM policy", () => {
         "arn:aws:apigateway:il-central-1::/tags/arn%3Aaws%3Aapigateway%3Ail-central-1%3A%3A%2Fv2%2Fapis%2F*",
       Condition: {
         StringEquals: {
-          ...deploymentPolicyContracts.resourceTagCondition.StringEquals,
-          ...deploymentPolicyContracts.requestTagCondition.StringEquals,
+          ...deploymentPolicyContracts.resourceTagCondition("auditflow", "test")
+            .StringEquals,
+          ...deploymentPolicyContracts.requestTagCondition("auditflow", "test")
+            .StringEquals,
         },
       },
     });
@@ -198,14 +203,75 @@ describe("test deployment IAM policy", () => {
     expect(JSON.stringify(policy)).not.toContain("sst-state-kkkvushrzufd/*\"");
   });
 
-  it("rejects non-test deployment policies", () => {
+  it("requires an explicit deployment stage", () => {
     expect(() =>
-      buildTestDeploymentPolicy({
+      buildDeploymentPolicy({
         accountId,
-        stage: "production",
         workloadBoundaryArn: boundaryArn,
       }),
-    ).toThrow("restricted to the test stage");
+    ).toThrow("requires an exact stage");
+  });
+
+  it("isolates production resources and SST state from test", () => {
+    const productionBoundaryArn =
+      "arn:aws:iam::123456789012:policy/auditflow-production-workload-boundary";
+    const productionPolicy = buildDeploymentPolicy({
+      accountId,
+      stage: "production",
+      workloadBoundaryArn: productionBoundaryArn,
+      routerKeyValueStoreArn: productionRouterKeyValueStoreArn,
+    });
+    const serialized = JSON.stringify(productionPolicy);
+
+    expect(serialized).toContain("auditflow-production-");
+    expect(serialized).toContain("auditflow/production.json");
+    expect(serialized).not.toContain("auditflow-test-");
+    expect(serialized).not.toContain("auditflow/test.json");
+    expect(serialized).toContain(productionBoundaryArn);
+    expect(serialized).toContain("ApiFunctionAuditflowProduction-code-*");
+    expect(serialized).not.toContain("ApiFunction-code-*");
+    expect(
+      productionPolicy.Statement.find(
+        ({ Sid }) => Sid === "UseStageSstAssets",
+      )?.Resource,
+    ).toEqual([
+      "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/ApiFunctionAuditflowProduction-code-*",
+      "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/PdfRendererFunctionAuditflowProduction-code-*",
+      "arn:aws:s3:::sst-asset-kkkvushrzufd/assets/ZipDownloadWorkerAuditflowProduction-code-*",
+    ]);
+    expect(
+      productionPolicy.Statement.find(
+        ({ Sid }) => Sid === "ManageCloudFrontKeyValues",
+      )?.Resource,
+    ).toBe(productionRouterKeyValueStoreArn);
+    expect(
+      productionPolicy.Statement.find(
+        ({ Sid }) => Sid === "DenyDeployRoleSelfMutation",
+      )?.Resource,
+    ).toBe(
+      "arn:aws:iam::123456789012:role/auditflow-production-github-deploy",
+    );
+  });
+
+  it("rejects a production policy without the exact Router KeyValueStore ARN", () => {
+    expect(() =>
+      buildDeploymentPolicy({
+        accountId,
+        stage: "production",
+        workloadBoundaryArn:
+          "arn:aws:iam::123456789012:policy/auditflow-production-workload-boundary",
+      }),
+    ).toThrow("requires the exact Router KeyValueStore ARN");
+    expect(() =>
+      buildDeploymentPolicy({
+        accountId,
+        stage: "production",
+        workloadBoundaryArn:
+          "arn:aws:iam::123456789012:policy/auditflow-production-workload-boundary",
+        routerKeyValueStoreArn:
+          "arn:aws:cloudfront::999999999999:key-value-store/other-account",
+      }),
+    ).toThrow("requires the exact Router KeyValueStore ARN");
   });
 });
 
