@@ -196,11 +196,13 @@ function PdfTestPage() {
     input.type = "file";
     input.accept = ".pdf";
     input.onchange = (e) => {
-      const file = e.target.files[0];
+      const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
       if (!file) return;
       const reader = new FileReader();
       reader.onload = (ev) => {
-        const pdfData = new Uint8Array(ev.target.result);
+        const result = ev.target?.result;
+        if (!(result instanceof ArrayBuffer)) return;
+        const pdfData = new Uint8Array(result);
         if (designerRef.current) {
           const tpl = designerRef.current.getTemplate();
           designerRef.current.updateTemplate({ ...tpl, basePdf: pdfData });
@@ -806,6 +808,7 @@ function PdfTestPage() {
   );
 }
 
+/** @type {Record<string, React.CSSProperties>} */
 const styles = {
   page: { fontFamily: "'Heebo', sans-serif", background: "#f8f5f0", minHeight: "100vh", direction: "rtl" },
   header: { background: "white", borderBottom: "1px solid #e8dfd4", padding: "12px 24px", display: "flex", alignItems: "center", gap: "12px", position: "sticky", top: 0, zIndex: 100, boxShadow: "0 1px 3px rgba(0,0,0,0.05)" },

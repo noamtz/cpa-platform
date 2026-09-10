@@ -14,9 +14,11 @@ import React, { useRef, useEffect, forwardRef, useImperativeHandle, useState } f
  *   height?  (default: 180)
  *   className?
  */
+/** @typedef {{ height?: number, className?: string }} LightweightSignaturePadProps */
+/** @typedef {{ isEmpty: () => boolean, getDataUrl: () => string | null, clear: () => void }} LightweightSignaturePadHandle */
 const LightweightSignaturePad = forwardRef(function LightweightSignaturePad(
-  { height = 180, className = "" },
-  ref
+  /** @type {LightweightSignaturePadProps} */ { height = 180, className = "" },
+  /** @type {React.ForwardedRef<LightweightSignaturePadHandle>} */ ref
 ) {
   const canvasRef = useRef(null);
   const drawing = useRef(false);

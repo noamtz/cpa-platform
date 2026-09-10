@@ -1,5 +1,11 @@
 export const POSTHOG_EU_HOST = "https://eu.i.posthog.com";
 
+/**
+ * @typedef {object} AnalyticsSdk
+ * @property {(apiKey: string, options: Record<string, unknown>) => AnalyticsSdk | undefined} init
+ * @property {(eventName: string, properties: Record<string, unknown>) => unknown} capture
+ */
+
 export const ANALYTICS_FAILURE_CATEGORIES = Object.freeze([
   "authentication",
   "authorization",
@@ -138,7 +144,9 @@ export function createAnalytics({ apiKey, loadSdk = () => import("posthog-js") }
       initialization = Promise.resolve()
         .then(() => loadSdk())
         .then(async (module) => {
-          const sdk = module?.default ?? module;
+          const sdk = /** @type {AnalyticsSdk | undefined} */ (
+            /** @type {unknown} */ (module?.default ?? module)
+          );
           if (!sdk || typeof sdk.init !== "function") return false;
           const initialized = await sdk.init(projectKey, {
             api_host: POSTHOG_EU_HOST,
