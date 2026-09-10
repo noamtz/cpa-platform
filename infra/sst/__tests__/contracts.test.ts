@@ -510,6 +510,7 @@ describe("foundation resource contract", () => {
       budgetType: "COST",
       automatedActions: false,
     });
+    expect(expectedOutputKeys).toContain("routerKeyValueStoreArn");
     expect(expectedOutputKeys).not.toContain("budgetAlertEmail");
     expect(expectedOutputKeys).not.toContain("accountId");
   });

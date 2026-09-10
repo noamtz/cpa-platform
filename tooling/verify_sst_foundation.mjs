@@ -43,6 +43,7 @@ export function hasScopedCloudFrontKeyValueStorePermissions(
   policy,
   accountId,
   stage = "test",
+  expectedRouterKeyValueStoreArn,
 ) {
   const statement = policy?.Statement?.find(
     ({ Sid }) => Sid === "ManageCloudFrontKeyValues",
@@ -56,6 +57,8 @@ export function hasScopedCloudFrontKeyValueStorePermissions(
           `^arn:aws:cloudfront::${accountId}:key-value-store/[A-Za-z0-9_-]+$`,
           "u",
         ).test(statement.Resource)
+        && (expectedRouterKeyValueStoreArn === undefined ||
+          statement.Resource === expectedRouterKeyValueStoreArn)
       : statement.Resource ===
         `arn:aws:cloudfront::${accountId}:key-value-store/*`) &&
     statement.Condition === undefined
@@ -1418,7 +1421,12 @@ async function verifyLive(
     inlinePolicyNames[0],
   ]).value.PolicyDocument;
   assert(
-    hasScopedCloudFrontKeyValueStorePermissions(inlinePolicy, accountId, stage),
+    hasScopedCloudFrontKeyValueStorePermissions(
+      inlinePolicy,
+      accountId,
+      stage,
+      outputs.routerKeyValueStoreArn,
+    ),
     `${stage} deploy role CloudFront KeyValueStore permissions are missing, broad, or conditioned on unsupported tags.`,
   );
   assert(

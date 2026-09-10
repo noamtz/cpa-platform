@@ -648,6 +648,7 @@ export const expectedOutputKeys = [
   "pdfHealthUrl",
   "zipWorkerFunctionName",
   "routerDistributionId",
+  "routerKeyValueStoreArn",
   "healthUrl",
   "protectedHealthUrl",
   "tableNames",

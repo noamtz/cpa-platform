@@ -190,8 +190,17 @@ describe("production budget read-back", () => {
         productionPolicy,
         accountId,
         "production",
+        productionResource,
       ),
     ).toBe(true);
+    expect(
+      hasScopedCloudFrontKeyValueStorePermissions(
+        productionPolicy,
+        accountId,
+        "production",
+        `arn:aws:cloudfront::${accountId}:key-value-store/different-router`,
+      ),
+    ).toBe(false);
     expect(
       hasScopedCloudFrontKeyValueStorePermissions(
         { Statement: [expectedStatement] },

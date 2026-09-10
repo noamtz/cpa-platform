@@ -96,6 +96,7 @@ export default $config({
       pdfHealthUrl: $interpolate`${application.router.url}/pdf/health`,
       zipWorkerFunctionName: application.zipWorker.name,
       routerDistributionId: application.router.distributionID,
+      routerKeyValueStoreArn: router._kvStoreArn,
       healthUrl: $interpolate`${application.router.url}/api/health`,
       protectedHealthUrl: $interpolate`${application.router.url}/api/auth/health`,
       tableNames: Object.fromEntries(
