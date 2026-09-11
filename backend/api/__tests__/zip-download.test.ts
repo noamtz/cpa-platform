@@ -256,6 +256,7 @@ describe("ZIP worker", () => {
     let archive: Buffer | undefined;
     const createUpload = vi.fn((_objectKey: string, body: NodeJS.ReadableStream) => ({
       async done() {
+        expect(body).toBeInstanceOf(Readable);
         const chunks: Buffer[] = [];
         await new Promise<void>((resolve, reject) => {
           body.on("data", (chunk) => chunks.push(Buffer.from(chunk)));

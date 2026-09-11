@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Readable } from "node:stream";
+import { PassThrough, type Readable } from "node:stream";
 
 import {
   DeleteObjectCommand,
@@ -444,11 +444,14 @@ async function processJob(
       if (!source.Body) throw new SourceUnavailableError();
       zip.file(name, source.Body);
     }
-    const stream = zip.generateNodeStream({
+    const zipStream = zip.generateNodeStream({
       type: "nodebuffer",
       streamFiles: true,
       compression: "DEFLATE",
     });
+    const stream = new PassThrough();
+    zipStream.on("error", (error) => stream.destroy(error));
+    zipStream.pipe(stream);
     upload = options.createUpload(resultKey, stream);
     await upload.done();
     await lease.complete(
