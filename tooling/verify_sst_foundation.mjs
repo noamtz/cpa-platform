@@ -398,9 +398,11 @@ function verifyContract(contract, deploymentTargets, stage) {
         JSON.stringify(["s3:GetObject"]) &&
       JSON.stringify(contract.zipWorker.permissions.journalActions) ===
         JSON.stringify([
+          "dynamodb:ConditionCheckItem",
           "dynamodb:GetItem",
           "dynamodb:Query",
           "dynamodb:TransactWriteItems",
+          "dynamodb:UpdateItem",
         ]) &&
       JSON.stringify(contract.zipWorker.permissions.temporaryActions) ===
         JSON.stringify([
