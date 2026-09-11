@@ -4,7 +4,8 @@ The project registers two hooks in `.codex/hooks.json`:
 
 - `pre_tool_use.py` blocks obvious access to secret files or environment dumps, recursive force-deletion commands,
   the forbidden GitHub identity, bare `gh` calls that bypass the repository wrapper, and GitHub MCP calls when
-  `origin` is not `git@github.com:noamtz/cpa-platform.git`.
+  `origin` is not `git@github.com:noamtz/cpa-platform.git`. It also blocks raw IAM policy-version and Lambda
+  code mutations that bypass the account-pinned AuditFlow incident/SST workflows.
 - `post_tool_use.py` appends shell and edit events to the ignored `.codex/logs/tool-events.jsonl` file.
 
 The registered commands use this project's absolute path, and the audit hook resolves
@@ -27,6 +28,10 @@ returns no output. Both exit `0` because Codex consumes the structured decision.
 Hook failures intentionally fail open; this is a focused guardrail, not a complete
 security boundary. Codex sandboxing, approval policy, repository trust, and normal
 code review still apply.
+
+Use `npm run incident:test -- ...` for supported test-stage incident commands. The incident utility verifies the
+configured account before every read or mutation, requires explicit confirmation for writes, and refuses production
+mutation. Lambda code changes continue through the normal SST workflow.
 
 GitHub CLI operations must use `python tooling/github.py ...`. The wrapper always obtains the `noamtz` token from
 the GitHub CLI keyring, regardless of which account happens to be globally active.

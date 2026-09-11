@@ -173,7 +173,7 @@ export class CpaWorkflowService {
       } catch (error) {
         if (error instanceof ApiError && error.statusCode === 503) throw error;
         guard = await this.options.templates.getActiveGuard();
-        if (!guard) throw internalError();
+        if (!guard) throw internalError(error);
       }
     }
     const record = await this.options.templates.get(guard.active_template_id);

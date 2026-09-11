@@ -239,8 +239,8 @@ function questionnaireAllowsPdfTemplate(stepsJson: string, templateId: string) {
   let root: unknown;
   try {
     root = JSON.parse(stepsJson);
-  } catch {
-    throw internalError();
+  } catch (error) {
+    throw internalError(error);
   }
   const visit = (value: unknown): boolean => {
     if (Array.isArray(value)) return value.some(visit);
@@ -556,7 +556,7 @@ export class FileService {
       )) as HeadResult;
     } catch (error) {
       if (isMissingObject(error)) throw notFound("File not found");
-      throw internalError();
+      throw internalError(error);
     }
     const contentType = allowedContentTypeSchema.safeParse(head.ContentType);
     const purpose = head.Metadata?.purpose;
@@ -657,7 +657,7 @@ export class FileService {
       );
     } catch (error) {
       if (isMissingObject(error)) throw notFound("File not found");
-      throw internalError();
+      throw internalError(error);
     }
   }
 
@@ -691,7 +691,7 @@ export class FileService {
       )) as HeadResult;
     } catch (error) {
       if (isMissingObject(error)) throw notFound("File not found");
-      throw internalError();
+      throw internalError(error);
     }
     const expectedContentTypeResult = allowedContentTypeSchema.safeParse(expectedContentType);
     const storedContentTypeResult = allowedContentTypeSchema.safeParse(head.ContentType);
@@ -834,7 +834,7 @@ export class FileService {
       )) as HeadResult;
     } catch (error) {
       if (isMissingObject(error)) throw notFound("File not found");
-      throw internalError();
+      throw internalError(error);
     }
     const expectedOwner = templateOwned ? input.templateId : "pending";
     if (
@@ -980,8 +980,8 @@ export class FileService {
         steps = parsed.filter(
           (entry): entry is Record<string, unknown> => !!entry && typeof entry === "object",
         );
-      } catch {
-        throw internalError();
+      } catch (error) {
+        throw internalError(error);
       }
     }
     let entries;
@@ -1065,7 +1065,7 @@ export class FileService {
       manifest = zipManifestSchema.parse(JSON.parse(await objectBodyText(result)));
     } catch (error) {
       if (isMissingObject(error)) throw notFound("ZIP download not found");
-      throw internalError();
+      throw internalError(error);
     }
     if (
       manifest.submission_id !== submission.id ||
@@ -1092,7 +1092,7 @@ export class FileService {
       ).terminal_status;
     } catch (error) {
       if (isMissingObject(error)) return { job_id: jobId, status: "pending" as const };
-      throw internalError();
+      throw internalError(error);
     }
     if (!status) return { job_id: jobId, status: "pending" as const };
     if (status.state === "failed") {

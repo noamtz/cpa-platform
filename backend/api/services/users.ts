@@ -151,7 +151,7 @@ export class UserService {
       cognitoCreated = true;
     } catch (caught) {
       const error = caught as Error;
-      if (error.name !== "UsernameExistsException") throw internalError();
+      if (error.name !== "UsernameExistsException") throw internalError(error);
       const result = (await this.options.cognito.send(
         new AdminGetUserCommand({
           UserPoolId: this.options.userPoolId,
@@ -234,7 +234,7 @@ export class UserService {
         }
       }
       if (journalError instanceof ApiError) throw journalError;
-      throw internalError();
+      throw internalError(journalError);
     }
   }
 }

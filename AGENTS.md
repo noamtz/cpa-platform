@@ -84,6 +84,9 @@ Evidence paths below are relative to this repository. The external production-so
   `npm run lint:foundation`, and the contract verifier. For AI-layer changes, also run
   `python tooling/validate_codex_layer.py`. Evidence: `package.json`, the migration baseline report, and
   `tooling/validate_codex_layer.py`.
+- **Live test incidents:** Use `$auditflow-live-incident` for deployed test-stage API failures. Start with the
+  account-pinned preflight, request-correlated provider logs, and focused probes; use the test-only boundary sync
+  only for exact owner-managed policy drift, and retain SST for application code or resource changes.
 - **Project documents:** Use GitHub as the course's Jira/Confluence equivalent: GitHub Issues and the configured Project hold actionable work (epics, stories, tasks, and bugs), while the GitHub Wiki holds canonical PRDs and architecture documents. Keep agent working artifacts versioned locally: implementation plans under `.agents/plans/`, RCAs under `docs/issues/`, implementation and execution reports under `.agents/reports/` or `.agents/execution-reports/`, code reviews under `.agents/code-reviews/`, and system reviews under `.agents/system-reviews/`. Post review verdicts to the pull request and RCA summaries to the original bug issue; do not create tracker issues merely to store reports. Do not duplicate Wiki documents in this repository or create a fallback when the Wiki is unavailable; report the missing Wiki, Project identity, or authentication prerequisite instead. Keep code-operational contracts in this repository. Read `.agents/references/github-project-documents.md` before creating, reading, or updating a project artifact.
 
 Read the relevant contract before changing its area:

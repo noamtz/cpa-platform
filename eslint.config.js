@@ -9,6 +9,8 @@ const foundationTypeScriptFiles = [
   "sst.config.ts",
   "infra/sst/**/*.ts",
   "backend/api/**/*.ts",
+  "tooling/auditflow_incident.ts",
+  "tooling/auditflow_incident.test.ts",
 ];
 
 export default [

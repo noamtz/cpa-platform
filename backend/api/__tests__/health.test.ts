@@ -101,10 +101,18 @@ describe("health API handler", () => {
     expect(JSON.stringify(response)).not.toContain("should-not-leak");
   });
 
-  it("returns a safe 500 and logs only bounded metadata", async () => {
+  it("returns a safe 500 and logs redacted provider diagnostics", async () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const response = await createHandler(() => {
-      throw new Error("Bearer should-not-leak");
+      throw Object.assign(
+        new Error(
+          "Bearer should-not-leak denied for account 123456789012 token=opaque-secret-value",
+        ),
+        {
+          name: "AccessDeniedException",
+          $metadata: { requestId: "aws-request-1" },
+        },
+      );
     })(event("GET /health"), context, callback);
 
     expect(response).toMatchObject({ statusCode: 500 });
@@ -116,8 +124,11 @@ describe("health API handler", () => {
       "AuditFlow API request failed",
       expect.objectContaining({
         requestId: "request-123",
-        errorName: "Error",
+        errorName: "AccessDeniedException",
         message: "Unhandled API error",
+        awsRequestId: "aws-request-1",
+        providerMessage:
+          "Bearer [REDACTED] denied for account [REDACTED_ACCOUNT] token=[REDACTED]",
       }),
     );
   });

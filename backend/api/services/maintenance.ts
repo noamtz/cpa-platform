@@ -134,7 +134,7 @@ export class MaintenanceService {
       );
     } catch (error) {
       if (isConditionalFailure(error)) throw maintenanceInProgress();
-      throw internalError();
+      throw internalError(error);
     }
     return generation;
   }
@@ -172,7 +172,7 @@ export class MaintenanceService {
       );
     } catch (error) {
       if (isConditionalFailure(error)) throw maintenanceInProgress();
-      throw internalError();
+      throw internalError(error);
     }
     return control;
   }
@@ -308,7 +308,7 @@ export class MaintenanceService {
       );
     } catch (error) {
       if (isConditionalFailure(error)) throw maintenanceInProgress();
-      throw internalError();
+      throw internalError(error);
     }
   }
 
@@ -478,7 +478,7 @@ export class MaintenanceService {
       );
     } catch (error) {
       if (isConditionalFailure(error)) throw maintenanceInProgress();
-      throw internalError();
+      throw internalError(error);
     }
     return next;
   }
