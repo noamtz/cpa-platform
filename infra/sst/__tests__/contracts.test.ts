@@ -210,6 +210,7 @@ describe("foundation resource contract", () => {
       "utf8",
     );
     expect(zipWorkerContract.permissions.journalActions).toEqual([
+      "dynamodb:ConditionCheckItem",
       "dynamodb:GetItem",
       "dynamodb:Query",
       "dynamodb:TransactWriteItems",

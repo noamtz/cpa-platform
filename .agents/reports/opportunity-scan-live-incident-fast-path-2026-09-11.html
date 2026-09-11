@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Opportunity Scan — AuditFlow live-incident fast path</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #18201d;
+      --muted: #66706b;
+      --paper: #f5f2ea;
+      --card: #fffdf8;
+      --line: #dcd7ca;
+      --green: #176b52;
+      --green-soft: #e0f0e9;
+      --amber: #a35d16;
+      --amber-soft: #faead7;
+      --red: #a33d35;
+      --red-soft: #f8e5e1;
+      --blue: #315d85;
+      --blue-soft: #e3edf5;
+      --shadow: 0 18px 50px rgba(37, 43, 39, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 10% 0%, rgba(23, 107, 82, 0.09), transparent 28rem),
+        var(--paper);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+    main { width: min(1120px, calc(100% - 32px)); margin: 38px auto 72px; }
+    .hero {
+      padding: clamp(26px, 5vw, 54px);
+      background: var(--ink);
+      color: #fffdf8;
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+    }
+    .eyebrow { margin: 0 0 10px; color: #9ed9c4; font-size: 0.78rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 0; max-width: 900px; font-size: clamp(2rem, 5vw, 4.25rem); line-height: 1.03; letter-spacing: -.045em; }
+    .lede { max-width: 780px; margin: 24px 0 0; color: #d7dfdb; font-size: clamp(1rem, 2vw, 1.25rem); }
+    .hero-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 30px; }
+    .metric { padding: 16px; border: 1px solid rgba(255,255,255,.14); border-radius: 14px; background: rgba(255,255,255,.05); }
+    .metric strong { display: block; font-size: 1.55rem; color: #fff; }
+    .metric span { color: #b8c4bf; font-size: .9rem; }
+    section { margin-top: 42px; }
+    h2 { margin: 0 0 16px; font-size: clamp(1.45rem, 3vw, 2.1rem); letter-spacing: -.025em; }
+    h3 { margin: 0; font-size: 1.05rem; }
+    p { margin: 8px 0 0; }
+    code { padding: .12rem .35rem; border-radius: 5px; background: #ece8dd; font: .9em ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .callout { padding: 22px 24px; border-left: 5px solid var(--green); border-radius: 12px; background: var(--green-soft); }
+    .callout strong { color: var(--green); }
+    .timeline { display: grid; grid-template-columns: 88px 20px minmax(0, 1fr); gap: 0 14px; }
+    .time { padding: 8px 0 24px; text-align: right; color: var(--muted); font: 700 .82rem ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .rail { position: relative; border-left: 2px solid var(--line); }
+    .rail::before { content: ""; position: absolute; top: 12px; left: -6px; width: 10px; height: 10px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 5px var(--amber-soft); }
+    .event { padding: 6px 0 24px; }
+    .event span { color: var(--muted); font-size: .92rem; }
+    .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .card { padding: 24px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: 0 8px 28px rgba(37,43,39,.04); }
+    .rank { display: inline-grid; place-items: center; width: 28px; height: 28px; margin-right: 8px; border-radius: 8px; background: var(--ink); color: white; font-weight: 800; }
+    .tag { display: inline-block; margin: 12px 5px 0 0; padding: 4px 9px; border-radius: 999px; background: var(--blue-soft); color: var(--blue); font-size: .75rem; font-weight: 750; text-transform: uppercase; letter-spacing: .04em; }
+    .tag.now { background: var(--green-soft); color: var(--green); }
+    .tag.gap { background: var(--amber-soft); color: var(--amber); }
+    .why { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: .91rem; }
+    .flow { display: grid; grid-template-columns: repeat(5, 1fr); align-items: stretch; gap: 10px; }
+    .step { position: relative; min-height: 138px; padding: 18px; border-radius: 14px; background: var(--ink); color: white; }
+    .step small { display: block; color: #9ed9c4; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .step b { display: block; margin-top: 8px; }
+    .step p { color: #c9d2ce; font-size: .86rem; }
+    .matrix { width: 100%; border-collapse: collapse; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+    .matrix th, .matrix td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .matrix th { background: #ece8dd; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; }
+    .matrix tr:last-child td { border-bottom: 0; }
+    .yes { color: var(--green); font-weight: 800; }
+    .no { color: var(--red); font-weight: 800; }
+    ul { margin: 10px 0 0; padding-left: 20px; }
+    li + li { margin-top: 8px; }
+    .foot { margin-top: 42px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: .85rem; }
+    a { color: var(--blue); }
+    @media (max-width: 800px) {
+      .hero-grid, .cards, .flow { grid-template-columns: 1fr; }
+      .timeline { grid-template-columns: 62px 16px minmax(0, 1fr); gap: 0 10px; }
+      .matrix { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <p class="eyebrow">Reactive opportunity scan · 11 Sep 2026</p>
+      <h1>Build an incident fast path, not a bigger E2E loop.</h1>
+      <p class="lede">The public questionnaire 500 took roughly 50 minutes to resolve. The limiting factors were observability, IAM-action coverage, and deployment granularity—not lack of test breadth or reasoning capacity.</p>
+      <div class="hero-grid" aria-label="Run summary">
+        <div class="metric"><strong>~50 min</strong><span>reported 500 → verified fix</span></div>
+        <div class="metric"><strong>1 action</strong><span>missing <code>dynamodb:ConditionCheckItem</code></span></div>
+        <div class="metric"><strong>200</strong><span>focused real first-save probe after fix</span></div>
+      </div>
+    </header>
+
+    <section>
+      <div class="callout"><strong>Highest-leverage change:</strong> create a repo-scoped <code>auditflow-live-incident</code> skill backed by safe scripts. It should move from account verification to provider evidence to a narrow repair and one disposable smoke probe. Full validation remains the final gate, not the diagnostic instrument.</div>
+    </section>
+
+    <section>
+      <h2>Where the time went</h2>
+      <div class="timeline" aria-label="Incident timeline">
+        <div class="time">T+00</div><div class="rail"></div><div class="event"><h3>Real public save returned 500</h3><span>The client-facing response and Lambda log both hid the AWS provider cause behind a generic internal error.</span></div>
+        <div class="time">T+12</div><div class="rail"></div><div class="event"><h3>Failure isolated to the deployed Lambda</h3><span>A disposable first-save probe failed through CloudFront, while an administrator-side no-write transaction validated. Useful isolation, but the admin principal did not model the Lambda boundary.</span></div>
+        <div class="time">T+25</div><div class="rail"></div><div class="event"><h3>Diagnostic code reached the Lambda</h3><span>SST still rebuilt unrelated site/PDF artifacts. This was the costly deploy that structured logging should have made unnecessary.</span></div>
+        <div class="time">T+29</div><div class="rail"></div><div class="event"><h3><code>AccessDeniedException</code> surfaced</h3><span>The inline policy looked permissive. The effective permissions boundary was then identified as the denying layer.</span></div>
+        <div class="time">T+34</div><div class="rail"></div><div class="event"><h3>Exact missing action confirmed</h3><span><code>TransactWriteItems</code> was allowed, but a transaction containing a condition check also required the distinct <code>ConditionCheckItem</code> permission.</span></div>
+        <div class="time">T+43</div><div class="rail"></div><div class="event"><h3>Narrow owner-managed IAM path found</h3><span>The managed boundary could be synchronized directly and safely after account pinning, source comparison, and readback—without waiting for a full SST rebuild.</span></div>
+        <div class="time">T+50</div><div class="rail"></div><div class="event"><h3>Fix verified and probe data removed</h3><span>The same focused first-save path returned 200; temporary records were cleaned up.</span></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>What to encode next</h2>
+      <div class="cards">
+        <article class="card">
+          <h3><span class="rank">1</span>Live-incident skill + script assets</h3>
+          <span class="tag">Skill</span><span class="tag gap">Missing</span>
+          <p>Codify the exact sequence: stage/account preflight, request correlation, structured log lookup, effective-principal inspection, focused probe, narrow deployment choice, readback, cleanup, then final validation.</p>
+          <p class="why"><b>Why this layer:</b> this is a judgment-guided, repeatable workflow with commands and safety checks. It is too procedural for <code>AGENTS.md</code> and does not require a specialist subagent.</p>
+        </article>
+        <article class="card">
+          <h3><span class="rank">2</span>Provider-error observability contract</h3>
+          <span class="tag">Shared helper + test</span><span class="tag now">Partly encoded</span>
+          <p>Every provider catch that returns a generic 500 should log a sanitized error name/code, service request ID, application request ID, and transaction cancellation codes—never tokens, bodies, or credentials.</p>
+          <p class="why"><b>Why this layer:</b> the current change fixes the journal path. A shared helper plus deterministic test prevents the same diagnostic-deploy tax in the next AWS integration.</p>
+        </article>
+        <article class="card">
+          <h3><span class="rank">3</span>IAM action-coverage gate</h3>
+          <span class="tag">CI / hook</span><span class="tag now">Partly encoded</span>
+          <p>Derive required IAM actions from the transaction primitives actually used. A <code>ConditionCheck</code> must imply <code>dynamodb:ConditionCheckItem</code>; the gate should fail if the runtime role or permissions boundary lacks it.</p>
+          <p class="why"><b>Why this layer:</b> the new verifier checks a declared action list, but the list itself can be incomplete. This is deterministic and should fail before deployment, not live traffic.</p>
+        </article>
+        <article class="card">
+          <h3><span class="rank">4</span>Approved narrow deployment automation</h3>
+          <span class="tag">Script / workflow</span><span class="tag gap">Missing</span>
+          <p>Provide two explicit test-stage paths: Lambda code-only update and owner-managed boundary sync. Both must assert the canonical target, render desired state from source, show a scoped diff, apply, read back, preserve rollback, and refuse production.</p>
+          <p class="why"><b>Why this layer:</b> SST <code>--target</code> still evaluated and built unrelated components. The direct IAM path worked in seconds, but ad hoc commands should become a reviewed, repeatable operation.</p>
+        </article>
+        <article class="card">
+          <h3><span class="rank">5</span>Safe identity preflight everywhere</h3>
+          <span class="tag">Reusable utility</span><span class="tag gap">Incomplete</span>
+          <p>Resolve the profile through STS, compare it with <code>deployment-targets.json</code>, and print only safe identity metadata. Never choose a profile by its name and never dump raw AWS config while diagnosing.</p>
+          <p class="why"><b>Why this layer:</b> the repository already states the account invariant, but maintenance and hotfix paths can bypass the deployment verifier. One utility should guard all AWS operations.</p>
+        </article>
+        <article class="card">
+          <h3><span class="rank">6</span>Focused probe catalog</h3>
+          <span class="tag">Skill asset</span><span class="tag gap">Missing</span>
+          <p>Keep small disposable probes for public first save, authenticated API access, private file access, and invitation acceptance. Each probe creates invented data, reports the request ID, and cleans up idempotently.</p>
+          <p class="why"><b>Why this layer:</b> the real endpoint probe was decisive. Turning temporary scripts into maintained assets removes quoting failures and avoids broad browser/E2E setup.</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>Desired incident fast path</h2>
+      <div class="flow" aria-label="Future five-step incident workflow">
+        <div class="step"><small>01 · 30 sec</small><b>Pin identity</b><p>Stage, account, region, deployed function, request ID.</p></div>
+        <div class="step"><small>02 · 2 min</small><b>Read provider cause</b><p>Structured Lambda event; no diagnostic redeploy.</p></div>
+        <div class="step"><small>03 · 2 min</small><b>Check effective auth</b><p>Role + boundary + all SDK sub-actions.</p></div>
+        <div class="step"><small>04 · 3 min</small><b>Apply narrow repair</b><p>Source-bound, test-only, diffed, reversible.</p></div>
+        <div class="step"><small>05 · 2 min</small><b>Probe once</b><p>Invented record, 200 assertion, cleanup, then full gate.</p></div>
+      </div>
+      <p><b>Proposed operational target:</b> evidence-backed root cause in under 5 minutes and a verified test-stage hotfix in under 10 minutes when the change is eligible for a narrow path.</p>
+    </section>
+
+    <section>
+      <h2>Capability fit</h2>
+      <table class="matrix">
+        <thead><tr><th>Primitive</th><th>Use here?</th><th>Reason</th></tr></thead>
+        <tbody>
+          <tr><td><code>AGENTS.md</code></td><td class="yes">Keep lean</td><td>The account and deployment invariants already belong here. Add at most one pointer to the incident skill; do not paste the procedure into always-on context.</td></tr>
+          <tr><td>Skill</td><td class="yes">Yes</td><td>Best home for a reusable incident workflow and its probe/deployment scripts.</td></tr>
+          <tr><td>Hook / CI gate</td><td class="yes">Yes</td><td>Best for deterministic IAM coverage and blocking unsafe AWS mutations before they run.</td></tr>
+          <tr><td>Custom subagent</td><td class="no">No</td><td>The bottleneck was missing evidence and slow deployment mechanics, not lack of parallel code exploration.</td></tr>
+          <tr><td>MCP server</td><td class="no">Not yet</td><td>AWS CLI/SDK access is sufficient. Maintained local scripts are cheaper and easier to audit; consider MCP only if the workflow expands across several external systems.</td></tr>
+          <tr><td>Full E2E</td><td class="no">Not for diagnosis</td><td>Keep E2E for release confidence. A single contract-specific live probe is the correct feedback loop for this incident class.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Recommended encoding order</h2>
+      <ol>
+        <li><b>Generalize the structured provider-error helper</b> and cover generic-500 boundaries with tests.</li>
+        <li><b>Add the derived IAM action gate</b> so transaction primitives and effective boundary permissions cannot drift.</li>
+        <li><b>Build reviewed test-only scripts</b> for identity preflight, log correlation, boundary sync, Lambda-only update, and disposable probes.</li>
+        <li><b>Wrap those assets in <code>auditflow-live-incident</code></b>, with a stop condition that escalates to full SST/E2E only when the narrow path is unsafe or insufficient.</li>
+      </ol>
+      <p>The current fix already supplies the journal diagnostic log, the missing action, regression tests, and a live-boundary verifier. The remaining opportunity is to connect those pieces into the short path above.</p>
+    </section>
+
+    <footer class="foot">
+      Evidence: the full Codex session artifact, final source diff, project AWS operations contract, current hooks and skills. Capability selection follows OpenAI’s guidance on <a href="https://learn.chatgpt.com/docs/customization/overview">AGENTS.md, skills, hooks, MCP, and subagents</a>. Sensitive query tokens and credentials were excluded from this report.
+    </footer>
+  </main>
+</body>
+</html>

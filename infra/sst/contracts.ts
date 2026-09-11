@@ -494,6 +494,7 @@ export const zipWorkerContract = {
   },
   permissions: {
     journalActions: [
+      "dynamodb:ConditionCheckItem",
       "dynamodb:GetItem",
       "dynamodb:Query",
       "dynamodb:TransactWriteItems",

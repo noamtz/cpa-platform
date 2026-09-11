@@ -72,6 +72,25 @@ BLOCKED_BARE_GH_MESSAGE = (
 
 BARE_GH_COMMAND = re.compile(r"(?:^|[;&|]\s*)gh(?:\.exe)?\s", re.IGNORECASE)
 REMOTE_MUTATION = re.compile(r"\bgit\s+remote\s+(?:add|set-url)\b", re.IGNORECASE)
+RAW_AUDITFLOW_AWS_MUTATIONS = (
+    re.compile(
+        r"(?:^|[;&|]\s*)aws(?:\.exe)?"
+        r"(?:\s+--(?:profile|region)\s+\S+)*"
+        r"\s+iam\s+(?:create-policy-version|delete-policy-version|set-default-policy-version)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(?:^|[;&|]\s*)aws(?:\.exe)?"
+        r"(?:\s+--(?:profile|region)\s+\S+)*"
+        r"\s+lambda\s+update-function-code\b",
+        re.IGNORECASE,
+    ),
+)
+BLOCKED_RAW_AWS_MUTATION_MESSAGE = (
+    "BLOCKED: direct AuditFlow IAM policy-version and Lambda code mutations bypass "
+    "the account-pinned incident workflow. Use 'npm run incident:test -- ...' for "
+    "supported test-stage operations; use the normal SST workflow for Lambda code."
+)
 
 
 def deny(reason: str) -> None:
@@ -149,6 +168,13 @@ def mutates_remote_away_from_expected(tool_name: str, tool_input: Any) -> bool:
     return bool(REMOTE_MUTATION.search(command) and EXPECTED_GITHUB_REMOTE.lower() not in command.lower())
 
 
+def uses_raw_auditflow_aws_mutation(tool_name: str, tool_input: Any) -> bool:
+    if tool_name != "Bash":
+        return False
+    command = _command_text(tool_input)
+    return any(pattern.search(command) for pattern in RAW_AUDITFLOW_AWS_MUTATIONS)
+
+
 def origin_matches_expected() -> bool:
     result = subprocess.run(
         ["git", "remote", "get-url", "origin"],
@@ -181,6 +207,10 @@ def main() -> None:
 
         if uses_bare_github_cli(tool_name, tool_input):
             deny(BLOCKED_BARE_GH_MESSAGE)
+            return
+
+        if uses_raw_auditflow_aws_mutation(tool_name, tool_input):
+            deny(BLOCKED_RAW_AWS_MUTATION_MESSAGE)
             return
 
         if mutates_remote_away_from_expected(tool_name, tool_input):

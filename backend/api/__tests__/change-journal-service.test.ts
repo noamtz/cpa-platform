@@ -149,6 +149,23 @@ describe("ChangeJournalService", () => {
     expect(send).toHaveBeenCalledTimes(2);
   });
 
+  it("preserves an unexpected provider failure for boundary-level diagnostics", async () => {
+    const unexpected = Object.assign(new Error("provider diagnostic"), {
+      name: "AccessDeniedException",
+      $metadata: { requestId: "aws-request-1" },
+    });
+    const send = vi.fn().mockResolvedValueOnce({}).mockRejectedValueOnce(unexpected);
+    const service = new ChangeJournalService({
+      client: { send },
+      tableName: "ChangeJournalTable.test",
+    });
+
+    await expect(service.commit(input())).rejects.toMatchObject({
+      statusCode: 500,
+      cause: unexpected,
+    });
+  });
+
   it("does not misclassify a later business-action conflict as a cursor retry", async () => {
     const laterBusinessConflict = Object.assign(new Error("not exposed"), {
       name: "TransactionCanceledException",

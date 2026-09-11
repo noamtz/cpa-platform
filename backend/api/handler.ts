@@ -18,6 +18,7 @@ import {
 import { ApiError, normalizeApiError } from "./core/errors";
 import { errorResponse, jsonResponse } from "./core/http";
 import { getRequestId } from "./core/request-context";
+import { providerErrorDiagnostics } from "./core/provider-diagnostics";
 import { ApiRouter } from "./core/router";
 import { ClientRepository } from "./repositories/client";
 import type { DynamoDocumentClient } from "./repositories/dynamo";
@@ -346,7 +347,7 @@ export function createHandler(
       if (normalized.statusCode === 500) {
         console.error("AuditFlow API request failed", {
           requestId: getRequestId(event),
-          errorName: error instanceof Error ? error.name : "UnknownError",
+          ...providerErrorDiagnostics(error),
           message: "Unhandled API error",
         });
       }

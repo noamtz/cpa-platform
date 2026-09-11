@@ -398,6 +398,7 @@ function verifyContract(contract, deploymentTargets, stage) {
         JSON.stringify(["s3:GetObject"]) &&
       JSON.stringify(contract.zipWorker.permissions.journalActions) ===
         JSON.stringify([
+          "dynamodb:ConditionCheckItem",
           "dynamodb:GetItem",
           "dynamodb:Query",
           "dynamodb:TransactWriteItems",
@@ -1647,6 +1648,17 @@ async function verifyLive(
         ),
     ),
     "Workload permissions boundary permits global, IAM, or STS access.",
+  );
+  const workloadDynamoActions = asArray(
+    workloadBoundaryDocument.Statement.find(
+      ({ Sid }) => Sid === "WorkloadDynamoData",
+    )?.Action,
+  );
+  assert(
+    contract.zipWorker.permissions.journalActions.every((action) =>
+      workloadDynamoActions.includes(action),
+    ),
+    "Workload permissions boundary is missing a required journal action.",
   );
 
   const workloadProbeArn = roleArn.replace(

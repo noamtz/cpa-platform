@@ -336,6 +336,7 @@ def validate_github_identity_hook(errors: list[str]) -> None:
         'FORBIDDEN_GITHUB_USER = "' + FORBIDDEN_GITHUB_USER + '"': "forbidden GitHub user",
         'EXPECTED_GITHUB_REMOTE = "git@github.com:noamtz/cpa-platform.git"': "expected Git remote",
         "uses_bare_github_cli": "bare GitHub CLI gate",
+        "uses_raw_auditflow_aws_mutation": "raw AuditFlow AWS mutation gate",
         "origin_matches_expected": "origin validation",
     }
     for token, purpose in required.items():
@@ -353,6 +354,36 @@ def validate_github_identity_hook(errors: list[str]) -> None:
             {"tool_name": "Bash", "tool_input": {"command": f"echo {FORBIDDEN_GITHUB_USER}"}},
             True,
             "forbidden GitHub identity",
+        ),
+        (
+            {
+                "tool_name": "Bash",
+                "tool_input": {
+                    "command": "aws --profile owner iam create-policy-version --policy-arn example"
+                },
+            },
+            True,
+            "raw IAM boundary mutation",
+        ),
+        (
+            {
+                "tool_name": "Bash",
+                "tool_input": {
+                    "command": "aws.exe --region il-central-1 lambda update-function-code --function-name auditflow-test-api"
+                },
+            },
+            True,
+            "raw Lambda code mutation",
+        ),
+        (
+            {
+                "tool_name": "Bash",
+                "tool_input": {
+                    "command": "npm run incident:test -- boundary-diff --stage test --profile owner"
+                },
+            },
+            False,
+            "account-pinned incident command",
         ),
         (
             {"tool_name": "mcp__github-projects__list_projects", "tool_input": {}},
