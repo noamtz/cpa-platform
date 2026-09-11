@@ -170,6 +170,23 @@ async function optionalStatus(options: ZipWorkerOptions, jobId: string) {
   }
 }
 
+async function settleTerminalActivity(
+  options: ZipWorkerOptions,
+  jobId: string,
+) {
+  if (!options.maintenance) return;
+  try {
+    const intent = await options.maintenance.getExternalActivity(
+      `zip-job:${jobId}`,
+    );
+    if (intent?.status === "ACTIVE") {
+      await options.maintenance.resolveExternalActivity(intent);
+    }
+  } catch (error) {
+    throw new ZipWorkerRetryError("settle_terminal_activity", error);
+  }
+}
+
 function leaseRecord(jobId: string, ownerId: string, clock: () => Date) {
   return zipProcessingLeaseSchema.parse({
     version: 1,
@@ -356,7 +373,10 @@ async function processJob(
     return;
   }
   const existing = await optionalStatus(options, jobId);
-  if (existing) return;
+  if (existing) {
+    await settleTerminalActivity(options, jobId);
+    return;
+  }
   let request: ObjectBody;
   try {
     request = (await options.s3.send(
