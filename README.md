@@ -49,8 +49,9 @@ completed successfully. The SST test stack remains in synthetic-only mode until 
 the separately protected post-merge enablement is dispatched from `main`:
 the application API and ZIP worker reject every legacy reference before reading or signing its S3 object, while
 owned references created by disposable AWS test uploads remain available. The bounded
-`docs/migration/private-file-import-verification.json` artifact records zero unresolved references. Missing, stale,
-or failed evidence still blocks the protected enablement and production cutover. The operator sequence is documented in
+`docs/migration/private-file-import-verification.json` artifact records zero unresolved references. Missing, failed,
+or manifest-mismatched evidence blocks protected test re-enablement; evidence age alone does not block access to the
+already accepted test snapshot. Production cutover remains separately protected. The operator sequence is documented in
 [`docs/migration/base44-import-runbook.md`](docs/migration/base44-import-runbook.md).
 
 Drive and Telegram endpoints deliberately return HTTP 501 with `FEATURE_NOT_IMPLEMENTED`; they do not construct

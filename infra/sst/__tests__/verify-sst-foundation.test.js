@@ -170,7 +170,7 @@ describe("test deployer permission verification", () => {
       "github.event_name == 'workflow_dispatch' && inputs.enable_legacy_file_reads && 'true' || 'false'",
     );
     expect(workflow).toContain('[[ "${GITHUB_REF}" == "refs/heads/main" ]]');
-    expect(workflow).toContain("npm run verify:file-cutover:test");
+    expect(workflow).toContain('checkPrivateFileCutover({ stage: "test", requireFresh: false })');
     expect(workflow).toContain(
       "environments/test-legacy-read-enable/deployment-branch-policies?per_page=100",
     );

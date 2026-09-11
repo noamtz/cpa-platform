@@ -155,12 +155,11 @@ jobs:
             [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]
             [[ "${GITHUB_REF}" == "refs/heads/main" ]]
             [[ "${AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256}" =~ ^[a-f0-9]{64}$ ]]
-            npm run verify:file-cutover:test
             node --input-type=module <<'NODE'
           import { checkPrivateFileCutover } from "./tooling/verify_private_file_cutover.mjs";
-          const result = checkPrivateFileCutover({ stage: "test" });
+          const result = checkPrivateFileCutover({ stage: "test", requireFresh: false });
           if (!result.ready || result.sourceManifestSha256 !== process.env.AUDITFLOW_EXPECTED_LEGACY_IMPORT_MANIFEST_SHA256) {
-            throw new Error("Requested manifest does not match fresh verified import evidence");
+            throw new Error("Requested manifest does not match verified import evidence");
           }
           NODE
           else

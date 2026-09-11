@@ -46,6 +46,7 @@ export function resolvePrivateFileCutover({
 
   const evidence = checkPrivateFileCutover({
     stage,
+    requireFresh: false,
     ...(repositoryRoot ? { root: repositoryRoot } : {}),
     ...(evidencePath ? { evidencePath } : {}),
     ...(now === undefined ? {} : { now }),
