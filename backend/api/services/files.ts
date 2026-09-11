@@ -91,9 +91,49 @@ type HeadResult = {
 type DeleteResult = { readonly VersionId?: string; readonly DeleteMarker?: boolean };
 type GetResult = {
   readonly Body?: {
+    transformToByteArray?(): Promise<Uint8Array>;
     transformToString?(): Promise<string>;
   };
 };
+
+const contentTypeByExtension: Readonly<Record<string, string>> = Object.freeze({
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  heic: "image/heic",
+  heif: "image/heif",
+});
+
+function contentTypeFromReference(reference: unknown) {
+  if (typeof reference !== "string") return undefined;
+  const withoutQueryOrFragment = reference.split(/[?#]/, 1)[0];
+  return contentTypeByExtension[safeStoredExtension(withoutQueryOrFragment)];
+}
+
+export function contentTypeFromFileBytes(bytes: Uint8Array) {
+  if (bytes.length >= 5 && new TextDecoder().decode(bytes.slice(0, 5)) === "%PDF-") {
+    return "application/pdf";
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (
+    bytes.length >= 8 &&
+    [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
+      .every((value, index) => bytes[index] === value)
+  ) {
+    return "image/png";
+  }
+  if (bytes.length >= 12) {
+    const brand = new TextDecoder().decode(bytes.slice(4, 12));
+    if (["ftypheic", "ftypheix", "ftyphevc", "ftyphevx"].includes(brand)) {
+      return "image/heic";
+    }
+    if (["ftypmif1", "ftypmsf1"].includes(brand)) return "image/heif";
+  }
+  return undefined;
+}
 
 function purposeSlug(purpose: string) {
   return purpose.replaceAll("_", "-");
@@ -625,6 +665,7 @@ export class FileService {
     reference: unknown,
     ownedPrefixes: readonly string[],
     legacyOwner: { readonly entity: "Submission" | "PdfTemplate"; readonly id: string },
+    expectedContentType?: string,
   ) {
     let key: string;
     let kind: "owned" | "legacy";
@@ -643,19 +684,49 @@ export class FileService {
     if (kind === "legacy") {
       await this.assertLegacyBinding(key, legacyOwner.entity, legacyOwner.id);
     }
+    let head: HeadResult;
     try {
-      await this.options.s3.send(
+      head = (await this.options.s3.send(
         new HeadObjectCommand({ Bucket: this.options.filesBucketName, Key: key }),
-      );
+      )) as HeadResult;
     } catch (error) {
       if (isMissingObject(error)) throw notFound("File not found");
       throw internalError();
     }
+    const expectedContentTypeResult = allowedContentTypeSchema.safeParse(expectedContentType);
+    const storedContentTypeResult = allowedContentTypeSchema.safeParse(head.ContentType);
+    let contentType = expectedContentTypeResult.success
+      ? expectedContentTypeResult.data
+      : storedContentTypeResult.success
+        ? storedContentTypeResult.data
+        : contentTypeFromReference(reference);
+    if (!contentType && kind === "legacy") {
+      try {
+        const sample = (await this.options.s3.send(
+          new GetObjectCommand({
+            Bucket: this.options.filesBucketName,
+            Key: key,
+            Range: "bytes=0-31",
+          }),
+        )) as GetResult;
+        const bytes = await sample.Body?.transformToByteArray?.();
+        if (bytes) contentType = contentTypeFromFileBytes(bytes);
+      } catch {
+        // Type detection is best-effort after the authorized object existence check.
+      }
+    }
     const signedUrl = await this.options.presign(
-      new GetObjectCommand({ Bucket: this.options.filesBucketName, Key: key }),
+      new GetObjectCommand({
+        Bucket: this.options.filesBucketName,
+        Key: key,
+        ...(contentType ? { ResponseContentType: contentType } : {}),
+      }),
       READ_URL_TTL_SECONDS,
     );
-    return { signed_url: signedUrl };
+    return {
+      signed_url: signedUrl,
+      ...(contentType ? { content_type: contentType } : {}),
+    };
   }
 
   async getPublicSignedPdfUrl(input: PublicSignedPdfUrlInput) {
@@ -666,7 +737,7 @@ export class FileService {
     if (!reference) throw notFound("PDF file not found for this step");
     return this.signedUrlFor(reference, [
       submissionPrefix(client.id, submission.id, ""),
-    ], { entity: "Submission", id: submission.id });
+    ], { entity: "Submission", id: submission.id }, "application/pdf");
   }
 
   async getPublicTemplateFileUrl(input: PublicTemplateFileUrlInput) {
@@ -676,7 +747,7 @@ export class FileService {
     return this.signedUrlFor(reference, [
       templatePrefix(input.template_id),
       templatePrefix("pending"),
-    ], { entity: "PdfTemplate", id: template.id });
+    ], { entity: "PdfTemplate", id: template.id }, "application/pdf");
   }
 
   async getPublicPdfTemplate(input: PublicPdfTemplateReadInput) {
@@ -715,7 +786,8 @@ export class FileService {
     if (!reference) throw notFound("File not found");
     return this.signedUrlFor(reference, [
       submissionPrefix(client.id, submission.id, ""),
-    ], { entity: "Submission", id: submission.id });
+    ], { entity: "Submission", id: submission.id },
+    input.source === "signed_pdf" ? "application/pdf" : undefined);
   }
 
   async getCpaTemplateFileUrl(templateId: string, actor: CpaActor) {
@@ -727,7 +799,7 @@ export class FileService {
     return this.signedUrlFor(reference, [
       templatePrefix(templateId),
       templatePrefix("pending"),
-    ], { entity: "PdfTemplate", id: template.id });
+    ], { entity: "PdfTemplate", id: template.id }, "application/pdf");
   }
 
   async validateCpaTemplateReference(

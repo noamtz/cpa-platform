@@ -314,12 +314,62 @@ describe("FileService scoped reads and deletion", () => {
         token: "synthetic-link-value",
         step_id: "step-test",
       }),
-    ).resolves.toEqual({ signed_url: "https://signed.example.test/object" });
+    ).resolves.toEqual({
+      signed_url: "https://signed.example.test/object",
+      content_type: "application/pdf",
+    });
     const getCommand = presign.mock.calls[0][0];
     expect(getCommand).toBeInstanceOf(GetObjectCommand);
     const { Key: objectKey } = getCommand.input;
     expect(objectKey).toMatch(/^legacy\/[a-f0-9]{64}$/);
     expect(objectKey).not.toContain("synthetic");
+  });
+
+  it("detects the content type of an extensionless imported submission file", async () => {
+    const legacyReference = "private/submission-fixture/form-106";
+    const submissions = {
+      get: vi.fn().mockResolvedValue({
+        ...submission,
+        responses: JSON.stringify({
+          "step-test": { answer: true, files: [legacyReference] },
+        }),
+      }),
+    } as unknown as SubmissionRepository;
+    const { service, send, presign } = setup({ submissions });
+    send.mockImplementation(async (command) => {
+      if (command instanceof GetObjectCommand) {
+        return {
+          Body: {
+            transformToByteArray: async () =>
+              new TextEncoder().encode("%PDF-1.7 synthetic"),
+          },
+        };
+      }
+      return {};
+    });
+
+    await expect(
+      service.getCpaSubmissionFileUrl(
+        {
+          submission_id: submission.id,
+          source: "response",
+          step_id: "step-test",
+          file_index: 0,
+        },
+        actor,
+      ),
+    ).resolves.toEqual({
+      signed_url: "https://signed.example.test/object",
+      content_type: "application/pdf",
+    });
+    const sampleCommand = send.mock.calls
+      .map(([command]) => command)
+      .find((command) => command instanceof GetObjectCommand);
+    expect(sampleCommand?.input).toMatchObject({ Range: "bytes=0-31" });
+    const signedCommand = presign.mock.calls[0][0];
+    expect(signedCommand.input).toMatchObject({
+      ResponseContentType: "application/pdf",
+    });
   });
 
   it("rejects public and CPA reads when a legacy object lacks this submission's binding", async () => {
@@ -636,14 +686,20 @@ describe("FileService scoped reads and deletion", () => {
     });
     await expect(
       service.getCpaTemplateFileUrl("template-test", actor),
-    ).resolves.toEqual({ signed_url: "https://signed.example.test/object" });
+    ).resolves.toEqual({
+      signed_url: "https://signed.example.test/object",
+      content_type: "application/pdf",
+    });
     await expect(
       service.getPublicTemplateFileUrl({
         client_id: client.id,
         token: "synthetic-link-value",
         template_id: "template-test",
       }),
-    ).resolves.toEqual({ signed_url: "https://signed.example.test/object" });
+    ).resolves.toEqual({
+      signed_url: "https://signed.example.test/object",
+      content_type: "application/pdf",
+    });
     expect(journal.commit).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: actor.userId,

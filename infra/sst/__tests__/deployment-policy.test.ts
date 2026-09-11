@@ -281,6 +281,7 @@ describe("workload permissions boundary", () => {
     const serialized = JSON.stringify(boundary);
 
     expect(serialized).toContain("auditflow-test-");
+    expect(serialized).toContain("dynamodb:ConditionCheckItem");
     expect(serialized).not.toContain('"iam:');
     expect(serialized).not.toContain('"sts:');
     expect(
