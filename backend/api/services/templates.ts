@@ -84,8 +84,8 @@ function reloadConflict(code: string) {
 function projectQuestionnaire(record: QuestionnaireTemplateRecord) {
   try {
     return publicTemplate(record);
-  } catch {
-    throw internalError();
+  } catch (error) {
+    throw internalError(error);
   }
 }
 
@@ -139,11 +139,11 @@ export class TemplateService {
     } catch (error) {
       if (error instanceof ApiError && error.statusCode === 503) throw error;
       const winner = await this.options.questionnaireTemplates.getActiveGuard();
-      if (!winner) throw internalError();
+      if (!winner) throw internalError(error);
       const winnerRecord = await this.options.questionnaireTemplates.get(
         winner.active_template_id,
       );
-      if (!winnerRecord || !winnerRecord.is_active) throw internalError();
+      if (!winnerRecord || !winnerRecord.is_active) throw internalError(error);
       return { guard: winner, record: winnerRecord };
     }
   }
@@ -158,8 +158,8 @@ export class TemplateService {
     const records = await this.options.questionnaireTemplates.history(100);
     try {
       return { versions: records.map(questionnaireTemplateHistory) };
-    } catch {
-      throw internalError();
+    } catch (error) {
+      throw internalError(error);
     }
   }
 

@@ -1,3 +1,7 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -17,6 +21,94 @@ function actions(statement: IamPolicyStatement): readonly string[] {
   return Array.isArray(statement.Action)
     ? statement.Action
     : [statement.Action as string];
+}
+
+const dynamoCommandActions = new Map([
+  ["BatchGetCommand", "dynamodb:BatchGetItem"],
+  ["BatchWriteCommand", "dynamodb:BatchWriteItem"],
+  ["DeleteCommand", "dynamodb:DeleteItem"],
+  ["GetCommand", "dynamodb:GetItem"],
+  ["PutCommand", "dynamodb:PutItem"],
+  ["QueryCommand", "dynamodb:Query"],
+  ["ScanCommand", "dynamodb:Scan"],
+  ["TransactGetCommand", "dynamodb:TransactGetItems"],
+  ["TransactWriteCommand", "dynamodb:TransactWriteItems"],
+  ["UpdateCommand", "dynamodb:UpdateItem"],
+]);
+
+const transactionPrimitiveActions = new Map([
+  ["ConditionCheck", "dynamodb:ConditionCheckItem"],
+  ["Delete", "dynamodb:DeleteItem"],
+  ["Put", "dynamodb:PutItem"],
+  ["Update", "dynamodb:UpdateItem"],
+]);
+
+function runtimeDynamoActionCoverage() {
+  const apiRoot = resolve(import.meta.dirname, "../../../backend/api");
+  const files = readdirSync(apiRoot, { recursive: true, withFileTypes: true })
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        entry.name.endsWith(".ts") &&
+        !entry.parentPath.includes("__tests__"),
+    )
+    .map((entry) => resolve(entry.parentPath, entry.name));
+  const required = new Set<string>();
+  const unknownCommands = new Set<string>();
+
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    const sourceFile = ts.createSourceFile(
+      file,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    let usesTransactions = false;
+    for (const statement of sourceFile.statements) {
+      if (
+        !ts.isImportDeclaration(statement) ||
+        !ts.isStringLiteral(statement.moduleSpecifier) ||
+        !["@aws-sdk/client-dynamodb", "@aws-sdk/lib-dynamodb"].includes(
+          statement.moduleSpecifier.text,
+        )
+      ) {
+        continue;
+      }
+      for (const element of statement.importClause?.namedBindings &&
+      ts.isNamedImports(statement.importClause.namedBindings)
+        ? statement.importClause.namedBindings.elements
+        : []) {
+        if (element.isTypeOnly) continue;
+        const name = element.propertyName?.text ?? element.name.text;
+        if (!name.endsWith("Command")) continue;
+        const action = dynamoCommandActions.get(name);
+        if (action) required.add(action);
+        else unknownCommands.add(name);
+        if (name === "TransactWriteCommand") usesTransactions = true;
+      }
+    }
+    if (!usesTransactions) continue;
+    const visit = (node: ts.Node) => {
+      if (ts.isPropertyAssignment(node)) {
+        const name = ts.isIdentifier(node.name)
+          ? node.name.text
+          : ts.isStringLiteral(node.name)
+            ? node.name.text
+            : undefined;
+        const action = name ? transactionPrimitiveActions.get(name) : undefined;
+        if (action) required.add(action);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+  }
+
+  return {
+    required: [...required].sort(),
+    unknownCommands: [...unknownCommands].sort(),
+  };
 }
 
 describe("test deployment IAM policy", () => {
@@ -281,10 +373,25 @@ describe("workload permissions boundary", () => {
     const serialized = JSON.stringify(boundary);
 
     expect(serialized).toContain("auditflow-test-");
+    expect(serialized).toContain("dynamodb:ConditionCheckItem");
     expect(serialized).not.toContain('"iam:');
     expect(serialized).not.toContain('"sts:');
     expect(
       boundary.Statement.every(({ Resource }) => Resource !== "*"),
     ).toBe(true);
+  });
+
+  it("covers every DynamoDB command and transaction primitive used by the runtime", () => {
+    const boundary = buildWorkloadBoundaryPolicy(accountId, "test");
+    const granted = new Set(
+      actions(
+        boundary.Statement.find(({ Sid }) => Sid === "WorkloadDynamoData")!,
+      ),
+    );
+    const coverage = runtimeDynamoActionCoverage();
+
+    expect(coverage.unknownCommands).toEqual([]);
+    expect(coverage.required.filter((action) => !granted.has(action))).toEqual([]);
+    expect(coverage.required).toContain("dynamodb:ConditionCheckItem");
   });
 });

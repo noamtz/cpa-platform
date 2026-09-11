@@ -117,6 +117,23 @@ implicit initial bootstrap, forces legacy reads off, and requires explicit prepa
 The account-level GitHub OIDC provider remains Terraform-owned, while SST owns only this issue-scoped role and the
 new serverless foundation resources.
 
+### Deployment cockpit
+
+Generate a local, self-contained operations dashboard from the repository contracts and available SST output
+snapshots:
+
+```powershell
+npm run cockpit
+```
+
+The command writes the ignored `.sst/deployment-cockpit.html` file and opens it in the default browser. Use
+`npm run cockpit:generate` when the file should be generated without opening it. The cockpit provides stage and
+ownership summaries, resource identifiers and AWS Console links, GitHub Environment and workflow links, endpoints,
+and copyable deployment/verification commands. It is a local snapshot, not a live-health assertion; regenerate it
+after every deployment. Supply an additional stage snapshot with
+`node tooling/generate_deployment_cockpit.mjs --outputs <path>` when needed. Never commit or publish the generated
+file because it can contain operational resource identifiers.
+
 The separate SST PDF renderer/generator, synthetic cross-endpoint verifier, same-origin `/pdf` selection, browser
 acceptance matrix, and legacy test rollback switch are documented in
 [`docs/migration/pdf-parity-runbook.md`](docs/migration/pdf-parity-runbook.md). Local parity does not authorize a
