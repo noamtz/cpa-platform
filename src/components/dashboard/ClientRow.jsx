@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { fileClient } from "@/api/file-client";
 import { getStepProgress, getAllFiles, getStepSummary } from "@/lib/submission-compat";
+import { getFileExtension } from "@/lib/file-preview";
 import { DEFAULT_STEPS, getActiveSteps } from "@/lib/default-template";
 import { filterStepsByClientConditions } from "@/lib/questionnaire-template";
 import {
@@ -24,13 +25,8 @@ const DialogContent = /** @type {React.ComponentType<any>} */ (UntypedDialogCont
 const DialogDescription = /** @type {React.ComponentType<any>} */ (UntypedDialogDescription);
 const DialogTitle = /** @type {React.ComponentType<any>} */ (UntypedDialogTitle);
 
-function getFileExt(url) {
-  const clean = url?.split('?')[0] || '';
-  return clean.split('.').pop()?.toLowerCase() || 'file';
-}
-
-function FilePreviewModal({ url, label, onClose }) {
-  const ext = getFileExt(url);
+function FilePreviewModal({ url, label, extension, onClose }) {
+  const ext = extension || getFileExtension(label, url);
   const isImage = ['jpg', 'jpeg', 'png', 'heic', 'webp', 'gif'].includes(ext);
   const isPdf = ext === 'pdf';
 
@@ -457,8 +453,8 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                   <div key={group.stepId} className="bg-white rounded-xl border border-border p-3 space-y-1.5">
                     <p className="text-xs font-medium text-muted-foreground">{group.label}</p>
                     {group.files.map((fileUri, idx) => {
-                      const ext = getFileExt(fileUri);
                       const fileName = group.file_names?.[idx] || `קובץ ${idx + 1}`;
+                      const ext = getFileExtension(fileName, fileUri);
                       const fileLabel = `${group.label} — ${fileName}`;
                       return (
                         <div
@@ -470,7 +466,7 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                               source: group.source,
                               fileIndex: idx,
                             });
-                            if (signedUrl) setPreviewFile({ url: signedUrl, label: fileLabel });
+                            if (signedUrl) setPreviewFile({ url: signedUrl, label: fileLabel, extension: ext });
                           }}
                         >
                           <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
@@ -559,7 +555,11 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                               stepId: record.step_id,
                               source: "signed_pdf",
                             });
-                            if (signedUrl) setPreviewFile({ url: signedUrl, label: record.step_title || "טופס חתום" });
+                            if (signedUrl) setPreviewFile({
+                              url: signedUrl,
+                              label: record.step_title || "טופס חתום",
+                              extension: "pdf",
+                            });
                           }}
                         >
                           <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
@@ -832,6 +832,7 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
         <FilePreviewModal
           url={previewFile.url}
           label={previewFile.label}
+          extension={previewFile.extension}
           onClose={() => setPreviewFile(null)}
         />
       )}
