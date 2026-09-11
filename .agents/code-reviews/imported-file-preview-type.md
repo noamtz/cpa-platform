@@ -7,15 +7,16 @@
 ## Scope
 
 Reviewed imported-file type detection, the authorized legacy-object read path, S3 response headers, preview state
-propagation, signed-PDF handling, and regression coverage. The change does not alter file ownership checks, legacy
-manifest binding, imported data, or AWS resources.
+propagation, signed-PDF handling, and regression coverage. Also verified that the test workload boundary retains the
+DynamoDB transaction primitive already required by the runtime and present in the deployed boundary. The change does
+not alter file ownership checks, legacy manifest binding, imported data, or production AWS resources.
 
 ## Stats
 
-- Files Modified: 3
+- Files Modified: 5
 - Files Added: 3
 - Files Deleted: 0
-- New lines: 285
+- New lines: 292
 - Deleted lines: 36
 
 ## Findings
@@ -25,6 +26,10 @@ manifest binding, imported data, or AWS resources.
   not always have useful content-type metadata. The API now samples only the first 32 bytes after authorization and
   manifest-binding checks, recognizes supported PDF/image signatures, and signs the URL with the correct response
   content type. The UI consumes that authorized content type.
+- **High — fixed:** the PR deployment exposed source/deployed workload-boundary drift. Source omitted
+  `dynamodb:ConditionCheckItem` even though runtime transactions require it and the deployed test boundary already
+  contains it. The source policy and focused assertion now preserve that least-privilege action, avoiding an unsafe
+  removal attempt during deployment.
 
 ## Verdict
 

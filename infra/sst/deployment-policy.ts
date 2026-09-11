@@ -126,6 +126,7 @@ export function buildWorkloadBoundaryPolicy(
         Action: [
           "dynamodb:BatchGetItem",
           "dynamodb:BatchWriteItem",
+          "dynamodb:ConditionCheckItem",
           "dynamodb:DeleteItem",
           "dynamodb:DescribeTable",
           "dynamodb:GetItem",
