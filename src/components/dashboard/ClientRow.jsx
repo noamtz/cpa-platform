@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { fileClient } from "@/api/file-client";
 import { getStepProgress, getAllFiles, getStepSummary } from "@/lib/submission-compat";
-import { getFileExtension } from "@/lib/file-preview";
+import { getContentTypeExtension, getFileExtension } from "@/lib/file-preview";
 import { DEFAULT_STEPS, getActiveSteps } from "@/lib/default-template";
 import { filterStepsByClientConditions } from "@/lib/questionnaire-template";
 import {
@@ -128,19 +128,18 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
 
   // The submission currently being displayed in the expanded panel
   const displayedSubmission = viewingSubmission ?? submission;
-  const getSignedUrl = async ({
+  const getSignedFile = async ({
     stepId,
     source = "response",
     fileIndex = undefined,
   }) => {
     try {
-      const { signed_url } = await fileClient.getCpaSubmissionFileUrl({
+      return await fileClient.getCpaSubmissionFileUrl({
         submission_id: displayedSubmission.id,
         source,
         step_id: stepId,
         ...(source === "response" ? { file_index: fileIndex } : {}),
       });
-      return signed_url;
     } catch {
       return null;
     }
@@ -461,12 +460,16 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                           key={idx}
                           className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 cursor-pointer hover:bg-primary/5 transition-colors"
                           onClick={async () => {
-                            const signedUrl = await getSignedUrl({
+                            const signedFile = await getSignedFile({
                               stepId: group.stepId,
                               source: group.source,
                               fileIndex: idx,
                             });
-                            if (signedUrl) setPreviewFile({ url: signedUrl, label: fileLabel, extension: ext });
+                            if (signedFile) setPreviewFile({
+                              url: signedFile.signed_url,
+                              label: fileLabel,
+                              extension: getContentTypeExtension(signedFile.content_type) || ext,
+                            });
                           }}
                         >
                           <FileText className="w-3.5 h-3.5 text-primary flex-shrink-0" />
@@ -475,12 +478,12 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
-                              const signedUrl = await getSignedUrl({
+                              const signedFile = await getSignedFile({
                                 stepId: group.stepId,
                                 source: group.source,
                                 fileIndex: idx,
                               });
-                              if (signedUrl) window.open(signedUrl, '_blank');
+                              if (signedFile) window.open(signedFile.signed_url, '_blank');
                             }}
                             className="text-primary hover:text-primary/80"
                             title="פתיחה"
@@ -490,13 +493,13 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
-                              const signedUrl = await getSignedUrl({
+                              const signedFile = await getSignedFile({
                                 stepId: group.stepId,
                                 source: group.source,
                                 fileIndex: idx,
                               });
-                              if (!signedUrl) return;
-                              const res = await fetch(signedUrl);
+                              if (!signedFile) return;
+                              const res = await fetch(signedFile.signed_url);
                               if (!res.ok) return;
                               const blob = await res.blob();
                               const a = document.createElement('a');
@@ -551,12 +554,12 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                         <div
                           className="flex items-center gap-2 bg-white/60 rounded-lg px-3 py-2 cursor-pointer hover:bg-white transition-colors"
                           onClick={async () => {
-                            const signedUrl = await getSignedUrl({
+                            const signedFile = await getSignedFile({
                               stepId: record.step_id,
                               source: "signed_pdf",
                             });
-                            if (signedUrl) setPreviewFile({
-                              url: signedUrl,
+                            if (signedFile) setPreviewFile({
+                              url: signedFile.signed_url,
                               label: record.step_title || "טופס חתום",
                               extension: "pdf",
                             });
@@ -568,11 +571,11 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
-                              const signedUrl = await getSignedUrl({
+                              const signedFile = await getSignedFile({
                                 stepId: record.step_id,
                                 source: "signed_pdf",
                               });
-                              if (signedUrl) window.open(signedUrl, '_blank');
+                              if (signedFile) window.open(signedFile.signed_url, '_blank');
                             }}
                             className="text-primary hover:text-primary/80"
                             title="פתיחה"
@@ -582,12 +585,12 @@ export default function ClientRow({ client, submission, allSubmissions = [], sta
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
-                              const signedUrl = await getSignedUrl({
+                              const signedFile = await getSignedFile({
                                 stepId: record.step_id,
                                 source: "signed_pdf",
                               });
-                              if (!signedUrl) return;
-                              const res = await fetch(signedUrl);
+                              if (!signedFile) return;
+                              const res = await fetch(signedFile.signed_url);
                               if (!res.ok) return;
                               const blob = await res.blob();
                               const a = document.createElement('a');

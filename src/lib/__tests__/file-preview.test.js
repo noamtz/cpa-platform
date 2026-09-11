@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getFileExtension } from "../file-preview";
+import { getContentTypeExtension, getFileExtension } from "../file-preview";
 
 describe("file preview type detection", () => {
   it("uses the original file name before an extensionless signed legacy URL", () => {
@@ -21,5 +21,10 @@ describe("file preview type detection", () => {
     expect(getFileExtension(
       "https://files.example.com/legacy/f75d97ff?signature=test",
     )).toBe("file");
+  });
+
+  it("uses the authorized response content type for extensionless old records", () => {
+    expect(getContentTypeExtension("application/pdf")).toBe("pdf");
+    expect(getContentTypeExtension("image/jpeg")).toBe("jpg");
   });
 });
