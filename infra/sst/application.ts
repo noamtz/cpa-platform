@@ -158,6 +158,10 @@ export function createApplication(
         ],
       },
       {
+        actions: [...zipWorkerContract.permissions.temporaryBucketActions],
+        resources: [storage.buckets.TemporaryOutputsBucket.arn],
+      },
+      {
         actions: [...zipWorkerContract.permissions.journalActions],
         resources: [storage.tables.ChangeJournalTable.arn],
       },

@@ -55,7 +55,45 @@ interface LeaseHandle {
 class InvalidZipJobError extends Error {}
 class SourceUnavailableError extends Error {}
 class LeaseLostError extends Error {}
-class ZipWorkerRetryError extends Error {}
+class ZipWorkerRetryError extends Error {
+  constructor(
+    readonly stage = "unknown",
+    readonly providerError?: unknown,
+  ) {
+    super("ZIP worker retry required");
+    this.name = "ZipWorkerRetryError";
+  }
+}
+
+function retryDiagnostics(error: unknown) {
+  const retry = error instanceof ZipWorkerRetryError ? error : undefined;
+  const provider = retry?.providerError ?? error;
+  if (!provider || typeof provider !== "object") {
+    return { stage: retry?.stage ?? "unknown" };
+  }
+  const candidate = provider as {
+    name?: unknown;
+    Code?: unknown;
+    code?: unknown;
+    $metadata?: { httpStatusCode?: unknown; requestId?: unknown };
+  };
+  const providerCode = candidate.Code ?? candidate.code;
+  return {
+    stage: retry?.stage ?? "unknown",
+    ...(typeof candidate.name === "string"
+      ? { providerErrorName: candidate.name.slice(0, 80) }
+      : {}),
+    ...(typeof providerCode === "string"
+      ? { providerCode: providerCode.slice(0, 80) }
+      : {}),
+    ...(typeof candidate.$metadata?.httpStatusCode === "number"
+      ? { providerHttpStatus: candidate.$metadata.httpStatusCode }
+      : {}),
+    ...(typeof candidate.$metadata?.requestId === "string"
+      ? { providerRequestId: candidate.$metadata.requestId.slice(0, 128) }
+      : {}),
+  };
+}
 
 export function isZipSourceReadable(
   sourceKey: string,
@@ -128,7 +166,7 @@ async function optionalStatus(options: ZipWorkerOptions, jobId: string) {
     ).terminal_status;
   } catch (error) {
     if (isMissingObject(error)) return undefined;
-    throw new ZipWorkerRetryError();
+    throw new ZipWorkerRetryError("read_initial_lease", error);
   }
 }
 
@@ -157,7 +195,7 @@ async function putLease(
       ...condition,
     }),
   )) as PutResult;
-  if (!result.ETag) throw new ZipWorkerRetryError();
+  if (!result.ETag) throw new ZipWorkerRetryError("write_lease_missing_etag");
   return { record, etag: result.ETag };
 }
 
@@ -173,7 +211,7 @@ async function acquireProcessingLease(
   } catch (error) {
     if (!isConditionalConflict(error)) {
       if (error instanceof ZipWorkerRetryError) throw error;
-      throw new ZipWorkerRetryError();
+      throw new ZipWorkerRetryError("create_initial_lease", error);
     }
   }
 
@@ -187,16 +225,16 @@ async function acquireProcessingLease(
     )) as ObjectBody;
   } catch (error) {
     if (isMissingObject(error)) return undefined;
-    throw new ZipWorkerRetryError();
+    throw new ZipWorkerRetryError("read_existing_lease", error);
   }
-  if (!current.ETag) throw new ZipWorkerRetryError();
+  if (!current.ETag) throw new ZipWorkerRetryError("read_existing_lease_missing_etag");
   let existing: ZipProcessingLease;
   try {
     existing = zipProcessingLeaseSchema.parse(
       JSON.parse(await textBody(current)),
     );
   } catch {
-    throw new ZipWorkerRetryError();
+    throw new ZipWorkerRetryError("parse_existing_lease");
   }
   if (existing.terminal_status) return undefined;
   if (new Date(existing.expires_at).getTime() > clock().getTime()) {
@@ -207,7 +245,7 @@ async function acquireProcessingLease(
   } catch (error) {
     if (isConditionalConflict(error)) return undefined;
     if (error instanceof ZipWorkerRetryError) throw error;
-    throw new ZipWorkerRetryError();
+    throw new ZipWorkerRetryError("take_over_lease", error);
   }
 }
 
@@ -327,8 +365,8 @@ async function processJob(
         Key: requestKey,
       }),
     )) as ObjectBody;
-  } catch {
-    throw new ZipWorkerRetryError();
+  } catch (error) {
+    throw new ZipWorkerRetryError("read_request_manifest", error);
   }
   let manifest;
   try {
@@ -480,13 +518,14 @@ export function createZipDownloadHandler(options: ZipWorkerOptions) {
       );
       try {
         await processJob(options, requestKey, clock, ownerId);
-      } catch {
+      } catch (error) {
         console.error("AuditFlow ZIP job retry required", {
           jobId,
           failureClass: "worker_retry",
           message: "ZIP job did not reach a terminal state",
+          ...retryDiagnostics(error),
         });
-        throw new ZipWorkerRetryError("ZIP worker retry required");
+        throw new ZipWorkerRetryError();
       }
     }
   };

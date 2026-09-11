@@ -410,6 +410,8 @@ function verifyContract(contract, deploymentTargets, stage) {
           "s3:ListMultipartUploadParts",
           "s3:PutObject",
         ]) &&
+      JSON.stringify(contract.zipWorker.permissions.temporaryBucketActions) ===
+        JSON.stringify(["s3:ListBucket"]) &&
       contract.zipWorker.permissions.temporaryPrefix === "zip-jobs/*" &&
       zipNotificationContract.bucketLogicalName === "TemporaryOutputsBucket" &&
       JSON.stringify(zipNotificationContract.events) ===

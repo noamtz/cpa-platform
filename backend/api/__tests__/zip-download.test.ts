@@ -206,6 +206,40 @@ describe("ZIP worker", () => {
     expect(createUpload).not.toHaveBeenCalled();
   });
 
+  it("logs only bounded provider metadata when the initial lease read is denied", async () => {
+    const send = vi.fn().mockRejectedValue(
+      Object.assign(new Error("secret object path and token"), {
+        name: "AccessDenied",
+        Code: "AccessDenied",
+        $metadata: { httpStatusCode: 403, requestId: "request-safe" },
+      }),
+    );
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const handler = createZipDownloadHandler({
+      s3: { send },
+      filesBucketName: "FilesBucket.test",
+      temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
+      legacyFileReadsEnabled: true,
+      createUpload: vi.fn(),
+      clock: () => new Date(now),
+    });
+
+    await expect(handler(event())).rejects.toThrow("ZIP worker retry required");
+    expect(error).toHaveBeenCalledWith(
+      "AuditFlow ZIP job retry required",
+      expect.objectContaining({
+        jobId,
+        stage: "read_initial_lease",
+        providerErrorName: "AccessDenied",
+        providerCode: "AccessDenied",
+        providerHttpStatus: 403,
+        providerRequestId: "request-safe",
+      }),
+    );
+    expect(JSON.stringify(error.mock.calls)).not.toContain("secret object path");
+    error.mockRestore();
+  });
+
   it("streams every source into a complete multipart-uploaded archive", async () => {
     const leases = createLeaseStore();
     const send = vi.fn(async (command: unknown) => {
