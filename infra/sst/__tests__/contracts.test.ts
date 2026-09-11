@@ -210,9 +210,11 @@ describe("foundation resource contract", () => {
       "utf8",
     );
     expect(zipWorkerContract.permissions.journalActions).toEqual([
+      "dynamodb:ConditionCheckItem",
       "dynamodb:GetItem",
       "dynamodb:Query",
       "dynamodb:TransactWriteItems",
+      "dynamodb:UpdateItem",
     ]);
     expect(applicationSource).toContain(
       "CHANGE_JOURNAL_TABLE_NAME: storage.tables.ChangeJournalTable.name",

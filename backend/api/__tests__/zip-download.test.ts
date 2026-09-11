@@ -206,6 +206,59 @@ describe("ZIP worker", () => {
     expect(createUpload).not.toHaveBeenCalled();
   });
 
+  it("settles an active maintenance intent when retrying a terminal job", async () => {
+    const send = vi.fn().mockResolvedValue(
+      textObject({
+        version: 1,
+        job_id: jobId,
+        owner_id: firstOwnerId,
+        expires_at: "2026-01-01T00:01:00.000Z",
+        terminal_status: {
+          version: 1,
+          job_id: jobId,
+          state: "ready",
+          result_key: `zip-jobs/results/${jobId}/${firstOwnerId}.zip`,
+          completed_at: now,
+        },
+      }),
+    );
+    const intent = {
+      scope: "EXTERNAL_ACTIVITY",
+      sequence: "a".repeat(64),
+      item_type: "EXTERNAL_ACTIVITY_INTENT",
+      activity_type: "ZIP_JOB",
+      status: "ACTIVE",
+      generation: 1,
+      operation_id: "zip-test",
+      created_at: now,
+      updated_at: now,
+    } as const;
+    const getExternalActivity = vi.fn().mockResolvedValue(intent);
+    const resolveExternalActivity = vi.fn().mockResolvedValue(undefined);
+    const createUpload = vi.fn();
+    const handler = createZipDownloadHandler({
+      s3: { send },
+      filesBucketName: "FilesBucket.test",
+      temporaryOutputsBucketName: "TemporaryOutputsBucket.test",
+      legacyFileReadsEnabled: true,
+      maintenance: {
+        getExternalActivity,
+        resolveExternalActivity,
+      } as never,
+      createUpload,
+      clock: () => new Date(now),
+    });
+
+    await handler(event());
+
+    expect(getExternalActivity).toHaveBeenCalledOnce();
+    expect(getExternalActivity).toHaveBeenCalledWith(`zip-job:${jobId}`);
+    expect(resolveExternalActivity).toHaveBeenCalledOnce();
+    expect(resolveExternalActivity).toHaveBeenCalledWith(intent);
+    expect(send).toHaveBeenCalledOnce();
+    expect(createUpload).not.toHaveBeenCalled();
+  });
+
   it("logs only bounded provider metadata when the initial lease read is denied", async () => {
     const send = vi.fn().mockRejectedValue(
       Object.assign(new Error("secret object path and token"), {
