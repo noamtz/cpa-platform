@@ -81,14 +81,14 @@ describe("private file cutover resolver", () => {
     ).toEqual({ enabled: "false", manifestSha256: "" });
   });
 
-  it("binds a test enablement to fresh stage-matched evidence", () => {
+  it("binds a test enablement to verified stage-matched evidence after the initial cutover window", () => {
     expect(
       resolvePrivateFileCutover({
         stage: "test",
         requested: "true",
         expectedManifestSha256: manifestSha256,
         repositoryRoot: evidenceRoot(),
-        now,
+        now: now + 10 * 24 * 60 * 60 * 1_000,
       }),
     ).toEqual({ enabled: "true", manifestSha256 });
   });

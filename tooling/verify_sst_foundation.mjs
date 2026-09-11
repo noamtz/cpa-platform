@@ -842,17 +842,13 @@ function verifyProductionBudget(contract, accountId, rate, rateDate, rateSource)
   });
 }
 
-async function verifyLive(
-  contract,
-  deploymentTargets,
+export function resolveLegacyFileReadManifest({
   stage,
-  outputsPath,
   legacyFileReads = "disabled",
   evidencePath,
-  budgetRate,
-  budgetRateDate,
-  budgetRateSource,
-) {
+  root = repositoryRoot,
+  now,
+}) {
   assert(
     legacyFileReads === "disabled" || legacyFileReads === "enabled",
     "Legacy file-read expectation must be enabled or disabled.",
@@ -870,11 +866,32 @@ async function verifyLive(
     const evidence = checkPrivateFileCutover({
       stage,
       evidencePath,
-      root: repositoryRoot,
+      root,
+      requireFresh: false,
+      ...(now === undefined ? {} : { now }),
     });
     assert(evidence.ready, `Legacy file evidence is not ready (${evidence.reason}).`);
     expectedLegacyManifestSha256 = evidence.sourceManifestSha256;
   }
+  return expectedLegacyManifestSha256;
+}
+
+async function verifyLive(
+  contract,
+  deploymentTargets,
+  stage,
+  outputsPath,
+  legacyFileReads = "disabled",
+  evidencePath,
+  budgetRate,
+  budgetRateDate,
+  budgetRateSource,
+) {
+  const expectedLegacyManifestSha256 = resolveLegacyFileReadManifest({
+    stage,
+    legacyFileReads,
+    evidencePath,
+  });
   const outputs = readJson(resolve(repositoryRoot, outputsPath));
   assert(outputs.stage === stage, `Deployment outputs are not for the ${stage} stage.`);
   for (const key of contract.outputKeys) {

@@ -142,7 +142,8 @@ First merge the reviewed aggregate evidence while ordinary deployment remains di
 With separate deployment authorization, dispatch `Deploy SST test` from `main` with
 `enable_legacy_file_reads=true` and the exact evidence `sourceManifestSha256`. The workflow validates the evidence and
 request before acquiring AWS credentials, previews the change, deploys both matching runtime values, and runs the
-enabled live verifier. Verify representative imported public-token questionnaire/file/PDF reads, CPA-authorized
+enabled live verifier. After the initial accepted cutover, evidence age alone does not block re-enabling the same exact
+manifest; missing, failed, or manifest-mismatched evidence still blocks. Verify representative imported public-token questionnaire/file/PDF reads, CPA-authorized
 file/template reads, and ZIP completion. Also prove invalid token, cross-client ownership, unresolved reference,
 arbitrary reference, and missing object paths return the existing 404 behavior without a signed URL or ZIP job. Record
 only aggregate outcomes.
