@@ -8,6 +8,7 @@ import {
   checkPrivateFileCutover,
   validatePrivateFileCutoverEvidence,
 } from "../../../tooling/verify_private_file_cutover.mjs";
+import { resolveLegacyFileReadManifest } from "../../../tooling/verify_sst_foundation.mjs";
 
 const temporaryRoots = [];
 
@@ -135,5 +136,30 @@ describe("private-file legacy-read enablement gate", () => {
       referenceCount: 687,
       referenceObjectCount: 687,
     });
+  });
+
+  it("accepts aged verified evidence when checking an enabled test deployment", () => {
+    const root = mkdtempSync(join(tmpdir(), "auditflow-cutover-"));
+    temporaryRoots.push(root);
+    const evidencePath = "private-file-import-verification.json";
+    writeFileSync(
+      join(root, evidencePath),
+      JSON.stringify(validEvidence()),
+      "utf8",
+    );
+
+    expect(resolveLegacyFileReadManifest({
+      stage: "test",
+      legacyFileReads: "enabled",
+      evidencePath,
+      root,
+      now: Date.parse("2026-09-16T00:00:00.000Z"),
+    })).toBe("a".repeat(64));
+    expect(() => resolveLegacyFileReadManifest({
+      stage: "production",
+      legacyFileReads: "enabled",
+      evidencePath,
+      root,
+    })).toThrow("Production legacy file reads must remain disabled.");
   });
 });
