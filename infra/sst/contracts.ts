@@ -506,6 +506,7 @@ export const zipWorkerContract = {
       "s3:ListMultipartUploadParts",
       "s3:PutObject",
     ] as const,
+    temporaryBucketActions: ["s3:ListBucket"] as const,
     temporaryPrefix: "zip-jobs/*",
   },
   notification: {

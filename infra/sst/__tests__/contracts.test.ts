@@ -220,6 +220,12 @@ describe("foundation resource contract", () => {
     expect(applicationSource).toContain(
       "resources: [storage.tables.ChangeJournalTable.arn]",
     );
+    expect(zipWorkerContract.permissions.temporaryBucketActions).toEqual([
+      "s3:ListBucket",
+    ]);
+    expect(applicationSource).toContain(
+      "resources: [storage.buckets.TemporaryOutputsBucket.arn]",
+    );
   });
 
   it("pins the same-origin and authorization boundary", () => {
