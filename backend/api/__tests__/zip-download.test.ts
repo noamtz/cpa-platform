@@ -251,7 +251,9 @@ describe("ZIP worker", () => {
 
     await handler(event());
 
+    expect(getExternalActivity).toHaveBeenCalledOnce();
     expect(getExternalActivity).toHaveBeenCalledWith(`zip-job:${jobId}`);
+    expect(resolveExternalActivity).toHaveBeenCalledOnce();
     expect(resolveExternalActivity).toHaveBeenCalledWith(intent);
     expect(send).toHaveBeenCalledOnce();
     expect(createUpload).not.toHaveBeenCalled();
