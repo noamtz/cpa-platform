@@ -439,11 +439,11 @@ export class ChangeJournalService {
           } catch (retryCaught) {
             const retryError = retryCaught as TransactionFailure;
             if (isConditionalConflict(retryError)) throw conflict();
-            throw internalError();
+            throw internalError(retryError);
           }
         }
         if (isConditionalConflict(error)) throw conflict();
-        throw internalError();
+        throw internalError(error);
       }
     }
     throw conflict();

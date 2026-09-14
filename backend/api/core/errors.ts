@@ -6,8 +6,9 @@ export class ApiError extends Error {
     readonly publicMessage: string,
     readonly code?: string,
     readonly details?: Readonly<Record<string, unknown>>,
+    options?: ErrorOptions,
   ) {
-    super(publicMessage);
+    super(publicMessage, options);
     this.name = "ApiError";
   }
 }
@@ -32,8 +33,14 @@ export function conflict(message = "Conflict") {
   return new ApiError(409, message);
 }
 
-export function internalError() {
-  return new ApiError(500, "Internal server error");
+export function internalError(cause?: unknown) {
+  return new ApiError(
+    500,
+    "Internal server error",
+    undefined,
+    undefined,
+    cause === undefined ? undefined : { cause },
+  );
 }
 
 export function maintenanceInProgress() {
@@ -43,5 +50,5 @@ export function maintenanceInProgress() {
 export function normalizeApiError(error: unknown): ApiError {
   if (error instanceof ApiError) return error;
   if (error instanceof ZodError) return badRequest();
-  return internalError();
+  return internalError(error);
 }

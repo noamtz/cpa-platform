@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Opportunity Scan — Live API skill routing</title>
+  <style>
+    :root { color-scheme: light; --ink:#19211e; --muted:#66716b; --paper:#f4f1e9; --card:#fffdf8; --line:#d9d4c7; --green:#176b52; --soft:#e2f0ea; --amber:#9b5b18; --amber-soft:#f8ead8; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:radial-gradient(circle at 8% 0%,rgba(23,107,82,.1),transparent 30rem),var(--paper); color:var(--ink); font:16px/1.55 Inter,system-ui,sans-serif; }
+    main { width:min(980px,calc(100% - 32px)); margin:36px auto 64px; }
+    header { padding:42px; border-radius:22px; background:var(--ink); color:white; }
+    h1 { margin:0; font-size:clamp(2rem,5vw,3.8rem); line-height:1.05; letter-spacing:-.04em; }
+    header p { max-width:760px; margin:18px 0 0; color:#d5ded9; font-size:1.1rem; }
+    section { margin-top:34px; }
+    h2 { margin:0 0 14px; font-size:1.65rem; }
+    .callout { padding:20px 22px; border-left:5px solid var(--green); border-radius:12px; background:var(--soft); }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:15px; }
+    .card { padding:22px; border:1px solid var(--line); border-radius:15px; background:var(--card); }
+    .rank { display:inline-grid; place-items:center; width:28px; height:28px; margin-right:8px; border-radius:8px; background:var(--ink); color:white; font-weight:800; }
+    .tag { display:inline-block; margin-top:10px; padding:4px 9px; border-radius:999px; background:var(--amber-soft); color:var(--amber); font-size:.76rem; font-weight:800; text-transform:uppercase; }
+    code { padding:.12rem .34rem; border-radius:5px; background:#ebe7dc; font:.9em ui-monospace,Consolas,monospace; }
+    pre { overflow:auto; padding:18px; border-radius:12px; background:#202925; color:#e9f0ed; white-space:pre-wrap; }
+    table { width:100%; border-collapse:collapse; background:var(--card); }
+    th,td { padding:13px 15px; border:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { background:#ebe7dc; }
+    .muted { color:var(--muted); }
+    @media(max-width:720px){ header{padding:28px}.grid{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Resolve the skill collision at the routing surface.</h1>
+    <p>A supplied AuditFlow test-stage API 404 was incorrectly treated as a browser-testing task. The missing capability was not diagnosis; it was precise selection between two overlapping skills.</p>
+  </header>
+
+  <section class="callout">
+    <strong>Smallest durable fix:</strong> broaden <code>auditflow-live-incident</code> from only “5xx/403” to unexpected deployed API failures including 404/missing-file responses, and explicitly exclude already-captured API failures from <code>agent-browser</code>. Then encode one routing example as a regression case.
+  </section>
+
+  <section>
+    <h2>What happened</h2>
+    <table>
+      <tr><th>Signal</th><th>How it was interpreted</th><th>Correct interpretation</th></tr>
+      <tr><td>“manual test” + CloudFront URL</td><td>Matched the broad browser skill’s testing and bug-hunt language.</td><td>Context only; it does not itself require browser interaction.</td></tr>
+      <tr><td>Direct <code>/api/.../getTemplateFileUrl</code> endpoint and <code>{"error":"File not found"}</code></td><td>Underweighted.</td><td>Strong boundary signal: begin with route, storage reference, test-stage data, and correlated logs.</td></tr>
+      <tr><td>Existing incident skill</td><td>Did not match because its description names only 5xx/403.</td><td>The workflow already fits; its positive trigger is too narrow.</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Recommended changes</h2>
+    <div class="grid">
+      <article class="card"><h3><span class="rank">1</span>Broaden the incident trigger</h3><span class="tag">Skill metadata</span><p>Cover unexpected test-stage 4xx/5xx responses, missing records/files, and failures reported during manual testing. The description is the primary discovery surface.</p></article>
+      <article class="card"><h3><span class="rank">2</span>Add a browser negative trigger</h3><span class="tag">Skill metadata</span><p>State that a URL, the phrase “manual test,” or a known API response is not enough. Use browser automation only when navigation, interaction, DOM state, network capture, or visual reproduction is actually needed.</p></article>
+      <article class="card"><h3><span class="rank">3</span>Add a fast-path gate</h3><span class="tag">Skill procedure</span><p>When status, response body, and failing endpoint are already supplied, skip browser reproduction and start with the narrow backend evidence path. Browser escalation remains available if the UI is needed to reproduce or correlate the request.</p></article>
+      <article class="card"><h3><span class="rank">4</span>Keep a trigger regression matrix</h3><span class="tag">Validation</span><p>Record representative prompts with expected and excluded skills. This catches semantic overlap that structural skill validation cannot detect.</p></article>
+    </div>
+  </section>
+
+  <section>
+    <h2>Proposed routing language</h2>
+    <pre>auditflow-live-incident:
+Use for AuditFlow test-stage deployed failures, including unexpected 4xx/5xx responses,
+missing-record or missing-file errors, and failures reported during manual acceptance testing.
+When the endpoint, status, and response are already supplied, start from API/log/data evidence
+without browser reproduction. Do not use for production mutation, ordinary local debugging,
+broad release validation, or full E2E testing.
+
+agent-browser (negative trigger):
+Do not use solely because a report contains a URL, says “manual test,” or concerns a web app.
+For an already-captured API response that can be diagnosed from code, logs, configuration, or
+data, use the relevant incident/debugging workflow. Use browser automation when interactive or
+rendered browser state is evidence needed to reproduce or verify the failure.</pre>
+  </section>
+
+  <section>
+    <h2>Regression cases</h2>
+    <table>
+      <tr><th>Prompt shape</th><th>Expected</th><th>Excluded</th></tr>
+      <tr><td>Test CloudFront API URL + 404 JSON body + affected client/action</td><td><code>auditflow-live-incident</code></td><td><code>agent-browser</code></td></tr>
+      <tr><td>“Click Start signing and capture the failing network request”</td><td><code>agent-browser</code>, then incident workflow if needed</td><td>None</td></tr>
+      <tr><td>Local unit test fails in template service</td><td>Ordinary local debugging</td><td>Both live-incident and browser skills</td></tr>
+      <tr><td>Test API returns 500 with request ID</td><td><code>auditflow-live-incident</code></td><td>Broad E2E as first diagnostic step</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Primitive fit</h2>
+    <p><strong>Use skill descriptions and one skill-body gate.</strong> A hook cannot reliably infer user intent before skill selection. A subagent or MCP server would add machinery without fixing routing. Keep <code>AGENTS.md</code> lean unless this collision recurs after the descriptions are corrected.</p>
+    <p class="muted">Target: this conversation’s incorrect browser-skill selection. Sensitive client tokens were deliberately omitted. Existing uncommitted application work was not changed.</p>
+  </section>
+</main>
+</body>
+</html>
